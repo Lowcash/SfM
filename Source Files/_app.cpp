@@ -31,7 +31,6 @@ void featureTracking(cv::Mat img_1, cv::Mat img_2, std::vector<cv::Point2f>& poi
 
 }
 
-
 void featureDetection(cv::Mat img_1, std::vector<cv::Point2f>& points1)	{   //uses FAST as of now, modify parameters as necessary
   std::vector<cv::KeyPoint> keypoints_1;
   int fast_threshold = 20;

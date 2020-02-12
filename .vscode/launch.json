@@ -9,7 +9,7 @@
             "type": "cppdbg","windows": {},
             "request": "launch",
             "program": "${workspaceFolder}/SfM_App.out",
-            "args": ["-calibCam=Resource Files/mobile_cam_calib_1.yml", "-source=Resource Files/vid_6.mp4", "-offFrames=4", "-minAbsSc=2", "-sfOffset=0", "-numKeyPts=1500", "-visDebug=true"],
+            "args": ["-calibCam=/home/lowcash/Documents/SfM_Resources/Calibration/mobile_cam_calib_1.yml", "-source=/home/lowcash/Documents/SfM_Resources/Video/vid_6.mp4", "-offFrames=4", "-minAbsSc=2", "-sfOffset=0", "-numKeyPts=1500", "-visDebug=true"],
             //"args": ["-calibCam=Resource Files/mobile_cam_calib_1.yml", "-source=Resource Files/00/image_0/00", "-offFrames=4", "-minAbsSc=30", "-sfOffset=0", "-numKeyPts=1500", "-visDebug=true"],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
