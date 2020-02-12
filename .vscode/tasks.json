@@ -1,0 +1,29 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "build",
+            "type": "shell",
+            "command": "g++",
+            "args": [
+                "-g", "Source Files/_app.cpp",
+                "-g", "Source Files/visualization.cpp",
+                "-o", "${workspaceFolder}/SfM_App.out",
+                "-I", "/usr/local/include/opencv4",
+                "-I", "/usr/local/include/ceres",
+                "-I", "${workspaceFolder}/Header Files",
+                "-I", "${workspaceFolder}/Resource Files",
+                "-I", "${workspaceFolder}/Source Files",
+                "-L", "/usr/local/lib /usr/local/lib/*.so /usr/local/lib/*.so.*",
+                "-L", "/usr/lib/x86_64-linux-gnu /usr/lib/x86_64-linux-gnu*.so /usr/lib/x86_64-linux-gnu*.so.*",
+                "-lopencv_core", "-lopencv_imgproc", "-lopencv_imgcodecs", "-lopencv_highgui", "-lopencv_calib3d", "-lopencv_videoio", "-lopencv_video","-lopencv_features2d", "-lopencv_xfeatures2d", "-lopencv_sfm", "-lopencv_viz", "-lpthread",
+                "-lboost_system", "-lboost_filesystem"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": "$gcc"
+        }
+    ]
+}

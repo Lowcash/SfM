@@ -1,0 +1,32 @@
+all files modified after clone{
+    "configurations": [
+        {
+            "name": "Linux",
+            "includePath": [             
+                "/usr/local/include/opencv4",
+                "/usr/local/lib/opencv4",
+                "${workspaceFolder}/**",
+                "${workspaceFolder}/Header Files",
+                "${workspaceFolder}/Resource Files",
+                "${workspaceFolder}/Source Files"
+            ],
+            "browse": {
+                "path": [
+                    "${workspaceFolder}/**"
+                ],
+                "limitSymbolsToIncludedHeaders": true,
+                "databaseFilename": ""
+            },
+            "defines": [
+                "_DEBUG",
+                "UNICODE",
+                "_UNICODE"
+            ],
+            "compilerPath": "/usr/bin/gcc",
+            "cStandard": "c11",
+            "cppStandard": "c++20",
+            "intelliSenseMode": "clang-x64"
+        }
+    ],
+    "version": 4
+}

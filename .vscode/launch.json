@@ -1,0 +1,31 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "SfM_App",
+            "type": "cppdbg","windows": {},
+            "request": "launch",
+            "program": "${workspaceFolder}/SfM_App.out",
+            "args": ["-calibCam=Resource Files/mobile_cam_calib_1.yml", "-source=Resource Files/vid_6.mp4", "-offFrames=4", "-minAbsSc=2", "-sfOffset=0", "-numKeyPts=1500", "-visDebug=true"],
+            //"args": ["-calibCam=Resource Files/mobile_cam_calib_1.yml", "-source=Resource Files/00/image_0/00", "-offFrames=4", "-minAbsSc=30", "-sfOffset=0", "-numKeyPts=1500", "-visDebug=true"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "linux": {
+                "MIMode": "gdb",
+                "includePath": ["/usr/include"],
+                "setupCommands": [
+                  {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                  }
+                ]
+            },
+        }
+    ]
+}
