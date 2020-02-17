@@ -32,27 +32,19 @@ void featureTracking(cv::Mat img_1, cv::Mat img_2, std::vector<cv::Point2f>& poi
 }
 
 void featureDetection(cv::Mat img_1, std::vector<cv::Point2f>& points1)	{   //uses FAST as of now, modify parameters as necessary
-  std::vector<cv::KeyPoint> keypoints_1;
-  int fast_threshold = 20;
-  bool nonmaxSuppression = true;
-  cv::FAST(img_1, keypoints_1, fast_threshold, nonmaxSuppression);
-  cv::KeyPoint::convert(keypoints_1, points1, std::vector<int>());
+    // std::vector<cv::KeyPoint> keypoints_1;
+    // int fast_threshold = 20;
+    // bool nonmaxSuppression = true;
+    // cv::FAST(img_1, keypoints_1, fast_threshold, nonmaxSuppression);
+    // cv::KeyPoint::convert(keypoints_1, points1, std::vector<int>());
+
+    cv::goodFeaturesToTrack(img_1, points1, 1500, 0.01, 25);
 }
-
-// float getAbsoluteScale(std::vector<cv::Point2f> prevPts, std::vector<cv::Point2f> currPts) {
-//     float sumScale = 0;
-
-//     for (int i = 0; i < prevPts.size() && i < currPts.size(); ++i) {
-//         sumScale += sqrt(pow((currPts[i].x - prevPts[i].x),2) + pow((currPts[i].y - prevPts[i].y),2));
-//     }
-
-//     return sumScale / prevPts.size();
-// }
 
 double getAbsoluteScale(int frame_id, int sequence_id, double z_cal) {
     std::string line;
     int i = 0;
-    std::ifstream myfile ("/home/lowcash/Documents/SfM_Flow/Resource Files/00/times.txt");
+    std::ifstream myfile ("/home/lowcash/Documents/SfM_Resources/Time/times.txt");
     double x =0, y=0, z = 0;
     double x_prev, y_prev, z_prev;
     if (myfile.is_open()) {
@@ -90,7 +82,8 @@ int main(int argc, char** argv) {
 		"{source   | .     | source video file [.mp4, .avi ...] }"
         "{numKeyPts| 0     | number of detector used key points/descriptors }"
         "{offFrames| 0     | number of offset frames used for reconstruction }"
-        "{minAbsSc | 10     | minimal absolute scale }"
+        "{minAbsSc | 10    | minimal absolute scale }"
+        "{maxMaDiff| 0.5   | maximal magnitude diff }"
         "{visDebug | false | enable debug visualization }"
     );
 
@@ -104,6 +97,7 @@ int main(int argc, char** argv) {
     const int numOfUsedDescriptors = parser.get<int>("numKeyPts");
     const int numOfUsedOffsetFrames = parser.get<int>("offFrames");
     const int minAbsoluteScale = parser.get<int>("minAbsSc");
+    const float maxMagnitudeDiff = parser.get<float>("maxMaDiff");
     const bool isDebugVisualization = parser.get<bool>("visDebug");
 
     std::cout << "Camera intrices read...";
@@ -113,7 +107,7 @@ int main(int argc, char** argv) {
     cv::FileNode fnTime = fs.root();
     std::string time = fnTime["calibration_time"];
 
-    cv::Size imageWidth = cv::Size((int)fs["image_width"], (int)fs["image_height"]);
+    cv::Size camSize = cv::Size((int)fs["image_width"], (int)fs["image_height"]);
 
     cv::Mat cameraK; fs["camera_matrix"] >> cameraK;
     cv::Mat distCoeffs; fs["distortion_coefficients"] >> distCoeffs;
@@ -128,12 +122,6 @@ int main(int argc, char** argv) {
     cv::Mat img_1, img_2, img_1_c, img_2_c;
     cv::Mat R_f, t_f; //the final rotation and tranlation vectors containing the 
     double scale = 1.00;
-
-    char text[100];
-    int fontFace = cv::FONT_HERSHEY_PLAIN;
-    double fontScale = 1;
-    int thickness = 1;  
-    cv::Point textOrg(10, 50);
 
     // img_1_c = cv::imread(videoPath + "0000.png");
     // img_2_c = cv::imread(videoPath + "0001.png");
@@ -151,29 +139,55 @@ int main(int argc, char** argv) {
     }
 
     cap >> img_1_c;
-    cap >> img_2_c;
+
+    for(int i = 0; i < numOfUsedOffsetFrames; ++i) {
+        cap >> img_2_c;
+    }
 
     cv::cvtColor(img_1_c, img_1, cv::COLOR_BGR2GRAY);
     cv::cvtColor(img_2_c, img_2, cv::COLOR_BGR2GRAY);
 
-    // feature detection, tracking
-    std::vector<cv::Point2f> points1, points2;        //vectors to store the coordinates of the feature points
-    featureDetection(img_1, points1);        //detect features in img_1
+    std::vector<cv::Point2f> points1, points2;
+    featureDetection(img_1, points1); 
     std::vector<uchar> status;
-    featureTracking(img_1,img_2,points1,points2, status); //track those features to img_2
+    featureTracking(img_1, img_2, points1, points2, status);
 
-    //TODO: add a fucntion to load these values directly from KITTI's calib files
-    // WARNING: different sequences in the KITTI VO dataset have different intrinsic/extrinsic parameters
-    //double focal = 718.8560;
+    //double focal = 567.7815;
+    cv::Point2d pp(img_1_c.cols / 2, img_1_c.rows / 2);
+    double focal = 718.8560;
     //cv::Point2d pp(607.1928, 185.2157);
-    double focal = 567.7815;
-    cv::Point2d pp(1614.4588, 1002.8441);
-    //recovering the pose and the essential matrix
-    cv::Mat E, R, t, mask;
-    E = findEssentialMat(points2, points1, focal, pp, cv::RANSAC, 0.999, 1.0, mask);
-    recoverPose(E, points2, points1, R, t, focal, pp, mask);
+    //double focal = 567.7815;
+    //cv::Point2d pp(1614.4588, 1002.8441);
 
-    prevVelocity = cv::Vec3d(t.at<double>(0), t.at<double>(1), t.at<double>(2));
+    cv::Mat E, R, t, mask;
+    E = cv::findEssentialMat(points1, points2, focal, pp, cv::RANSAC, 0.999, 1.0, mask);
+    cv::recoverPose(E, points1, points2, R, t, focal, pp, mask);
+    cv::Mat pose = img_1_c.clone();
+    cv::Mat keyPt = img_1_c.clone();
+
+    for (int i = 0; i < mask.rows; ++i) {
+        cv::Point2f direction = points1[i] - points2[i];
+
+        direction *= 3;
+
+        if(mask.at<unsigned char>(i)) {
+            cv::arrowedLine(pose, (cv::Point2i)points1[i], (cv::Point2i)(points1[i] + direction), CV_RGB(0, 222, 0), 1, 8);
+
+            cv::circle(keyPt, points1[i], 3, CV_RGB(0, 255, 0), cv::FILLED);
+        } else {
+            cv::arrowedLine(pose, (cv::Point2i)points1[i], (cv::Point2i)(points1[i] + direction), CV_RGB(222, 0, 0), 1, 8);
+
+            cv::circle(keyPt, points1[i], 3, CV_RGB(255, 0, 0), cv::FILLED);
+        }          
+    }
+    
+    cv::resize(pose, pose, cv::Size(pose.cols / 2, pose.rows / 2));
+    cv::resize(keyPt, keyPt, cv::Size(keyPt.cols / 2, keyPt.rows / 2));
+
+    cv::imshow("Pose", pose);
+    cv::imshow("KeyPt", keyPt);
+
+    cv::waitKey(0);
 
     cv::Mat prevImage = img_2;
     cv::Mat currImage;
@@ -183,10 +197,7 @@ int main(int argc, char** argv) {
     R_f = R.clone();
     t_f = t.clone();
 
-    clock_t begin = clock();
-
-    cv::namedWindow( "Road facing camera", cv::WINDOW_AUTOSIZE );// Create a window for display.
-    cv::namedWindow( "Trajectory", cv::WINDOW_AUTOSIZE );// Create a window for display.
+    cv::namedWindow("Trajectory", cv::WINDOW_AUTOSIZE);
 
     cv::Mat traj = cv::Mat::zeros(600, 600, CV_8UC3);
 
@@ -198,73 +209,87 @@ int main(int argc, char** argv) {
 
         // cv::Mat currImage_c = cv::imread(videoPath + offset + std::to_string(numFrame) + ".png");
         cv::Mat currImage_c;
+
+        for(int i = 0; i < numOfUsedOffsetFrames; ++i) {
+            cap >> currImage_c;
+        }
+
         cap >> currImage_c;
 
         if(currImage_c.empty()) {
-            cap.set(cv::CAP_PROP_POS_FRAMES, 0);
+            //cap.set(cv::CAP_PROP_POS_FRAMES, 0);
 
             break;
         }
 
         if (currImage_c.empty()) { break; }
 
-        cvtColor(currImage_c, currImage, cv::COLOR_BGR2GRAY);
+        cv::cvtColor(currImage_c, currImage, cv::COLOR_BGR2GRAY);
         std::vector<uchar> status;
         featureTracking(prevImage, currImage, prevFeatures, currFeatures, status);
 
-        E = findEssentialMat(currFeatures, prevFeatures, focal, pp, cv::RANSAC, 0.999, 1.0, mask);
-        recoverPose(E, currFeatures, prevFeatures, R, t, focal, pp, mask);
+        E = cv::findEssentialMat(currFeatures, prevFeatures, focal, pp, cv::RANSAC, 0.999, 1.0, mask);
 
-        currVelocity = cv::Vec3d(t.at<double>(0), t.at<double>(1), t.at<double>(2));
+        size_t inliersCount = cv::recoverPose(E, currFeatures, prevFeatures, R, t, focal, pp, mask);
+
+        //std::cout << inliersCount << "\n";
+        //std::cout << R << "\n";
+        //std::cout << t << "\n";
+     
+        cv::Mat pose = currImage_c.clone();
+        cv::Mat keyPt = currImage_c.clone();
+
+        for (int i = 0; i < mask.rows; ++i) {
+            cv::Point2f direction = prevFeatures[i] - currFeatures[i];
+
+            direction *= 3;
+
+            if(mask.at<unsigned char>(i)) {
+                cv::arrowedLine(pose, (cv::Point2i)prevFeatures[i], (cv::Point2i)(prevFeatures[i] + direction), CV_RGB(0, 222, 0), 1, 8);
+
+                cv::circle(keyPt, prevFeatures[i], 3, CV_RGB(0, 255, 0), cv::FILLED);
+            } else {
+                cv::arrowedLine(pose, (cv::Point2i)prevFeatures[i], (cv::Point2i)(prevFeatures[i] + direction), CV_RGB(222, 0, 0), 1, 8);
+
+                cv::circle(keyPt, prevFeatures[i], 3, CV_RGB(255, 0, 0), cv::FILLED);
+            }          
+        }
 
         //scale = getAbsoluteScale(numFrame, 0, t.at<double>(2));
         scale = minAbsoluteScale;
 
         //if ((scale>0.1)&&(t.at<double>(2) > t.at<double>(0)) && (t.at<double>(2) > t.at<double>(1))) {
-        if ((t.at<double>(2) > t.at<double>(0)) && (t.at<double>(2) > t.at<double>(1))) {
+        //if(inliersCount > 50) {
             t_f = t_f + scale*(R_f*t);
             R_f = R*R_f;
-
-            std::cout << "Scale is " << scale << "\n";
-        }
-        else {
-            std::cout << "Incorrect scale is " << scale << "\n";
-        }
+        //}
         
-        // lines for printing results
-        // myfile << t_f.at<double>(0) << " " << t_f.at<double>(1) << " " << t_f.at<double>(2) << endl;
-
-        // a redetection is triggered in case the number of feautres being trakced go below a particular threshold
-        if (prevFeatures.size() < MIN_NUM_FEAT)	{
-            //cout << "Number of tracked features reduced to " << prevFeatures.size() << endl;
-            //cout << "trigerring redection" << endl;
+        if (prevFeatures.size() < numOfUsedDescriptors)	{
+            std::cout << "Redetect..." << "\n";
             featureDetection(prevImage, prevFeatures);
-            featureTracking(prevImage,currImage,prevFeatures,currFeatures, status);
+            featureTracking(prevImage, currImage, prevFeatures, currFeatures, status);
  	    }
 
         prevImage = currImage.clone();
         prevFeatures = currFeatures;
 
-        int x = int(t_f.at<double>(0)) + (traj.cols / 2);
-        int y = int(-t_f.at<double>(2)) + (traj.rows / 3 * 2);
-        cv::circle(traj, cv::Point(x, y) ,1, CV_RGB(255,0,0), 2);
+        const int x = int(t_f.at<double>(0)) + (traj.cols / 2);
+        const int y = int(t_f.at<double>(1)) + (traj.rows / 3 * 2);
+        cv::circle(traj, cv::Point(x, y), 1, CV_RGB(255, 0, 0), 2);
 
-        cv::rectangle( traj, cv::Point(10, 30), cv::Point(550, 50), CV_RGB(0,0,0), CV_FILLED);
-        sprintf(text, "Coordinates: x = %02fm y = %02fm z = %02fm", t_f.at<double>(0), t_f.at<double>(1), t_f.at<double>(2));
-        cv::putText(traj, text, textOrg, fontFace, fontScale, cv::Scalar::all(255), thickness, 8);
+        cv::rectangle(traj, cv::Point(10, 30), cv::Point(550, 50), CV_RGB(0, 0, 0), CV_FILLED);
+        char text[100]; sprintf(text, "Coordinates: x = %02fm y = %02fm z = %02fm", t_f.at<double>(0), t_f.at<double>(1), t_f.at<double>(2));
+        cv::putText(traj, text, cv::Point(10, 50), cv::FONT_HERSHEY_PLAIN, 1, cv::Scalar::all(255), 1, 8);
 
-        cv::imshow( "Road facing camera", currImage_c );
-        cv::imshow( "Trajectory", traj );
+        cv::resize(pose, pose, cv::Size(pose.cols / 2, pose.rows / 2));
+        cv::resize(keyPt, keyPt, cv::Size(keyPt.cols / 2, keyPt.rows / 2));
+
+        cv::imshow("Pose", pose);
+        cv::imshow("KeyPt", keyPt);
+        cv::imshow("Trajectory", traj);
 
         cv::waitKey(1);
 	}
-
-    clock_t end = clock();
-    double elapsed_secs = double(end - begin) / CLOCKS_PER_SEC;
-    std::cout << "Total time taken: " << elapsed_secs << "s" << std::endl;
-
-    //cout << R_f << endl;
-    //cout << t_f << endl;
 
     return 0;
 }
