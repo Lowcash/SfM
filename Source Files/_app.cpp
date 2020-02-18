@@ -1,80 +1,72 @@
 #include "pch.h"
 #include "camera.h"
 
-#define MAX_FRAME 1000
-#define MIN_NUM_FEAT 2000
+void featureTracking(cv::Mat lImg, cv::Mat rImg, std::vector<cv::Point2f>& lPoints, std::vector<cv::Point2f>& rPoints) { 	
+    cv::TermCriteria termcrit = cv::TermCriteria(cv::TermCriteria::COUNT + cv::TermCriteria::EPS, 30, 0.01);
 
-void featureTracking(cv::Mat img_1, cv::Mat img_2, std::vector<cv::Point2f>& points1, std::vector<cv::Point2f>& points2, std::vector<uchar>& status)	{ 
+    cv::Size winSize=cv::Size(21,21);
+    
+    std::vector<uchar> status;
+    std::vector<float> err;
+    cv::calcOpticalFlowPyrLK(lImg, rImg, lPoints, rPoints, status, err, winSize, 3, termcrit, 0, 0.001);
 
-//this function automatically gets rid of points for which tracking fails
+    int indexCorrection = 0;
+    for(int i = 0; i < status.size(); i++) {  
+        cv::Point2f pt = rPoints.at(i - indexCorrection);
 
-  std::vector<float> err;					
-  cv::Size winSize=cv::Size(21,21);																								
-  cv::TermCriteria termcrit=cv::TermCriteria(cv::TermCriteria::COUNT+cv::TermCriteria::EPS, 30, 0.01);
-
-  calcOpticalFlowPyrLK(img_1, img_2, points1, points2, status, err, winSize, 3, termcrit, 0, 0.001);
-
-  //getting rid of points for which the KLT tracking failed or those who have gone outside the frame
-  int indexCorrection = 0;
-  for( int i=0; i<status.size(); i++)
-     {  cv::Point2f pt = points2.at(i- indexCorrection);
-     	if ((status.at(i) == 0)||(pt.x<0)||(pt.y<0))	{
-     		  if((pt.x<0)||(pt.y<0))	{
-     		  	status.at(i) = 0;
-     		  }
-     		  points1.erase (points1.begin() + (i - indexCorrection));
-     		  points2.erase (points2.begin() + (i - indexCorrection));
-     		  indexCorrection++;
-     	}
-
-     }
-
-}
-
-void featureDetection(cv::Mat img_1, std::vector<cv::Point2f>& points1)	{   //uses FAST as of now, modify parameters as necessary
-    // std::vector<cv::KeyPoint> keypoints_1;
-    // int fast_threshold = 20;
-    // bool nonmaxSuppression = true;
-    // cv::FAST(img_1, keypoints_1, fast_threshold, nonmaxSuppression);
-    // cv::KeyPoint::convert(keypoints_1, points1, std::vector<int>());
-
-    cv::goodFeaturesToTrack(img_1, points1, 1500, 0.01, 25);
-}
-
-double getAbsoluteScale(int frame_id, int sequence_id, double z_cal) {
-    std::string line;
-    int i = 0;
-    std::ifstream myfile ("/home/lowcash/Documents/SfM_Resources/Time/times.txt");
-    double x =0, y=0, z = 0;
-    double x_prev, y_prev, z_prev;
-    if (myfile.is_open()) {
-
-        while (( getline (myfile,line) ) && (i<=frame_id)) {
-            z_prev = z;
-            x_prev = x;
-            y_prev = y;
-            std::istringstream in(line);
-            //cout << line << '\n';
-            for (int j=0; j<12; j++) {
-                in >> z ;
-                if (j==7) y=z;
-                if (j==3)  x=z;
-            }
-        
-            i++;
+        if ((status.at(i) == 0) || (pt.x < 0) || (pt.y < 0)) {
+            if((pt.x < 0) || (pt.y < 0))
+                status.at(i) = 0;
+            
+            lPoints.erase (lPoints.begin() + (i - indexCorrection));
+            rPoints.erase (rPoints.begin() + (i - indexCorrection));
+            indexCorrection++;
         }
-
-        myfile.close();
     }
-
-    else {
-        std::cout << "Unable to open file";
-        return 0;
-    }
-
-    return sqrt((x-x_prev)*(x-x_prev) + (y-y_prev)*(y-y_prev) + (z-z_prev)*(z-z_prev)) ;
 }
 
+void featureDetection(cv::Mat img, std::vector<cv::Point2f>& points)	{
+    std::vector<cv::KeyPoint> keyPts;
+
+    cv::FAST(img, keyPts, 20, true);
+    cv::KeyPoint::convert(keyPts, points, std::vector<int>());
+
+    //cv::goodFeaturesToTrack(img_1, points1, 1500, 0.01, 25);
+}
+
+void setImageTrajectory(cv::Mat& outTrajectory, cv::Mat translation) {
+    const int x = int(-translation.at<double>(0)) + (outTrajectory.cols / 2);
+    const int y = int(-translation.at<double>(1)) + (outTrajectory.rows / 3 * 2);
+    cv::circle(outTrajectory, cv::Point(x, y), 1, CV_RGB(255, 0, 0), 2);
+
+    cv::rectangle(outTrajectory, cv::Point(10, 30), cv::Point(550, 50), CV_RGB(0, 0, 0), CV_FILLED);
+    char text[100]; sprintf(text, "Coordinates: x = %.3fm y = %.3fm z = %.3fm", -translation.at<double>(0)*0.001, -translation.at<double>(1)*0.001, -translation.at<double>(2)*0.001);
+    cv::putText(outTrajectory, text, cv::Point(10, 50), cv::FONT_HERSHEY_PLAIN, 1, cv::Scalar::all(255), 1, 8);
+}
+
+void setMaskedDescriptors(cv::Mat& outArrows, cv::Mat& outKeyPts, cv::Mat mask, std::vector<cv::Point2f> lPoints, std::vector<cv::Point2f> rPoints) {
+    for (int i = 0; i < mask.rows; ++i) {
+        cv::Point2f direction = rPoints[i] - lPoints[i];
+
+        direction *= 3;
+
+        if(mask.at<unsigned char>(i)) {
+            cv::arrowedLine(outArrows, (cv::Point2i)lPoints[i], (cv::Point2i)(lPoints[i] + direction), CV_RGB(0, 222, 0), 1, 8);
+
+            cv::circle(outKeyPts, lPoints[i], 3, CV_RGB(0, 255, 0), cv::FILLED);
+        } else {
+            cv::arrowedLine(outArrows, (cv::Point2i)lPoints[i], (cv::Point2i)(lPoints[i] + direction), CV_RGB(222, 0, 0), 1, 8);
+
+            cv::circle(outKeyPts, lPoints[i], 3, CV_RGB(255, 0, 0), cv::FILLED);
+        }          
+    }
+}
+
+size_t getNumHomographyInliers(std::vector<cv::Point2f> prevFeatures, std::vector<cv::Point2f> currFeatures, double focal, cv::Point2d pp, cv::Mat& R, cv::Mat& t, cv::Mat& E, cv::Mat& mask) {
+    E = cv::findEssentialMat(prevFeatures, currFeatures, focal, pp, cv::RANSAC, 0.999, 1.0, mask);
+
+    return cv::recoverPose(E, prevFeatures, currFeatures, R, t, focal, pp, mask);
+}
 int main(int argc, char** argv) {
 	cv::CommandLineParser parser(argc, argv,
 		"{help h ? |       | help }"
@@ -82,7 +74,9 @@ int main(int argc, char** argv) {
 		"{source   | .     | source video file [.mp4, .avi ...] }"
         "{numKeyPts| 0     | number of detector used key points/descriptors }"
         "{offFrames| 0     | number of offset frames used for reconstruction }"
-        "{minAbsSc | 10    | minimal absolute scale }"
+        "{absScale | 1     | absolute scale }"
+        "{maxSkipFr| 1     | max skipped frames to use new }"
+        "{minInlier| 50    | minimal number of homography inliers user for reconstruction }"
         "{maxMaDiff| 0.5   | maximal magnitude diff }"
         "{visDebug | false | enable debug visualization }"
     );
@@ -96,7 +90,9 @@ int main(int argc, char** argv) {
     const std::string videoPath = parser.get<std::string>("source");
     const int numOfUsedDescriptors = parser.get<int>("numKeyPts");
     const int numOfUsedOffsetFrames = parser.get<int>("offFrames");
-    const int minAbsoluteScale = parser.get<int>("minAbsSc");
+    const float absoluteScale = parser.get<float>("absScale");
+    const float maxSkipFrames = parser.get<float>("maxSkipFr");
+    const int minNumHomographyInliers = parser.get<int>("minInlier");
     const float maxMagnitudeDiff = parser.get<float>("maxMaDiff");
     const bool isDebugVisualization = parser.get<bool>("visDebug");
 
@@ -112,174 +108,154 @@ int main(int argc, char** argv) {
     cv::Mat cameraK; fs["camera_matrix"] >> cameraK;
     cv::Mat distCoeffs; fs["distortion_coefficients"] >> distCoeffs;
 
+    cv::Point2d pp(cameraK.at<double>(0, 2), cameraK.at<double>(1, 2));
+    double focal = (cameraK.at<double>(0, 0) + cameraK.at<double>(1, 1)) / 2.0;
+
     std::cout << "[DONE]" << "\n";
     std::cout << "Creation time: " << time << "\n";
     std::cout << "-----------------------------------------" << "\n";
     std::cout << "Camera intrices: \n" << cameraK << "\n";
     std::cout << "Distortion coefficients: \n" << distCoeffs << "\n";
+    std::cout << "Principal point: " << pp << "\n";
+    std::cout << "Focal length: " << focal << "\n";
     std::cout << "-----------------------------------------" << "\n";
     
-    cv::Mat img_1, img_2, img_1_c, img_2_c;
-    cv::Mat R_f, t_f; //the final rotation and tranlation vectors containing the 
-    double scale = 1.00;
+    cv::Mat prevImgColor, currImgColor, prevImgGray, currImgGray;
+    cv::Mat R_f, t_f, R, t, E, mask;
+    std::vector<cv::Point2f> prevFeatures, currFeatures;
+    std::vector<cv::Affine3d> camPoses; cv::Affine3d camPose;
 
-    // img_1_c = cv::imread(videoPath + "0000.png");
-    // img_2_c = cv::imread(videoPath + "0001.png");
+    size_t numHomographyInliers;
+    int numSkippedFrames;
 
-    // if ( !img_1_c.data || !img_2_c.data ) { 
-    //     std::cout<< " --(!) Error reading images " << std::endl; return -1;
-    // }
-    
     cv::VideoCapture cap;
-    cv::Vec3d prevVelocity, currVelocity;
 
     if(!cap.open(videoPath)) {
         printf("Error opening video stream or file!!\n");
         exit(1);
     }
 
-    cap >> img_1_c;
+    cap >> prevImgColor;
 
-    for(int i = 0; i < numOfUsedOffsetFrames; ++i) {
-        cap >> img_2_c;
-    }
+    cv::cvtColor(prevImgColor, prevImgGray, cv::COLOR_BGR2GRAY);
+    
+    featureDetection(prevImgGray, prevFeatures); 
 
-    cv::cvtColor(img_1_c, img_1, cv::COLOR_BGR2GRAY);
-    cv::cvtColor(img_2_c, img_2, cv::COLOR_BGR2GRAY);
+    numSkippedFrames = -1;
+    do {
+        if (numSkippedFrames > maxSkipFrames) {
+            cv::swap(prevImgColor, currImgColor);
+            cv::swap(prevImgGray, currImgGray);
+            std::swap(prevFeatures, currFeatures);
 
-    std::vector<cv::Point2f> points1, points2;
-    featureDetection(img_1, points1); 
-    std::vector<uchar> status;
-    featureTracking(img_1, img_2, points1, points2, status);
+            numSkippedFrames = -1;
+        }
 
-    //double focal = 567.7815;
-    cv::Point2d pp(img_1_c.cols / 2, img_1_c.rows / 2);
-    double focal = 718.8560;
-    //cv::Point2d pp(607.1928, 185.2157);
-    //double focal = 567.7815;
-    //cv::Point2d pp(1614.4588, 1002.8441);
+        cap >> currImgColor;
 
-    cv::Mat E, R, t, mask;
-    E = cv::findEssentialMat(points1, points2, focal, pp, cv::RANSAC, 0.999, 1.0, mask);
-    cv::recoverPose(E, points1, points2, R, t, focal, pp, mask);
-    cv::Mat pose = img_1_c.clone();
-    cv::Mat keyPt = img_1_c.clone();
+        if (currImgColor.empty()) { exit(1); }
 
-    for (int i = 0; i < mask.rows; ++i) {
-        cv::Point2f direction = points1[i] - points2[i];
+        cv::cvtColor(currImgColor, currImgGray, cv::COLOR_BGR2GRAY);
 
-        direction *= 3;
+        featureTracking(prevImgGray, currImgGray, prevFeatures, currFeatures);
 
-        if(mask.at<unsigned char>(i)) {
-            cv::arrowedLine(pose, (cv::Point2i)points1[i], (cv::Point2i)(points1[i] + direction), CV_RGB(0, 222, 0), 1, 8);
+        numHomographyInliers = getNumHomographyInliers(prevFeatures, currFeatures, focal, pp, R, t, E, mask);
 
-            cv::circle(keyPt, points1[i], 3, CV_RGB(0, 255, 0), cv::FILLED);
-        } else {
-            cv::arrowedLine(pose, (cv::Point2i)points1[i], (cv::Point2i)(points1[i] + direction), CV_RGB(222, 0, 0), 1, 8);
+        numSkippedFrames++;
 
-            cv::circle(keyPt, points1[i], 3, CV_RGB(255, 0, 0), cv::FILLED);
-        }          
-    }
+        std::cout << "Inliers count: " << numHomographyInliers << "\n";
+    } while(numHomographyInliers < minNumHomographyInliers);
+
+    if (numSkippedFrames > 0)
+        std::cout << "Skipped frames: " << numSkippedFrames << "\n";
+
+    cv::Mat pose = prevImgColor.clone();
+    cv::Mat keyPt = prevImgColor.clone();
+
+    setMaskedDescriptors(pose, keyPt, mask, prevFeatures, currFeatures);
     
     cv::resize(pose, pose, cv::Size(pose.cols / 2, pose.rows / 2));
     cv::resize(keyPt, keyPt, cv::Size(keyPt.cols / 2, keyPt.rows / 2));
 
-    cv::imshow("Pose", pose);
-    cv::imshow("KeyPt", keyPt);
-
-    cv::waitKey(0);
-
-    cv::Mat prevImage = img_2;
-    cv::Mat currImage;
-    std::vector<cv::Point2f> prevFeatures = points2;
-    std::vector<cv::Point2f> currFeatures;
+    cv::swap(prevImgColor, currImgColor);
+    cv::swap(prevImgGray, currImgGray);
+    std::swap(prevFeatures, currFeatures);
 
     R_f = R.clone();
     t_f = t.clone();
+
+    camPose.matrix = cv::Matx44d(
+        R_f.at<double>(0,0), R_f.at<double>(0,1), R_f.at<double>(0,2), t_f.at<double>(0),
+        R_f.at<double>(1,0), R_f.at<double>(1,1), R_f.at<double>(1,2), t_f.at<double>(1),
+        R_f.at<double>(2,0), R_f.at<double>(2,1), R_f.at<double>(2,2), t_f.at<double>(2),
+        0, 0, 0, 1
+    );
+
+    camPoses.emplace_back(camPose);
 
     cv::namedWindow("Trajectory", cv::WINDOW_AUTOSIZE);
 
     cv::Mat traj = cv::Mat::zeros(600, 600, CV_8UC3);
 
-	for (int numFrame = 2; ; numFrame++) {
-        // std::string offset;
-        // if (numFrame < 1000) offset += "0";
-        // if (numFrame < 100) offset += "0";
-        // if (numFrame < 10) offset += "0";
+	for ( ; ; ) {
 
-        // cv::Mat currImage_c = cv::imread(videoPath + offset + std::to_string(numFrame) + ".png");
-        cv::Mat currImage_c;
+        numSkippedFrames = -1;
+        do {
+            if (numSkippedFrames > maxSkipFrames) {
+                cv::swap(prevImgColor, currImgColor);
+                cv::swap(prevImgGray, currImgGray);
+                std::swap(prevFeatures, currFeatures);
 
-        for(int i = 0; i < numOfUsedOffsetFrames; ++i) {
-            cap >> currImage_c;
-        }
+                numSkippedFrames = -1;
+            }
 
-        cap >> currImage_c;
+            cap >> currImgColor;
 
-        if(currImage_c.empty()) {
-            //cap.set(cv::CAP_PROP_POS_FRAMES, 0);
+            if (currImgColor.empty()) { break; }
 
-            break;
-        }
+            cv::cvtColor(currImgColor, currImgGray, cv::COLOR_BGR2GRAY);
 
-        if (currImage_c.empty()) { break; }
+            featureTracking(prevImgGray, currImgGray, prevFeatures, currFeatures);
 
-        cv::cvtColor(currImage_c, currImage, cv::COLOR_BGR2GRAY);
-        std::vector<uchar> status;
-        featureTracking(prevImage, currImage, prevFeatures, currFeatures, status);
+            numHomographyInliers = getNumHomographyInliers(prevFeatures, currFeatures, focal, pp, R, t, E, mask);
 
-        E = cv::findEssentialMat(currFeatures, prevFeatures, focal, pp, cv::RANSAC, 0.999, 1.0, mask);
+            numSkippedFrames++;
 
-        size_t inliersCount = cv::recoverPose(E, currFeatures, prevFeatures, R, t, focal, pp, mask);
+            std::cout << "Inliers count: " << numHomographyInliers << "\n";
+        } while(numHomographyInliers < minNumHomographyInliers);
 
-        //std::cout << inliersCount << "\n";
-        //std::cout << R << "\n";
-        //std::cout << t << "\n";
-     
-        cv::Mat pose = currImage_c.clone();
-        cv::Mat keyPt = currImage_c.clone();
+        if (currImgColor.empty()) { break; }
 
-        for (int i = 0; i < mask.rows; ++i) {
-            cv::Point2f direction = prevFeatures[i] - currFeatures[i];
+        if (numSkippedFrames > 0)
+            std::cout << "Skipped frames: " << numSkippedFrames << "\n";
 
-            direction *= 3;
+        pose = prevImgColor.clone();
+        keyPt = prevImgColor.clone();
 
-            if(mask.at<unsigned char>(i)) {
-                cv::arrowedLine(pose, (cv::Point2i)prevFeatures[i], (cv::Point2i)(prevFeatures[i] + direction), CV_RGB(0, 222, 0), 1, 8);
+        setMaskedDescriptors(pose, keyPt, mask, currFeatures, prevFeatures);
 
-                cv::circle(keyPt, prevFeatures[i], 3, CV_RGB(0, 255, 0), cv::FILLED);
-            } else {
-                cv::arrowedLine(pose, (cv::Point2i)prevFeatures[i], (cv::Point2i)(prevFeatures[i] + direction), CV_RGB(222, 0, 0), 1, 8);
-
-                cv::circle(keyPt, prevFeatures[i], 3, CV_RGB(255, 0, 0), cv::FILLED);
-            }          
-        }
-
-        //scale = getAbsoluteScale(numFrame, 0, t.at<double>(2));
-        scale = minAbsoluteScale;
-
-        //if ((scale>0.1)&&(t.at<double>(2) > t.at<double>(0)) && (t.at<double>(2) > t.at<double>(1))) {
-        //if(inliersCount > 50) {
-            t_f = t_f + scale*(R_f*t);
-            R_f = R*R_f;
-        //}
+        t_f = t_f + absoluteScale * (R_f * t);
+        R_f = R * R_f;
         
+        camPose.matrix = cv::Matx44d(
+            R_f.at<double>(0,0), R_f.at<double>(0,1), R_f.at<double>(0,2), t_f.at<double>(0),
+            R_f.at<double>(1,0), R_f.at<double>(1,1), R_f.at<double>(1,2), t_f.at<double>(1),
+            R_f.at<double>(2,0), R_f.at<double>(2,1), R_f.at<double>(2,2), t_f.at<double>(2),
+            0, 0, 0, 1
+        );
+
+        camPoses.emplace_back(camPose);
+
         if (prevFeatures.size() < numOfUsedDescriptors)	{
-            std::cout << "Redetect..." << "\n";
-            featureDetection(prevImage, prevFeatures);
-            featureTracking(prevImage, currImage, prevFeatures, currFeatures, status);
+            featureDetection(prevImgGray, prevFeatures);
+            featureTracking(prevImgGray, currImgGray, prevFeatures, currFeatures);
  	    }
 
-        prevImage = currImage.clone();
-        prevFeatures = currFeatures;
+        cv::swap(prevImgColor, currImgColor);
+        cv::swap(prevImgGray, currImgGray);
+        std::swap(prevFeatures, currFeatures);
 
-        const int x = int(t_f.at<double>(0)) + (traj.cols / 2);
-        const int y = int(t_f.at<double>(1)) + (traj.rows / 3 * 2);
-        cv::circle(traj, cv::Point(x, y), 1, CV_RGB(255, 0, 0), 2);
-
-        cv::rectangle(traj, cv::Point(10, 30), cv::Point(550, 50), CV_RGB(0, 0, 0), CV_FILLED);
-        char text[100]; sprintf(text, "Coordinates: x = %02fm y = %02fm z = %02fm", t_f.at<double>(0), t_f.at<double>(1), t_f.at<double>(2));
-        cv::putText(traj, text, cv::Point(10, 50), cv::FONT_HERSHEY_PLAIN, 1, cv::Scalar::all(255), 1, 8);
+        setImageTrajectory(traj, t_f);
 
         cv::resize(pose, pose, cv::Size(pose.cols / 2, pose.rows / 2));
         cv::resize(keyPt, keyPt, cv::Size(keyPt.cols / 2, keyPt.rows / 2));
@@ -290,6 +266,38 @@ int main(int argc, char** argv) {
 
         cv::waitKey(1);
 	}
+
+    cv::viz::Viz3d window("Camera move");
+    window.setBackgroundColor(cv::viz::Color::black());
+    window.setWindowSize(cv::Size(500, 500));
+
+    //window.setWindowPosition(cv::Point(3840, 0));
+
+    cv::Mat rotVec = cv::Mat::zeros(1,3,CV_32F);
+
+	rotVec.at<float>(0,2) -= CV_PI * 0.5f;
+
+	cv::Mat rotMat; cv::Rodrigues(rotVec, rotMat);
+
+    cv::Matx33d cameraK33(
+        cameraK.at<double>(0, 0), cameraK.at<double>(0, 1), cameraK.at<double>(0, 2),
+        cameraK.at<double>(1, 0), cameraK.at<double>(1, 1), cameraK.at<double>(1, 2),
+        cameraK.at<double>(2, 0), cameraK.at<double>(2, 1), cameraK.at<double>(2, 2)
+    );
+
+    int idx = 0, forw = -1, n = static_cast<int>(camPoses.size());
+
+    cv::viz::WCameraPosition camWidget(cameraK33, 10, cv::viz::Color::yellow());
+    while(!window.wasStopped()) {
+        camPose = camPoses[idx];
+
+        window.showWidget("camera_trajectory", cv::viz::WTrajectory(camPoses, cv::viz::WTrajectory::PATH, 1.0, cv::viz::Color::green()));
+        window.showWidget("cam_widget", camWidget, camPose);
+
+        forw *= (idx==n || idx==0) ? -1: 1; idx += forw;
+
+        window.spinOnce(30, true);
+    }
 
     return 0;
 }
