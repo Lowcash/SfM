@@ -9,7 +9,7 @@
             "type": "cppdbg","windows": {},
             "request": "launch",
             "program": "${workspaceFolder}/SfM_App.out",
-            "args": ["-calibCam=/home/lowcash/Documents/SfM_Resources/Calibration/mobile_cam_calib_test.yml", "-source=/home/lowcash/Documents/SfM_Resources/Video/vid_6.mp4", "-offFrames=1", "-absScale=3", "-maxSkipFr=5", "-minInlier=100", "-numKeyPts=2000", "-visDebug=true"],
+            "args": ["-calibCam=/home/lowcash/Documents/SfM_Resources/Calibration/mobile_cam_calib_1.yml", "-source=/home/lowcash/Documents/SfM_Resources/Video/vid_6.mp4", "-offFrames=2", "-absScale=1", "-maxSkipFr=5", "-minInlier=15", "-numKeyPts=2000", "-minKeyPts=500", "-visDebug=true"],
             //"args": ["-calibCam=Resource Files/mobile_cam_calib_1.yml", "-source=/home/lowcash/Documents/SfM_Resources/Snaps/KITTI_0/00", "-offFrames=4", "-minAbsSc=1", "-sfOffset=0", "-numKeyPts=500", "-visDebug=true"],
             //"args": ["-calibCam=Resource Files/mobile_cam_calib_1.yml", "-source=/home/lowcash/Documents/SfM_Resources/Snaps/Mobile/00", "-offFrames=4", "-minAbsSc=1", "-sfOffset=0", "-numKeyPts=500", "-visDebug=true"],
             "stopAtEntry": false,
