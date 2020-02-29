@@ -8,16 +8,21 @@
             "args": [
                 "-g", "Source Files/_app.cpp",
                 "-g", "Source Files/visualization.cpp",
+                "-g", "Source Files/tracking.cpp",
                 "-o", "${workspaceFolder}/SfM_App.out",
                 "-I", "/usr/local/include/opencv4",
-                "-I", "/usr/local/include/ceres",
+                "-I", "/usr/local/include/pcl-1.8",
+                "-I", "/usr/include/eigen3",
+                "-I", "/usr/include/vtk-7.1",
+                "-I", "/usr/include/qhull",
+                "-I", "/usr/include/flann",
                 "-I", "${workspaceFolder}/Header Files",
                 "-I", "${workspaceFolder}/Resource Files",
                 "-I", "${workspaceFolder}/Source Files",
                 "-L", "/usr/local/lib /usr/local/lib/*.so /usr/local/lib/*.so.*",
                 "-L", "/usr/lib/x86_64-linux-gnu /usr/lib/x86_64-linux-gnu*.so /usr/lib/x86_64-linux-gnu*.so.*",
-                "-lopencv_core", "-lopencv_imgproc", "-lopencv_imgcodecs", "-lopencv_highgui", "-lopencv_calib3d", "-lopencv_videoio", "-lopencv_video","-lopencv_features2d", "-lopencv_xfeatures2d", "-lopencv_sfm", "-lopencv_viz", "-lpthread",
-                "-lboost_system", "-lboost_filesystem"
+                "-lopencv_core", "-lopencv_imgproc", "-lopencv_imgcodecs", "-lopencv_flann", "-lopencv_highgui", "-lopencv_calib3d", "-lopencv_videoio", "-lopencv_video","-lopencv_features2d", "-lopencv_xfeatures2d", "-lopencv_sfm", "-lopencv_viz", "-lpthread", 
+                "-lboost_system", "-lboost_filesystem", "-lpcl_io", "-lpcl_visualization", "-lvtkRenderingCore-7.1", "-lvtkCommonDataModel-7.1", "-lvtkCommonMath-7.1", "-lvtkCommonCore-7.1", "-lpcl_common"
             ],
             "group": {
                 "kind": "build",

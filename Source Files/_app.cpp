@@ -1,5 +1,106 @@
 #include "pch.h"
 #include "camera.h"
+#include "tracking.h"
+
+
+
+struct VisualizationPCL {
+private:
+    boost::shared_ptr<pcl::visualization::PCLVisualizer> m_viewer;
+
+    boost::shared_ptr<pcl::visualization::PCLVisualizer> rgbVis(pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr cloud, std::string cloudName) {
+        // --------------------------------------------
+        // -----Open 3D viewer and add point cloud-----
+        // --------------------------------------------
+        boost::shared_ptr<pcl::visualization::PCLVisualizer> viewer(new pcl::visualization::PCLVisualizer("3D Viewer"));
+        viewer->setBackgroundColor(0, 0, 0);
+        viewer->addPointCloud<pcl::PointXYZRGB>(cloud, "Scene");
+        viewer->setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 1, "Scene");
+        viewer->initCameraParameters();
+        viewer->setCameraPosition(0, 0, -1, 0, -1, 0);
+        return (viewer);
+    }
+public:
+    VisualizationPCL(pcl::PointCloud<pcl::PointXYZRGB>::Ptr scenePointCloud, std::string windowName) {
+        m_viewer = rgbVis(scenePointCloud, windowName);
+    }
+
+    void updatePointCloud(pcl::PointCloud<pcl::PointXYZRGB>::Ptr scenePointCloud, pcl::PointCloud<pcl::PointXYZRGB>::Ptr activePointCloud, Eigen::Matrix4f activeCameraPose) {
+        pcl::PointCloud<pcl::PointXYZRGB>::Ptr activePointCloudTransformed(new  pcl::PointCloud<pcl::PointXYZRGB>);
+        pcl::transformPointCloud(*activePointCloud, *activePointCloudTransformed, activeCameraPose);
+
+        // Add the active point cloud data to the scene cloud
+        *scenePointCloud += *activePointCloudTransformed;
+
+        m_viewer->removePointCloud("Scene");
+        m_viewer->addPointCloud<pcl::PointXYZRGB>(scenePointCloud, "Scene");
+    }
+
+    Eigen::Matrix4f getActiveCameraPose(cv::Mat R_f, cv::Mat t_f) {
+        Eigen::Matrix4f active_camera_pose = Eigen::Matrix4f::Identity();
+
+        // rotation	
+        active_camera_pose(0, 0) = R_f.at<double>(0, 0);
+        active_camera_pose(0, 1) = R_f.at<double>(0, 1);
+        active_camera_pose(0, 2) = R_f.at<double>(0, 2);
+        active_camera_pose(1, 0) = R_f.at<double>(1, 0);
+        active_camera_pose(1, 1) = R_f.at<double>(1, 1);
+        active_camera_pose(1, 2) = R_f.at<double>(1, 2);
+        active_camera_pose(2, 0) = R_f.at<double>(2, 0);
+        active_camera_pose(2, 1) = R_f.at<double>(2, 1);
+        active_camera_pose(2, 2) = R_f.at<double>(2, 2);
+
+        // translation
+        active_camera_pose(0, 3) = t_f.at<double>(0);
+        active_camera_pose(1, 3) = t_f.at<double>(1);
+        active_camera_pose(2, 3) = t_f.at<double>(2);
+
+        return active_camera_pose;
+    }
+
+    void visualize() {
+        while(!m_viewer->wasStopped())
+            m_viewer->spinOnce(60, true);
+    }
+};
+
+struct Visualization {
+private:
+    cv::viz::Viz3d m_window;
+
+    int numClouds;
+public:
+    Visualization(std::string windowName) {
+        m_window = cv::viz::Viz3d(windowName);
+        m_window.setBackgroundColor(cv::viz::Color::black());
+        m_window.setWindowSize(cv::Size(500, 500));
+        m_window.setWindowPosition(cv::Point(3840, 0));
+        
+        numClouds = 0;
+    }
+
+    void updatePointCloud(std::vector<cv::Point3d> points3D, std::vector<cv::Vec3b> pointsRGB, cv::Affine3d cloudPose) {
+        const cv::viz::WCloud pointCloudWidget(points3D, pointsRGB);
+
+        m_window.showWidget("point_cloud_" + std::to_string(numClouds), pointCloudWidget, cloudPose);
+        //m_window.showWidget("point_cloud_" + std::to_string(numClouds), pointCloudWidget);
+
+        numClouds++;
+    }
+
+    void updateVieverPose(cv::Affine3d camPose) {
+        m_window.setViewerPose(camPose);
+    }
+
+    void clear() {
+        m_window.removeAllWidgets();
+    }
+
+    void visualize() {
+        while(!m_window.wasStopped())
+            m_window.spinOnce(60, true);
+    }
+};
 
 void featureTracking(cv::Mat lImg, cv::Mat rImg, std::vector<cv::Point2f>& lPoints, std::vector<cv::Point2f>& rPoints) { 	
     cv::TermCriteria termcrit = cv::TermCriteria(cv::TermCriteria::COUNT + cv::TermCriteria::EPS, 30, 0.01);
@@ -25,13 +126,17 @@ void featureTracking(cv::Mat lImg, cv::Mat rImg, std::vector<cv::Point2f>& lPoin
     }
 }
 
-void featureDetection(cv::Mat img, std::vector<cv::Point2f>& points, int numKeyPts)	{
-    // std::vector<cv::KeyPoint> keyPts;
+void featureDetection(cv::Mat img, std::vector<cv::Point2f>& points, int numKeyPts, cv::Mat& descriptor) {
+    std::vector<cv::KeyPoint> keyPts;
 
     // cv::FAST(img, keyPts, 20, true);
     // cv::KeyPoint::convert(keyPts, points, std::vector<int>());
 
-    cv::goodFeaturesToTrack(img, points, numKeyPts, 0.01, 25);
+    auto detector = cv::ORB::create(numKeyPts);
+    detector->detectAndCompute(img, cv::noArray(), keyPts, descriptor);
+
+    cv::KeyPoint::convert(keyPts, points, std::vector<int>());
+    //cv::goodFeaturesToTrack(img, points, numKeyPts, 0.01, 25);
 }
 
 void setImageTrajectory(cv::Mat& outTrajectory, cv::Mat translation) {
@@ -75,20 +180,23 @@ size_t getNumHomographyInliers(std::vector<cv::Point2f> prevFeatures, std::vecto
 }
 
 void homogenousPointsToRGBCloud(cv::Mat imgColor, cv::Mat homogenPoints, std::vector<cv::Point2f> features, std::vector<cv::Point3d>& points3D, std::vector<cv::Vec3b>& pointsRGB) {
-    cv::convertPointsFromHomogeneous(homogenPoints.t(), points3D);
+    std::vector<cv::Point3d> points3DTmp;
+    cv::convertPointsFromHomogeneous(homogenPoints.t(), points3DTmp);
 
+    points3D.clear();
     pointsRGB.clear();
 
-    int indexCorrection = 0;
-    for(int i = 0; i < points3D.size(); ++i) {
-        const cv::Point3i point3D = (cv::Point3i)points3D[i];
-        const cv::Point2i point2D = (cv::Point2i)features[i];
+    std::cout << features.size() << " " << points3DTmp.size() << "\n";
 
-        if (point3D.z < 0) {
-            points3D.erase(points3D.begin() + (i - indexCorrection));
-            indexCorrection++;
-        } else
+    for(int i = 0; i < points3DTmp.size(); ++i) {
+        cv::Point3d point3D = (cv::Point3d)points3DTmp[i];
+        cv::Point2i point2D = (cv::Point2i)features[i];
+        
+        if (point2D.x > 0 && point2D.y > 0 && point2D.x < imgColor.cols && point2D.y < imgColor.rows) {
+            
+            points3D.emplace_back(point3D);
             pointsRGB.emplace_back(imgColor.at<cv::Vec3b>(point2D));
+        }
     }
 }
 
@@ -147,7 +255,7 @@ int main(int argc, char** argv) {
     std::cout << "Focal length: " << focal << "\n";
     std::cout << "-----------------------------------------" << "\n";
     
-    cv::Mat prevImgColor, currImgColor, prevImgGray, currImgGray;
+    cv::Mat prevImgColor, currImgColor, prevImgGray, currImgGray, descriptor;
     cv::Mat R_f, t_f, R, t, E, mask, homogPoints3D;
     std::vector<cv::Point2f> prevFeatures, currFeatures;
     std::vector<cv::Affine3d> camPoses; cv::Affine3d camPose;
@@ -166,30 +274,28 @@ int main(int argc, char** argv) {
 
     cap >> prevImgColor;
 
-    // cv::pyrDown(prevImgColor, prevImgColor, cv::Size(prevImgColor.cols/2, prevImgColor.rows/2));
-    // cv::pyrDown(prevImgColor, prevImgColor, cv::Size(prevImgColor.cols/2, prevImgColor.rows/2));
+    // Visualization vis("Point cloud");
+
+    // std::thread visThread(&Visualization::visualize, &vis);
+
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr scenePointCloud(new pcl::PointCloud<pcl::PointXYZRGB>);
+
+    VisualizationPCL visPCL(scenePointCloud, "Point cloud PCL");
+
+    std::thread visThreadPCL(&VisualizationPCL::visualize, &visPCL);
+
+    Tracking tracking(0, false);
 
     cv::cvtColor(prevImgColor, prevImgGray, cv::COLOR_BGR2GRAY);
     
-    featureDetection(prevImgGray, prevFeatures, numOfUsedDescriptors); 
+    featureDetection(prevImgGray, prevFeatures, numOfUsedDescriptors, descriptor); 
 
     numSkippedFrames = -1;
     do {
-        if (numSkippedFrames > maxSkipFrames) {
-            cv::swap(prevImgColor, currImgColor);
-            cv::swap(prevImgGray, currImgGray);
-            std::swap(prevFeatures, currFeatures);
-
-            numSkippedFrames = -1;
-        }
-
         for (int i = 0; i < numOfUsedOffsetFrames; ++i)
             cap >> currImgColor;
         
         if (currImgColor.empty()) { exit(1); }
-
-        // cv::pyrDown(currImgColor, currImgColor, cv::Size(currImgColor.cols/2, currImgColor.rows/2));
-        // cv::pyrDown(currImgColor, currImgColor, cv::Size(currImgColor.cols/2, currImgColor.rows/2));
     
         cv::cvtColor(currImgColor, currImgGray, cv::COLOR_BGR2GRAY);
 
@@ -209,6 +315,15 @@ int main(int argc, char** argv) {
 
     homogenousPointsToRGBCloud(prevImgColor, homogPoints3D, prevFeatures, points3D, pointsRGB);
 
+    tracking.m_tracks.clear();
+    for (int i = 0; i < prevFeatures.size(); ++i) 
+        tracking.m_tracks.emplace_back(Track(prevFeatures[i], points3D[i], descriptor.row(i), pointsRGB[i]));
+
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr activePointCloud(new pcl::PointCloud<pcl::PointXYZRGB>);
+
+    tracking.tracksToPointCloud(activePointCloud);
+    tracking.tracksToPointCloud(points3D, pointsRGB);
+
     pointCloud.emplace_back(points3D);
     pointCloudRGB.emplace_back(pointsRGB);
 
@@ -227,38 +342,39 @@ int main(int argc, char** argv) {
     R_f = R.clone();
     t_f = t.clone();
 
-    camPose.matrix = cv::Matx44d(
-        R_f.at<double>(0,0), R_f.at<double>(0,1), R_f.at<double>(0,2), t_f.at<double>(0),
-        R_f.at<double>(1,0), R_f.at<double>(1,1), R_f.at<double>(1,2), t_f.at<double>(1),
-        R_f.at<double>(2,0), R_f.at<double>(2,1), R_f.at<double>(2,2), -t_f.at<double>(2),
-        0, 0, 0, 1
+    visPCL.updatePointCloud(scenePointCloud, activePointCloud, visPCL.getActiveCameraPose(R_f, t_f));
+
+    camPose = cv::Affine3d(R_f, cv::Vec3d(
+        t_f.at<double>(0), 
+        t_f.at<double>(1), 
+        t_f.at<double>(2))
     );
 
     camPoses.emplace_back(camPose);
 
+    //vis.updateVieverPose(cv::Affine3d(cv::Vec3d(), cv::Vec3d(0, 0, -200)));
+
+	// cv::Mat rotMat; cv::Rodrigues(rotVec, rotMat);
+
+    // cv::Affine3f rotation(rotMat, cv::Vec3d());
+
+    //vis.updatePointCloud(points3D, pointsRGB, camPose);
+
+    cv::imshow("KeyPt", keyPt);
+    cv::waitKey(0);
+
+    //vis.clear();
+
     cv::namedWindow("Trajectory", cv::WINDOW_AUTOSIZE);
 
     cv::Mat traj = cv::Mat::zeros(600, 600, CV_8UC3);
-
 	for ( ; ; ) {
-
         numSkippedFrames = -1;
         do {
-            if (numSkippedFrames > maxSkipFrames) {
-                cv::swap(prevImgColor, currImgColor);
-                cv::swap(prevImgGray, currImgGray);
-                std::swap(prevFeatures, currFeatures);
-
-                numSkippedFrames = -1;
-            }
-
             for (int i = 0; i < numOfUsedOffsetFrames; ++i)
                 cap >> currImgColor;
 
             if (currImgColor.empty()) { break; }
-
-            // cv::pyrDown(currImgColor, currImgColor, cv::Size(currImgColor.cols/2, currImgColor.rows/2));
-            // cv::pyrDown(currImgColor, currImgColor, cv::Size(currImgColor.cols/2, currImgColor.rows/2));
 
             cv::cvtColor(currImgColor, currImgGray, cv::COLOR_BGR2GRAY);
 
@@ -270,15 +386,22 @@ int main(int argc, char** argv) {
 
             numSkippedFrames++;
 
-            //std::cout << "Inliers count: " << numHomographyInliers << "\n";
+            std::cout << "Inliers count: " << numHomographyInliers << "\n";
         } while(numHomographyInliers < minNumHomographyInliers);
 
         if (currImgColor.empty()) { break; }
 
-        //if (numSkippedFrames > 0)
-        //    std::cout << "Skipped frames: " << numSkippedFrames << "\n";
+        if (numSkippedFrames > 0)
+            std::cout << "Skipped frames: " << numSkippedFrames << "\n";
 
         homogenousPointsToRGBCloud(prevImgColor, homogPoints3D, prevFeatures, points3D, pointsRGB);
+
+        // tracking.updateTracks(prevFeatures, points3D, descriptor, pointsRGB);
+        // tracking.tracksToPointCloud(points3D, pointsRGB);
+
+        tracking.m_tracks.clear();
+        for (int i = 0; i < prevFeatures.size(); ++i) 
+            tracking.m_tracks.emplace_back(Track(prevFeatures[i], points3D[i], descriptor.row(i), pointsRGB[i]));
 
         pointCloud.emplace_back(points3D);
         pointCloudRGB.emplace_back(pointsRGB);
@@ -290,18 +413,28 @@ int main(int argc, char** argv) {
 
         t_f = t_f + absoluteScale * (R_f * t);
         R_f = R * R_f;
-        
-        camPose.matrix = cv::Matx44d(
-            R_f.at<double>(0,0), R_f.at<double>(0,1), R_f.at<double>(0,2), t_f.at<double>(0),
-            R_f.at<double>(1,0), R_f.at<double>(1,1), R_f.at<double>(1,2), t_f.at<double>(1),
-            R_f.at<double>(2,0), R_f.at<double>(2,1), R_f.at<double>(2,2), -t_f.at<double>(2),
-            0, 0, 0, 1
+
+        camPose = cv::Affine3d(R_f, cv::Vec3d(
+            t_f.at<double>(0), 
+            t_f.at<double>(1), 
+            t_f.at<double>(2))
         );
+
+        // camPose.matrix = cv::Matx44d(
+        //     R_f.at<double>(0,0), R_f.at<double>(0,1), R_f.at<double>(0,2), t_f.at<double>(2),
+        //     R_f.at<double>(1,0), R_f.at<double>(1,1), R_f.at<double>(1,2), t_f.at<double>(1),
+        //     R_f.at<double>(2,0), R_f.at<double>(2,1), R_f.at<double>(2,2), t_f.at<double>(0),
+        //     0, 0, 0, 1
+        // );
 
         camPoses.emplace_back(camPose);
 
+        //vis.updateVieverPose(cv::Affine3d(cv::Vec3d(), cv::Vec3d(0, 0, -200)));
+
+        //vis.updatePointCloud(points3D, pointsRGB, camPose);
+
         if (prevFeatures.size() < minNumOfUsedDescriptors)	{
-            featureDetection(prevImgGray, prevFeatures, numOfUsedDescriptors);
+            featureDetection(prevImgGray, prevFeatures, numOfUsedDescriptors, descriptor);
             featureTracking(prevImgGray, currImgGray, prevFeatures, currFeatures);
  	    }
 
@@ -315,10 +448,12 @@ int main(int argc, char** argv) {
         cv::resize(keyPt, keyPt, cv::Size(keyPt.cols / 2, keyPt.rows / 2));
 
         cv::imshow("Pose", pose);
-        //cv::imshow("KeyPt", keyPt);
+        cv::imshow("KeyPt", keyPt);
         cv::imshow("Trajectory", traj);
 
-        cv::waitKey(1);
+        cv::waitKey();
+
+        //vis.clear();
 	}
 
     cv::viz::Viz3d window("Camera trajectory");
@@ -333,14 +468,6 @@ int main(int argc, char** argv) {
         cameraK.at<double>(2, 0), cameraK.at<double>(2, 1), cameraK.at<double>(2, 2)
     );
 
-    int idx = 0, forw = -1, n = static_cast<int>(camPoses.size());
-    
-    // for (int i = 0; i < camPoses.size(); ++i) {
-    //     const cv::viz::WSphere camPosWidget(cv::Point3d(), 1, 10, cv::viz::Color::orange());
-
-    //     window.showWidget("cam_pose_" + std::to_string(i), camPosWidget, camPoses[i]);
-    // }  
-
     for (int i = 0; i < pointCloud.size() && i < pointCloudRGB.size(); ++i) {
         if(pointCloud[i].size() == pointCloudRGB[i].size()) {
             const cv::viz::WCloud cloudWidget(pointCloud[i], pointCloudRGB[i]);
@@ -351,16 +478,17 @@ int main(int argc, char** argv) {
 
     const cv::viz::WCameraPosition camWidget(cameraK33, 15, cv::viz::Color::yellow());
 
-    cv::Mat rotVec = cv::Mat::zeros(1,3,CV_32F);
+    // cv::Mat rotVec = cv::Mat::zeros(1,3,CV_32F);
 
-	rotVec.at<float>(0,2) += CV_PI * 1.0f;
+	// rotVec.at<float>(0,2) += CV_PI * 1.0f;
 
-	cv::Mat rotMat; cv::Rodrigues(rotVec, rotMat);
+	// cv::Mat rotMat; cv::Rodrigues(rotVec, rotMat);
 
-    cv::Affine3f rotation(rotMat, cv::Vec3d());
+    // cv::Affine3f rotation(rotMat, cv::Vec3d());
 
-    window.setViewerPose(camPoses[0].rotate(rotation.rotation()).translate(cv::Vec3d(0, 0, -100)));
+    // window.setViewerPose(camPoses[0].rotate(rotation.rotation()).translate(cv::Vec3d(0, 0, -100)));
     
+    int idx = 0, n = static_cast<int>(camPoses.size());
     while(!window.wasStopped()) {
         camPose = camPoses[idx];
 
