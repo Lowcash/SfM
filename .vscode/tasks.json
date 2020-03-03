@@ -22,7 +22,8 @@
                 "-L", "/usr/local/lib /usr/local/lib/*.so /usr/local/lib/*.so.*",
                 "-L", "/usr/lib/x86_64-linux-gnu /usr/lib/x86_64-linux-gnu*.so /usr/lib/x86_64-linux-gnu*.so.*",
                 "-lopencv_core", "-lopencv_imgproc", "-lopencv_imgcodecs", "-lopencv_flann", "-lopencv_highgui", "-lopencv_calib3d", "-lopencv_videoio", "-lopencv_video","-lopencv_features2d", "-lopencv_xfeatures2d", "-lopencv_sfm", "-lopencv_viz", "-lpthread", 
-                "-lboost_system", "-lboost_filesystem", "-lpcl_io", "-lpcl_visualization", "-lvtkRenderingCore-7.1", "-lvtkCommonDataModel-7.1", "-lvtkCommonMath-7.1", "-lvtkCommonCore-7.1", "-lpcl_common"
+                "-lboost_system", "-lboost_filesystem", 
+                // "-lpcl_io", "-lpcl_visualization", "-lvtkRenderingCore-7.1", "-lvtkCommonDataModel-7.1", "-lvtkCommonMath-7.1", "-lvtkCommonCore-7.1", "-lpcl_common"
             ],
             "group": {
                 "kind": "build",

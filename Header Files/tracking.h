@@ -28,7 +28,8 @@ public:
         basePosition3d = point3D;
         activePosition3d = point3D;
 
-        this->descriptor = descriptor;
+        descriptor.copyTo(this->descriptor);
+        //this->descriptor = descriptor;
         this->color = color;
 
         missedFrames = 0;
@@ -41,8 +42,6 @@ private:
 
     int missedFrames, updatedFrames;
 
-    
-
     static bool isTrackingStale(const Track& track);
 public:
     std::list<Track> m_tracks;
@@ -53,13 +52,16 @@ public:
 
     void updateTracks(const std::vector<cv::Point2f> points2D, const std::vector<cv::Point3d> points3D, const cv::Mat descriptor, const std::vector<cv::Vec3b> colors);
 
-    void matchTracks(const std::vector<cv::Point2f> points2D, const std::vector<cv::Point3d> points3D, const cv::Mat descriptor);
+    void matchTracks(const cv::Mat descriptor);
+
+    void triangulate_matches(std::vector<cv::DMatch>& matches, const std::vector<cv::Point2f>&points1, const std::vector<cv::Point2f>& points2,
+		cv::Matx34f& cam1P, cv::Matx34f& cam2P, std::vector<cv::Point3f>& pnts3D);
 
     void transformationFromTracks(cv::Matx33f& R, cv::Matx31f& T);
     
     void tracksToPointCloud(std::vector<cv::Point3d>& points3D, std::vector<cv::Vec3b>& colors);
 
-    void tracksToPointCloud(pcl::PointCloud<pcl::PointXYZRGB>::Ptr pointCloud);
+    // void tracksToPointCloud(pcl::PointCloud<pcl::PointXYZRGB>::Ptr pointCloud);
 
     float getMedianFeatureMovement();
 };
