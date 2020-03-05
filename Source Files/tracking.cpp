@@ -36,12 +36,13 @@ void Tracking::updateTracks(const std::vector<cv::Point2f> points2D, const std::
 
 void Tracking::matchTracks(const cv::Mat descriptor) {
     // Create a FlannMatcher based on values provided in docs
-    cv::FlannBasedMatcher matcher(new cv::flann::LshIndexParams(12, 20, 2));
+    cv::Ptr<cv::DescriptorMatcher> matcher = cv::DescriptorMatcher::create(cv::DescriptorMatcher::FLANNBASED);
+    //cv::FlannBasedMatcher matcher(new cv::flann::LshIndexParams(12, 20, 2));
 
-    std::vector<cv::Mat> trainVector;
-    trainVector.emplace_back(descriptor);
+    //std::vector<cv::Mat> trainVector;
+    //trainVector.emplace_back(descriptor);
 
-    matcher.add(trainVector);
+    //matcher.add(trainVector);
 
     m_matchIdx.resize(m_tracks.size());
 
@@ -51,7 +52,7 @@ void Tracking::matchTracks(const cv::Mat descriptor) {
 
     for (auto track = m_tracks.begin(); track != m_tracks.end(); ++track, ++i) {
         std::vector<std::vector<cv::DMatch>> matches;
-        matcher.knnMatch(track->descriptor, matches, 2);
+        matcher->knnMatch(track->descriptor, descriptor, matches, 2);
 
         if (matches[0].size() >= 2) {
             float best_dist = matches[0][0].distance;
