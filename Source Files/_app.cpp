@@ -119,30 +119,17 @@ size_t getNumHomographyInliers(std::vector<cv::Point2f> prevFeatures, std::vecto
     return cv::recoverPose(E, prevNorm, currNorm, cameraK, R, t, 100.0, mask, points3D);
 }
 
-void homogenousPointsToRGBCloud(cv::Mat imgColor, cv::Mat homogenPoints, std::vector<cv::Point2f> features, std::vector<cv::Point3d>& points3D, std::vector<cv::Vec3b>& pointsRGB) {
-    //std::vector<cv::Point3d> points3DTmp;
-    cv::Mat pointMatTmp;
-    cv::convertPointsFromHomogeneous(homogenPoints.t(), pointMatTmp);
+void homogenousPointsToRGBCloud(cv::Mat imgColor, cv::Mat homPoints, std::vector<cv::Point2f> features, std::vector<cv::Point3d>& points3D, std::vector<cv::Vec3b>& pointsRGB) {
+    cv::Mat pointMatTmp; cv::convertPointsFromHomogeneous(homPoints.t(), pointMatTmp);
 
     points3D.clear();
     pointsRGB.clear();
-
-    // for(int i = 0; i < points3DTmp.size(); ++i) {
-    //     cv::Point3d point3D = (cv::Point3d)points3DTmp[i];
-    //     cv::Point2i point2D = (cv::Point2i)features[i];
-        
-    //     if (point2D.x > 0 && point2D.y > 0 && point2D.x < imgColor.cols && point2D.y < imgColor.rows) {
-            
-    //         points3D.emplace_back(point3D);
-    //         pointsRGB.emplace_back(imgColor.at<cv::Vec3b>(point2D));
-    //     }
-    // }
 
     for(int i = 0; i < pointMatTmp.rows; ++i) {
         cv::Point3d point3D = (cv::Point3d)pointMatTmp.at<cv::Point3f>(i, 0);
         cv::Point2i point2D = (cv::Point2i)features[i];
         
-        if (point2D.x > 0 && point2D.y > 0 && point2D.x < imgColor.cols && point2D.y < imgColor.rows) {
+        if (point3D.z > 0.0001 && (point2D.x > 0 && point2D.y > 0 && point2D.x < imgColor.cols && point2D.y < imgColor.rows)) {
             
             points3D.emplace_back(point3D);
             pointsRGB.emplace_back(imgColor.at<cv::Vec3b>(point2D));
@@ -216,6 +203,26 @@ public:
         descriptor.release();
     }
 };
+
+void tDrawMatches(cv::Mat prevImg, std::vector<Track> tracks, cv::Mat currImg, std::vector<cv::KeyPoint> currKeyPts, std::vector<cv::DMatch> matches, cv::Mat& out) {
+    out = prevImg.clone();
+    cv::hconcat(out, currImg, out);
+
+    for(const auto& m : matches) {
+        auto startPoint = tracks[m.queryIdx].basePosition2d;
+        auto endPoint = cv::Point2f(currKeyPts[m.trainIdx].pt.x + prevImg.cols, currKeyPts[m.trainIdx].pt.y);
+
+        cv::circle(out, startPoint, 5, CV_RGB(0,0,255));
+        cv::circle(out, endPoint, 5, CV_RGB(255,255,0));
+    }
+
+    for(const auto& m : matches) {
+        auto startPoint = tracks[m.queryIdx].basePosition2d;
+        auto endPoint = cv::Point2f(currKeyPts[m.trainIdx].pt.x + prevImg.cols, currKeyPts[m.trainIdx].pt.y);
+
+        cv::line(out, startPoint, endPoint, CV_RGB(200, 0, 0));
+    }
+}
 
 int main(int argc, char** argv) {
 #pragma region INIT
@@ -354,9 +361,10 @@ int main(int argc, char** argv) {
     homogenousPointsToRGBCloud(prevImgColor, homogPoints3D, prevFeatures, points3D, pointsRGB);
 
     Tracking tracking;
-    for (int i=0;i<matches.size();++i)
-        tracking.addTrack(lPointsAligned[i], points3D[i], pointsRGB[i], prevDesc.row(matches[i].queryIdx));
-    
+    for (int i=0;i<matches.size();++i) {
+        tracking.addTrack(rPointsAligned[i], points3D[i], pointsRGB[i], currDesc.row(matches[i].trainIdx));
+    }
+        
     cv::Mat pose = prevImgColor.clone();
     cv::Mat keyPt = prevImgColor.clone();
 
@@ -438,38 +446,31 @@ int main(int argc, char** argv) {
 
         homogenousPointsToRGBCloud(prevImgColor, homogPoints3D, prevFeatures, points3D, pointsRGB);
 
+        std::map<std::pair<float, float>, cv::Point3d> point3DMap;
+        for(int i = 0; i < points3D.size(); ++i)
+            point3DMap[std::make_pair(rPointsAligned[i].x, rPointsAligned[i].y)] = points3D[i];
+        
+
         std::vector<cv::DMatch> tMatches; knnMatches.clear();
-        matcher.knnMatch( tracking.descriptor, prevDesc, knnMatches, 2);
+        matcher.knnMatch( tracking.descriptor, currDesc, knnMatches, 2);
         for (size_t i = 0; i < knnMatches.size(); ++i) {
             if (knnMatches[i][0].distance < ratioThresh * knnMatches[i][1].distance)
                 tMatches.emplace_back(knnMatches[i][0]);
         }
-
-        lPointsAligned.clear(); rPointsAligned.clear(); 
+        
         for (const auto& m : tMatches) {
-            lPointsAligned.emplace_back(tracking.tracks[m.queryIdx].basePosition2d);
-            rPointsAligned.emplace_back(prevKeyPts[m.trainIdx].pt);
+            std::pair<float, float> mapKey = std::make_pair(currKeyPts[m.trainIdx].pt.x, currKeyPts[m.trainIdx].pt.y);
+
+            tracking.tracks[m.queryIdx].activePosition2d = currKeyPts[m.trainIdx].pt;
+            tracking.tracks[m.queryIdx].activePosition3d = point3DMap[mapKey];
+
+            std::cout << tracking.tracks[m.queryIdx].basePosition2d << "," << tracking.tracks[m.queryIdx].activePosition2d << "\n";
+            std::cout << tracking.tracks[m.queryIdx].basePosition3d << "," << tracking.tracks[m.queryIdx].activePosition3d << "\n";
         }
 
         cv::drawMatches( prevImgColor, prevKeyPts, currImgColor, currKeyPts, matches, prevCurrMatches, cv::Scalar::all(-1), cv::Scalar::all(-1), std::vector<char>(), cv::DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS );
 
-        cv::Mat trackMatches = prevImgColor.clone();
-        cv::hconcat(trackMatches, prevImgColor, trackMatches);
-
-        for(const auto& m : tMatches) {
-            auto startPoint = tracking.tracks[m.queryIdx].basePosition2d;
-            auto endPoint = cv::Point2f(prevKeyPts[m.trainIdx].pt.x + prevImgColor.cols, prevKeyPts[m.trainIdx].pt.y);
-
-            cv::circle(trackMatches, startPoint, 5, CV_RGB(0,0,255));
-            cv::circle(trackMatches, endPoint, 5, CV_RGB(255,255,0));
-        }
-
-        for(const auto& m : tMatches) {
-            auto startPoint = tracking.tracks[m.queryIdx].basePosition2d;
-            auto endPoint = cv::Point2f(prevKeyPts[m.trainIdx].pt.x + prevImgColor.cols, prevKeyPts[m.trainIdx].pt.y);
-
-            cv::line(trackMatches, startPoint, endPoint, CV_RGB(200, 0, 0));
-        }
+        cv::Mat trackMatches; tDrawMatches(prevImgColor, tracking.tracks, currImgColor, currKeyPts, tMatches, trackMatches);
 
         tracking.clear();
         for (int i=0;i<matches.size();++i)
