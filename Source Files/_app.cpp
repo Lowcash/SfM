@@ -49,16 +49,16 @@ public:
     }
 };
 
-cv::Vec3d CalculateMean(const cv::Mat_<cv::Vec3d> &points) {
+cv::Vec3d calculateMean(const cv::Mat_<cv::Vec3d> &points) {
     cv::Mat_<cv::Vec3d> result;
     cv::reduce(points, result, 0, CV_REDUCE_AVG);
     return result(0, 0);
 }
 
-cv::Mat_<double> FindRigidTransform(const cv::Mat_<cv::Vec3d> points1, const cv::Mat_<cv::Vec3d> points2) {
+cv::Mat_<double> findRigidTransform(const cv::Mat_<cv::Vec3d> points1, const cv::Mat_<cv::Vec3d> points2) {
     /* Calculate centroids. */
-    cv::Vec3d t1 = -CalculateMean(points1);
-    cv::Vec3d t2 = -CalculateMean(points2);
+    cv::Vec3d t1 = -calculateMean(points1);
+    cv::Vec3d t2 = -calculateMean(points2);
 
     cv::Mat_<double> T1 = cv::Mat_<double>::eye(4, 4);
     T1(0, 3) = t1[0];
@@ -274,21 +274,21 @@ public:
     }
 };
 
-void trackDrawMatches(cv::Mat prevImg, std::vector<Track> tracks, cv::Mat currImg, std::vector<cv::KeyPoint> currKeyPts, std::vector<cv::DMatch> matches, cv::Mat& out) {
+void trackDrawMatches(cv::Mat prevImg, std::vector<Track> tracks, cv::Mat currImg, std::vector<cv::KeyPoint> currKeyPts, cv::Mat& out) {
     out = prevImg.clone();
     cv::hconcat(out, currImg, out);
 
-    for(const auto& m : matches) {
-        auto startPoint = tracks[m.queryIdx].basePosition2d;
-        auto endPoint = cv::Point2f(currKeyPts[m.trainIdx].pt.x + prevImg.cols, currKeyPts[m.trainIdx].pt.y);
+    for(const auto& t : tracks) {
+        auto startPoint = t.basePosition2d;
+        auto endPoint = cv::Point2f(t.activePosition2d.x + prevImg.cols, t.activePosition2d.y);
 
         cv::circle(out, startPoint, 5, CV_RGB(0,0,255));
         cv::circle(out, endPoint, 5, CV_RGB(255,255,0));
     }
 
-    for(const auto& m : matches) {
-        auto startPoint = tracks[m.queryIdx].basePosition2d;
-        auto endPoint = cv::Point2f(currKeyPts[m.trainIdx].pt.x + prevImg.cols, currKeyPts[m.trainIdx].pt.y);
+    for(const auto& t : tracks) {
+        auto startPoint = t.basePosition2d;
+        auto endPoint = cv::Point2f(t.activePosition2d.x + prevImg.cols, t.activePosition2d.y);
 
         cv::line(out, startPoint, endPoint, CV_RGB(200, 0, 0));
     }
@@ -383,6 +383,8 @@ int main(int argc, char** argv) {
 
     std::thread visThread(&Visualization::visualize, &vis);
 
+    Tracking tracking;
+
 #pragma endregion INIT
     cap >> prevImgColor;
     
@@ -417,6 +419,11 @@ int main(int argc, char** argv) {
     R_f = R.clone();
     t_f = t.clone();
 
+    prevImgColor.copyTo(flowImgPose);
+    prevImgColor.copyTo(flowImgKeyPt);
+
+    setMaskedDescriptors(flowImgPose, flowImgKeyPt, mask, currFlowPt, prevFlowPt);
+
     camPose = cv::Affine3d(R_f, t_f); camPoses.emplace_back(camPose);
 
     cv::Matx34d prevProjCam = cameraK33d * cv::Matx34d::eye();
@@ -435,19 +442,17 @@ int main(int argc, char** argv) {
     std::map<std::pair<float, float>, cv::Point3d> match3dMap;
     homogenousPointsToRGBCloud(currImgColor, homogPoints3D, currPtsAligned, points3D, pointsRGB, match3dMap);
 
-    Tracking tracking;
+    cv::drawMatches( prevImgColor, prevKeyPts, currImgColor, currKeyPts, matches, prevCurrImgMatch, cv::Scalar::all(-1), cv::Scalar::all(-1), std::vector<char>(), cv::DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS );
+
+    trackDrawMatches(prevImgColor, tracking.tracks, currImgColor, currKeyPts, trackImgMatches);
+
     for (int i = 0; i < matches.size(); ++i) {
         if(match3dMap[std::make_pair(currPtsAligned[i].x, currPtsAligned[i].y)] != cv::Point3d()) {
             tracking.addTrack(currPtsAligned[i], points3D[i], pointsRGB[i], currDesc.row(matches[i].trainIdx));
         }
     }
     
-    std::cout << "Added " << tracking.tracks.size() << " points to cloud!" << "\n";
-
-    prevImgColor.copyTo(flowImgPose);
-    prevImgColor.copyTo(flowImgKeyPt);
-
-    setMaskedDescriptors(flowImgPose, flowImgKeyPt, mask, currFlowPt, prevFlowPt);
+    std::cout << tracking.tracks.size() << " points added to cloud!" << "\n";
 
     pointCloud.emplace_back(tracking.points3D);
     pointCloudRGB.emplace_back(tracking.pointsRGB);
@@ -457,14 +462,11 @@ int main(int argc, char** argv) {
 
     vis.updateVieverPose(cv::Affine3d(cv::Vec3d(), cv::Vec3d(0, 0, -100)));
 
-    cv::drawMatches( prevImgColor, prevKeyPts, currImgColor, currKeyPts, matches, prevCurrImgMatch, cv::Scalar::all(-1), cv::Scalar::all(-1), std::vector<char>(), cv::DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS );
-
-    trackDrawMatches(prevImgColor, tracking.tracks, currImgColor, currKeyPts, trackMatches, trackImgMatches);
-    
     debugImgTraj = cv::Mat::zeros(600, 600, CV_8UC3);
 
     prevCurrImgMatch.copyTo(debugImgOut);
     flowImgKeyPt.copyTo(flowImgConc);
+
     cv::hconcat(flowImgConc, flowImgPose, flowImgConc);
     cv::vconcat(flowImgConc, debugImgOut, debugImgOut);
     cv::vconcat(debugImgOut, trackImgMatches, debugImgOut);
@@ -530,24 +532,8 @@ int main(int argc, char** argv) {
 
         cv::triangulatePoints(prevProjCam, currProjCam, prevNorm, currNorm, homogPoints3D);
 
-        // homogenousPointsToRGBCloud(prevImgColor, prevFlowPt, homogPoints3D, points3D, pointsRGB);
-
-        cv::Mat_<cv::Vec3d> p1, p2;
-
-        for(const auto p : tracking.tracks)
-            p1.push_back(cv::Vec3d(p.basePosition3d.x, p.basePosition3d.y, p.basePosition3d.z));
-
-        for(const auto p : points3D)
-            p2.push_back(cv::Vec3d(p.x, p.y, p.z));
-
-        auto m = FindRigidTransform(p1, p2);
-
-        //std::cout << m << "\n";
-
-        std::map<std::pair<float, float>, cv::Point3d> point3DMap;
-        for(int i = 0; i < points3D.size(); ++i)
-            point3DMap[std::make_pair(currPtsAligned[i].x, currPtsAligned[i].y)] = points3D[i];
-        
+        match3dMap.clear();
+        homogenousPointsToRGBCloud(currImgColor, homogPoints3D, currPtsAligned, points3D, pointsRGB, match3dMap);
 
         trackMatches.clear(); knnMatches.clear();
         matcher.knnMatch( tracking.descriptor, currDesc, knnMatches, 2);
@@ -555,32 +541,53 @@ int main(int argc, char** argv) {
             if (knnMatches[i][0].distance < ratioThresh * knnMatches[i][1].distance)
                 trackMatches.emplace_back(knnMatches[i][0]);
         }
-        
+
         for (const auto& m : trackMatches) {
             std::pair<float, float> mapKey = std::make_pair(currKeyPts[m.trainIdx].pt.x, currKeyPts[m.trainIdx].pt.y);
 
             tracking.tracks[m.queryIdx].activePosition2d = currKeyPts[m.trainIdx].pt;
-            tracking.tracks[m.queryIdx].activePosition3d = point3DMap[mapKey];
+            tracking.tracks[m.queryIdx].activePosition3d = match3dMap[mapKey];
 
             // std::cout << tracking.tracks[m.queryIdx].basePosition2d << "," << tracking.tracks[m.queryIdx].activePosition2d << "\n";
             // std::cout << tracking.tracks[m.queryIdx].basePosition3d << "," << tracking.tracks[m.queryIdx].activePosition3d << "\n";
         }
 
+        cv::Mat_<cv::Vec3d> p1, p2;
+
+        for(const auto p : tracking.tracks) {
+            p1.push_back(cv::Vec3d(p.basePosition3d.x, p.basePosition3d.y, p.basePosition3d.z));
+            p2.push_back(cv::Vec3d(p.activePosition3d.x, p.activePosition3d.y, p.activePosition3d.z));
+        }
+
+        cv::Mat1d cloudRigidTransform = findRigidTransform(p1, p2);
+
+        std::cout << cloudRigidTransform << "\n";
+
         cv::drawMatches( prevImgColor, prevKeyPts, currImgColor, currKeyPts, matches, prevCurrImgMatch, cv::Scalar::all(-1), cv::Scalar::all(-1), std::vector<char>(), cv::DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS );
 
-        trackDrawMatches(prevImgColor, tracking.tracks, currImgColor, currKeyPts, trackMatches, trackImgMatches);
+        trackDrawMatches(prevImgColor, tracking.tracks, currImgColor, currKeyPts, trackImgMatches);
 
         tracking.clear();
-        for (int i=0;i<matches.size();++i)
-            tracking.addTrack(currPtsAligned[i], points3D[i], pointsRGB[i], currDesc.row(matches[i].trainIdx));
+        for (int i = 0; i < matches.size(); ++i) {
+            if(match3dMap[std::make_pair(currPtsAligned[i].x, currPtsAligned[i].y)] != cv::Point3d()) {
+                tracking.addTrack(currPtsAligned[i], points3D[i], pointsRGB[i], currDesc.row(matches[i].trainIdx));
+            }
+        }
         
-        //vis.updateVieverPose(cv::Affine3d(cv::Vec3d(), cv::Vec3d(0, 0, -200)));
+        std::cout << tracking.tracks.size() << " points added to cloud!" << "\n";
+
+        pointCloud.emplace_back(tracking.points3D);
+        pointCloudRGB.emplace_back(tracking.pointsRGB);
+
         //vis.clear();
-        vis.updatePointCloud(points3D, pointsRGB, camPose);
+        //vis.updatePointCloud(points3D, pointsRGB, camPose);
         vis.updateCameraPose(camPose, cameraK33d);
+
+        //vis.updateVieverPose(cv::Affine3d(cv::Vec3d(), cv::Vec3d(0, 0, -100)));
 
         prevCurrImgMatch.copyTo(debugImgOut);
         flowImgKeyPt.copyTo(flowImgConc);
+
         cv::hconcat(flowImgConc, flowImgPose, flowImgConc);
         cv::vconcat(flowImgConc, debugImgOut, debugImgOut);
         cv::vconcat(debugImgOut, trackImgMatches, debugImgOut);
@@ -590,8 +597,6 @@ int main(int argc, char** argv) {
         cv::imshow(debugWinName, debugImgOut);
         cv::imshow(trajWinName, debugImgTraj);
 
-        cv::waitKey(1);
+        cv::waitKey();
 	}
-
-    return 0;
 }
