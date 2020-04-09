@@ -65,7 +65,8 @@
         "typeindex": "cpp",
         "variant": "cpp",
         "*.ipp": "cpp",
-        "shared_mutex": "cpp"
+        "shared_mutex": "cpp",
+        "core": "cpp"
     },
     "git.ignoreLimitWarning": true
 }

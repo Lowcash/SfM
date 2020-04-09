@@ -9,9 +9,24 @@
             "type": "cppdbg","windows": {},
             "request": "launch",
             "program": "${workspaceFolder}/SfM_App.out",
-            "args": ["-calibCam=/home/lowcash/Documents/SfM_Resources/Calibration/mobile_cam_calib_1.yml", "-source=/home/lowcash/Documents/SfM_Resources/Video/vid_6.mp4", "-offFrames=1", "-absScale=3", "-maxSkipFr=5", "-minInlier=25", "-numKeyPts=3000", "-minKeyPts=500", "-visDebug=true"],
-            //"args": ["-calibCam=Resource Files/mobile_cam_calib_1.yml", "-source=/home/lowcash/Documents/SfM_Resources/Snaps/KITTI_0/00", "-offFrames=4", "-minAbsSc=1", "-sfOffset=0", "-numKeyPts=500", "-visDebug=true"],
-            //"args": ["-calibCam=Resource Files/mobile_cam_calib_1.yml", "-source=/home/lowcash/Documents/SfM_Resources/Snaps/Mobile/00", "-offFrames=4", "-minAbsSc=1", "-sfOffset=0", "-numKeyPts=500", "-visDebug=true"],
+            "args": [
+            //--------------------------------- BASE --------------------------------//
+              "-bSource=/home/lowcash/Documents/SfM_Resources/Video/vid_10.mp4", 
+              //"-bSource=https://192.168.1.100:8080/video", 
+              "-bcalib=/home/lowcash/Documents/SfM_Resources/Calibration/mobile_cam_calib_1.yml", "-bDownSamp=0.25", "-bUseCuda=false", "-bUseOptFl=true",
+            
+            //------------------------------- FEATURES ------------------------------//
+            "-fDecType=AKAZE", "-fMatchType=BRUTEFORCE_HAMMING", "-fKnnRatio=0.75",
+
+            //----------------------------- OPTICAL FLOW ----------------------------//
+            "-ofMinKPts=20", "-ofWinSize=21", "-ofMaxLevel=5", "-ofMaxItCt=100", "-ofItEps=0.01", "-ofMaxError=25.0", "-ofMaxCorn=2000", "-ofQualLvl=0.1", "-ofMinDist=0",
+            
+            //--------------------------- POSE ESTIMATION ---------------------------//
+            "-peMethod=RANSAC", "-peProb=0.95", "-peThresh=1.0", "-peMinInl=5",
+
+            //---------------------------- TRIANGULATION ----------------------------//
+            "-tMinDist=0.0001", "-tMaxDist=100", "-tMaxPErr=1"
+            ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
             "environment": [],

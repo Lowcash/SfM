@@ -2,19 +2,14 @@
     "configurations": [
         {
             "name": "Linux",
-            "includePath": [             
+            "includePath": [
                 "/usr/local/include/opencv4",
-                "/usr/local/lib/opencv4",
+                "/usr/local/include/ceres",
+                "/usr/local/include/pcl-1.10",
                 "/usr/include/vtk-7.1",
-                "/usr/include/qhull",
-                "/usr/include/flann",
-                "/usr/include/boost",
                 "/usr/include/eigen3",
-                "/usr/include/eigen3/Eigen/",
-                "/usr/local/include/pcl-1.8",
                 "${workspaceFolder}/**",
                 "${workspaceFolder}/Header Files",
-                "${workspaceFolder}/Resource Files",
                 "${workspaceFolder}/Source Files"
             ],
             "browse": {
