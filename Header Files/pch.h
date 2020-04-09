@@ -35,10 +35,10 @@
 #include <boost/graph/graphviz.hpp>
 #include <boost/graph/connected_components.hpp>
 
-// #include <pcl/common/common_headers.h>
-// #include <pcl/visualization/pcl_visualizer.h>
-// #include <pcl/io/pcd_io.h>
-// #include <pcl/registration/transformation_estimation_svd.h>
-// #include <pcl/common/transforms.h>
+#include <pcl/common/common_headers.h>
+#include <pcl/visualization/pcl_visualizer.h>
+#include <pcl/io/pcd_io.h>
+#include <pcl/registration/transformation_estimation_svd.h>
+#include <pcl/common/transforms.h>
 
 #endif //PCH_H

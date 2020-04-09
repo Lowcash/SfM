@@ -44,10 +44,58 @@ public:
         additionalSettings.setMinDistance(minCornersDistance);
     }
 
-    void drawFlow(cv::Mat inputImg, cv::Mat& outputImg, std::vector<cv::Point2f> prevCorners, std::vector<cv::Point2f> currCorners, cv::Mat mask = cv::Mat()) {
-        inputImg.copyTo(outputImg);
+    void computeFlow(cv::Mat imPrevGray, cv::Mat imCurrGray, std::vector<cv::Point2f>& prevPts, std::vector<cv::Point2f>& currPts) {
+        std::vector<uchar> status; std::vector<float> err; 
+        
+        optFlow->calc(imPrevGray, imCurrGray, prevPts, currPts, status, err);
 
+        for (uint i = 0, idxCorrection = 0; i < status.size() && i < err.size(); ++i) {
+            cv::Point2f pt = currPts[i - idxCorrection];
+
+            if (status[i] == 0 || err[i] > additionalSettings.maxError ||
+                pt.x < 0 || pt.y < 0 || pt.x > imCurrGray.cols || pt.y > imCurrGray.rows) {
+
+                prevPts.erase(prevPts.begin() + (i - idxCorrection));
+                currPts.erase(currPts.begin() + (i - idxCorrection));
+
+                idxCorrection++;
+            }
+        }
+    }
+
+    void computeFlow(cv::cuda::GpuMat& d_imPrevGray, cv::cuda::GpuMat& d_imCurrGray, std::vector<cv::Point2f>& prevPts, std::vector<cv::Point2f>& currPts) {
+        cv::cuda::GpuMat d_prevPts, d_currPts;
+        cv::cuda::GpuMat d_status, d_err;
+        
+        std::vector<uchar> status; std::vector<float> err; 
+
+        d_prevPts.upload(prevPts);
+
+        d_optFlow->calc(d_imPrevGray, d_imCurrGray, d_prevPts, d_currPts, d_status, d_err);
+
+        d_prevPts.download(prevPts);
+        d_currPts.download(currPts);
+        d_status.download(status);
+        d_err.download(err);
+
+        for (uint i = 0, idxCorrection = 0; i < status.size() && i < err.size(); ++i) {
+            cv::Point2f pt = currPts[i - idxCorrection];
+
+            if (status[i] == 0 || err[i] > additionalSettings.maxError ||
+                pt.x < 0 || pt.y < 0 || pt.x > d_imCurrGray.cols || pt.y > d_imCurrGray.rows) {
+
+                prevPts.erase(prevPts.begin() + (i - idxCorrection));
+                currPts.erase(currPts.begin() + (i - idxCorrection));
+
+                idxCorrection++;
+            }
+        }
+    }
+
+    void drawFlow(cv::Mat inputImg, cv::Mat& outputImg, std::vector<cv::Point2f> prevCorners, std::vector<cv::Point2f> currCorners, cv::Mat mask = cv::Mat()) {
         bool isUsingMask = mask.rows == prevCorners.size();
+
+        inputImg.copyTo(outputImg);
 
         for (int i = 0; i < prevCorners.size() && i < currCorners.size(); ++i) {
             cv::arrowedLine(outputImg, currCorners[i], prevCorners[i], CV_RGB(0,200,0), 2);
@@ -118,6 +166,51 @@ public:
             }
         }
     }
+
+    void generateFeatures(cv::Mat& imGray, std::vector<cv::KeyPoint>& keyPts, cv::Mat& descriptor) {
+        //std::cout << "Generating features..." << std::flush;
+
+        if (detector != extractor){
+            detector->detect(imGray, keyPts);
+            extractor->compute(imGray, keyPts, descriptor);
+        } else
+            detector->detectAndCompute(imGray, cv::noArray(), keyPts, descriptor);
+
+        //std::cout << "[DONE]";
+    }
+
+    void generateFeatures(cv::Mat& imGray, cv::cuda::GpuMat& d_imGray, std::vector<cv::KeyPoint>& keyPts, cv::Mat& descriptor) {
+        //std::cout << "Generating CUDA features..." << std::flush;
+
+        if (detector != extractor){
+            detector->detect(d_imGray, keyPts);
+            extractor->compute(imGray, keyPts, descriptor);
+        } else {
+            cv::cuda::GpuMat d_descriptor;
+            detector->detectAndCompute(d_imGray, cv::noArray(), keyPts, d_descriptor);
+            d_descriptor.download(descriptor);
+        }
+
+        // std::cout << "[DONE]";
+    }
+
+    void generateFlowFeatures(cv::Mat& imGray, std::vector<cv::Point2f>& corners, int maxCorners, double qualityLevel, double minDistance) {
+        std::cout << "Generating flow features..." << std::flush;
+
+        cv::goodFeaturesToTrack(imGray, corners, maxCorners, qualityLevel, minDistance);
+
+        std::cout << "[DONE]";
+    }
+
+    void generateFlowFeatures(cv::cuda::GpuMat& d_imGray, cv::cuda::GpuMat& corners, int maxCorners, double qualityLevel, double minDistance) {
+        std::cout << "Generating CUDA flow features..." << std::flush;
+
+        cv::Ptr<cv::cuda::CornersDetector> cudaCornersDetector = cv::cuda::createGoodFeaturesToTrackDetector(d_imGray.type(), maxCorners, qualityLevel, minDistance);
+
+        cudaCornersDetector->detect(d_imGray, corners);
+
+        std::cout << "[DONE]";
+    }
 };
 
 class DescriptorMatcher : protected UsingCUDA {
@@ -140,6 +233,47 @@ public:
         else 
             matcher = cv::DescriptorMatcher::create(cv::DescriptorMatcher::MatcherType::BRUTEFORCE);
     }
+
+    void ratioMaches(float ratioThresh, const cv::Mat lDesc, const cv::Mat rDesc, std::vector<cv::DMatch>& matches) {
+        std::vector<std::vector<cv::DMatch>> knnMatches;
+
+        matcher->knnMatch(lDesc, rDesc, knnMatches, 2);
+
+        matches.clear();
+        for (const auto& k : knnMatches) {
+            if (k[0].distance < ratioThresh * k[1].distance) 
+                matches.push_back(k[0]);
+        }
+    }
+
+    void recipAligMatches(float ratioThresh, std::vector<cv::KeyPoint> prevKeyPts, std::vector<cv::KeyPoint> currKeyPts, cv::Mat prevDesc, cv::Mat currDesc, std::vector<cv::Point2f>& prevPts, std::vector<cv::Point2f>& currPts, std::vector<int>& prevIdx, std::vector<int>& currIdx, std::vector<cv::DMatch>& matches) {
+        std::vector<cv::DMatch> fMatches, bMatches;
+
+        ratioMaches(ratioThresh, prevDesc, currDesc, fMatches);
+        ratioMaches(ratioThresh, currDesc, prevDesc, bMatches);
+
+        for (const auto& bM : bMatches) {
+            bool isFound = false;
+
+            for (const auto& fM : fMatches) {
+                if (bM.queryIdx == fM.trainIdx && bM.trainIdx == fM.queryIdx) {
+                    prevPts.push_back(prevKeyPts[fM.queryIdx].pt);
+                    currPts.push_back(currKeyPts[fM.trainIdx].pt);
+
+                    prevIdx.push_back(fM.queryIdx);
+                    currIdx.push_back(fM.trainIdx);
+
+                    isFound = true;
+
+                    matches.push_back(fM);
+
+                    break;
+                }
+            }
+
+            if (isFound) { continue; }
+        }
+    }
 };
 
 class CameraParameters {
@@ -159,6 +293,8 @@ public:
     void updateCameraParameters(const cv::Mat K, const cv::Mat distCoeffs, const double downSample = 1.0f) {
         _K = K * downSample;
 
+        _K.at<double>(2,2) = 1.0;
+    
         std::cout << "\nCamera intrices: " << _K << "\n";
 
         this->distCoeffs = distCoeffs;
@@ -297,34 +433,43 @@ public:
         trackViews.push_back(_trackView);
     }
 
-    bool findRecoveredCameraPose(cv::Ptr<cv::DescriptorMatcher> matcher, float knnRatio, CameraParameters camParams, FeatureView& featView, cv::Matx33d& R, cv::Matx31d& t) {
+    bool findRecoveredCameraPose(DescriptorMatcher matcher, float knnRatio, CameraParameters camParams, FeatureView& featView, cv::Matx33d& R, cv::Matx31d& t) {
+        if (trackViews.empty()) { return true; }
+        
         std::cout << "Recovering pose..." << std::flush;
         
         std::vector<cv::Point2f> _posePoints2D;
         std::vector<cv::Point3f> _posePoints3D;
         cv::Mat _R, _t;
 
+        int it = 0;
+
         for (auto t = trackViews.rbegin(); t != trackViews.rend(); ++t) {
             if (t->points2D.empty() || featView.keyPts.empty()) { continue; }
 
+            std::vector<cv::DMatch> _matches;
             std::vector<cv::Point2f> _prevPts, _currPts;
             std::vector<int> _prevIdx, _currIdx;
-            recipAligMatches(matcher, knnRatio, t->keyPoints, featView.keyPts, t->descriptor, featView.descriptor, _prevPts, _currPts, _prevIdx, _currIdx);
+            matcher.recipAligMatches(knnRatio, t->keyPoints, featView.keyPts, t->descriptor, featView.descriptor, _prevPts, _currPts, _prevIdx, _currIdx, _matches);
 
-            cv::Mat _inOutMatch; t->viewPtr->imColor.copyTo(_inOutMatch); 
-            cv::hconcat(_inOutMatch, featView.viewPtr->imColor, _inOutMatch);
+            //cv::Mat _inOutMatch; t->viewPtr->imColor.copyTo(_inOutMatch); 
+            //cv::hconcat(_inOutMatch, featView.viewPtr->imColor, _inOutMatch);
 
             for (int i = 0; i < _prevPts.size() && i < _currPts.size(); ++i) {
                 cv::Point3f _point3D = t->points3D[_prevIdx[i]];
                 cv::Point2f _point2D = _currPts[i];
 
-                cv::line(_inOutMatch, _prevPts[i], cv::Point2f(_currPts[i].x + featView.viewPtr->imColor.cols, _currPts[i].y) , CV_RGB(0, 0, 0), 2);
+                //cv::line(_inOutMatch, _prevPts[i], cv::Point2f(_currPts[i].x + featView.viewPtr->imColor.cols, _currPts[i].y) , CV_RGB(0, 0, 0), 2);
 
                 _posePoints2D.push_back(_point2D);
                 _posePoints3D.push_back(_point3D);
             }
 
-            cv::imshow("Matches", _inOutMatch); cv::waitKey(1);
+            if (it > 2) break;
+
+            it++;
+
+            //cv::imshow("Matches", _inOutMatch); cv::waitKey(1);
         }
 
         if (_posePoints2D.size() < 4 || _posePoints3D.size() < 4) { return false; }
@@ -436,7 +581,7 @@ struct SnavelyReprojectionError {
   double observed_y;
 };
 
-/*struct VisualizationPCL {
+struct VisualizationPCL {
 private:
     int m_numClouds, m_numCams, m_numPts;
 
@@ -532,10 +677,11 @@ public:
     }
 
     void visualize() {
-        while(!m_viewer->wasStopped())
+        //while(!m_viewer->wasStopped())
             m_viewer->spinOnce(60);
+        //m_viewer->spin();
     }
-};*/
+};
 
 struct MouseUsrDataParams {
 public:
@@ -571,99 +717,6 @@ static void onUsrWinClick (int event, int x, int y, int flags, void* params) {
     cv::imshow(mouseParams->m_inputWinName, *mouseParams->m_inputMat);
 }
 
-void generateFeatures(cv::Ptr<cv::FeatureDetector>& detector, cv::Ptr<cv::FeatureDetector>& extractor, cv::Mat& imGray, std::vector<cv::KeyPoint>& keyPts, cv::Mat& descriptor) {
-    //std::cout << "Generating features..." << std::flush;
-
-    if (detector != extractor){
-        detector->detect(imGray, keyPts);
-        extractor->compute(imGray, keyPts, descriptor);
-    } else
-        detector->detectAndCompute(imGray, cv::noArray(), keyPts, descriptor);
-
-    //std::cout << "[DONE]";
-}
-
-void generateFeatures(cv::Ptr<cv::FeatureDetector>& detector, cv::Ptr<cv::FeatureDetector>& extractor, cv::Mat& imGray, cv::cuda::GpuMat& d_imGray, std::vector<cv::KeyPoint>& keyPts, cv::Mat& descriptor) {
-    //std::cout << "Generating CUDA features..." << std::flush;
-
-    if (detector != extractor){
-        detector->detect(d_imGray, keyPts);
-        extractor->compute(imGray, keyPts, descriptor);
-    } else {
-        cv::cuda::GpuMat d_descriptor;
-        detector->detectAndCompute(d_imGray, cv::noArray(), keyPts, d_descriptor);
-        d_descriptor.download(descriptor);
-    }
-
-   // std::cout << "[DONE]";
-}
-
-void generateFlowFeatures(cv::Mat& imGray, std::vector<cv::Point2f>& corners, int maxCorners, double qualityLevel, double minDistance) {
-    std::cout << "Generating flow features..." << std::flush;
-
-    cv::goodFeaturesToTrack(imGray, corners, maxCorners, qualityLevel, minDistance);
-
-    std::cout << "[DONE]";
-}
-
-void generateFlowFeatures(cv::cuda::GpuMat& d_imGray, cv::cuda::GpuMat& corners, int maxCorners, double qualityLevel, double minDistance) {
-    std::cout << "Generating CUDA flow features..." << std::flush;
-
-    cv::Ptr<cv::cuda::CornersDetector> cudaCornersDetector = cv::cuda::createGoodFeaturesToTrackDetector(d_imGray.type(), maxCorners, qualityLevel, minDistance);
-
-    cudaCornersDetector->detect(d_imGray, corners);
-
-    std::cout << "[DONE]";
-}
-
-void trackingFlowFeatures(OptFlow& optFlow, cv::Mat& imPrevGray, cv::Mat& imCurrGray, std::vector<cv::Point2f>& prevPts, std::vector<cv::Point2f>& currPts) {
-    std::vector<uchar> status; std::vector<float> err; 
-    
-    optFlow.optFlow->calc(imPrevGray, imCurrGray, prevPts, currPts, status, err);
-
-    for (uint i = 0, idxCorrection = 0; i < status.size() && i < err.size(); ++i) {
-        cv::Point2f pt = currPts[i - idxCorrection];
-
-        if (status[i] == 0 || err[i] > optFlow.additionalSettings.maxError ||
-            pt.x < 0 || pt.y < 0 || pt.x > imCurrGray.cols || pt.y > imCurrGray.rows) {
-
-            prevPts.erase(prevPts.begin() + (i - idxCorrection));
-            currPts.erase(currPts.begin() + (i - idxCorrection));
-
-            idxCorrection++;
-        }
-    }
-}
-
-void trackingFlowFeatures(OptFlow optFlow, cv::cuda::GpuMat& d_imPrevGray, cv::cuda::GpuMat& d_imCurrGray, std::vector<cv::Point2f>& prevPts, std::vector<cv::Point2f>& currPts) {
-    cv::cuda::GpuMat d_prevPts, d_currPts;
-    cv::cuda::GpuMat d_status, d_err;
-    
-    std::vector<uchar> status; std::vector<float> err; 
-
-    d_prevPts.upload(prevPts);
-
-    optFlow.d_optFlow->calc(d_imPrevGray, d_imCurrGray, d_prevPts, d_currPts, d_status, d_err);
-
-    d_prevPts.download(prevPts);
-    d_currPts.download(currPts);
-    d_status.download(status);
-    d_err.download(err);
-
-    for (uint i = 0, idxCorrection = 0; i < status.size() && i < err.size(); ++i) {
-        cv::Point2f pt = currPts[i - idxCorrection];
-
-        if (status[i] == 0 || err[i] > optFlow.additionalSettings.maxError ||
-            pt.x < 0 || pt.y < 0 || pt.x > d_imCurrGray.cols || pt.y > d_imCurrGray.rows) {
-
-            prevPts.erase(prevPts.begin() + (i - idxCorrection));
-            currPts.erase(currPts.begin() + (i - idxCorrection));
-
-            idxCorrection++;
-        }
-    }
-}
-
 bool findCameraPose(RecoveryPose& recPose, std::vector<cv::Point2f> prevPts, std::vector<cv::Point2f> currPts, cv::Mat cameraK, int minInliers, int& numInliers) {
     if (prevPts.size() <= 5 || currPts.size() <= 5) { return false; }
 
@@ -674,44 +727,6 @@ bool findCameraPose(RecoveryPose& recPose, std::vector<cv::Point2f> prevPts, std
     numInliers = cv::recoverPose(E, prevPts, currPts, cameraK, recPose.R, recPose.t, recPose.mask);
 
     return numInliers > minInliers;
-}
-
-void ratioMaches(cv::Ptr<cv::DescriptorMatcher> matcher, float ratioThresh, const cv::Mat lDesc, const cv::Mat rDesc, std::vector<cv::DMatch>& matches) {
-    std::vector<std::vector<cv::DMatch>> knnMatches;
-
-    matcher->knnMatch(lDesc, rDesc, knnMatches, 2);
-
-    matches.clear();
-    for (const auto& k : knnMatches) {
-        if (k[0].distance < ratioThresh * k[1].distance) 
-            matches.push_back(k[0]);
-    }
-}
-
-void recipAligMatches(cv::Ptr<cv::DescriptorMatcher> matcher, float ratioThresh, std::vector<cv::KeyPoint> prevKeyPts, std::vector<cv::KeyPoint> currKeyPts, cv::Mat prevDesc, cv::Mat currDesc, std::vector<cv::Point2f>& prevPts, std::vector<cv::Point2f>& currPts, std::vector<int>& prevIdx, std::vector<int>& currIdx) {
-    std::vector<cv::DMatch> fMatches, bMatches;
-    ratioMaches(matcher, ratioThresh, prevDesc, currDesc, fMatches);
-    ratioMaches(matcher, ratioThresh, currDesc, prevDesc, bMatches);
-
-    for (const auto& bM : bMatches) {
-        bool isFound = false;
-
-        for (const auto& fM : fMatches) {
-            if (bM.queryIdx == fM.trainIdx && bM.trainIdx == fM.queryIdx) {
-                prevPts.push_back(prevKeyPts[fM.queryIdx].pt);
-                currPts.push_back(currKeyPts[fM.trainIdx].pt);
-
-                prevIdx.push_back(fM.queryIdx);
-                currIdx.push_back(fM.trainIdx);
-
-                isFound = true;
-
-                break;
-            }
-        }
-
-        if (isFound) { continue; }
-    }
 }
 
 void homogPtsToRGBCloud(cv::Mat imgColor, CameraParameters camParams, cv::Mat R, cv::Mat t, cv::Mat homPoints, std::vector<cv::Point2f>& points2D, std::vector<cv::Point3f>& points3D, std::vector<cv::Vec3b>& pointsRGB, float minDist, float maxDist, float maxProjErr, std::vector<bool>& mask) {
@@ -870,43 +885,44 @@ bool loadImage(cv::VideoCapture& cap, cv::Mat& imColor, cv::Mat& imGray, float d
     return true;
 }
 
-bool findGoodImagePair(cv::VideoCapture cap, OptFlow optFlow, RecoveryPose& recPose, CameraParameters camParams, std::vector<ViewData>& views, FlowView& ofPrevView, FlowView& ofCurrView, uint flowMinFeatures, float imDownSampling = 1.0f, bool isUsingCUDA = false) {
+bool findGoodImagePair(cv::VideoCapture cap, OptFlow optFlow, FeatureDetector featDetector, RecoveryPose& recPose, CameraParameters camParams, std::vector<ViewData>& views, FlowView& ofPrevView, FlowView& ofCurrView, uint flowMinFeatures, float imDownSampling = 1.0f, bool isUsingCUDA = false) {
     std::cout << "Finding good image pair" << std::flush;
 
     std::vector<cv::Point2f> _prevCorners, _currCorners;
 
+    cv::Mat _imColor, _imGray;
+    cv::cuda::GpuMat _d_imColor, _d_imGray;
+
     int numSkippedFrames = -1, numHomInliers = 0;
     do {
-        cv::Mat imColor, imGray;
-        cv::cuda::GpuMat d_imColor, d_imGray;
-
-        if (!loadImage(cap, imColor, imGray, imDownSampling)) { return false; } 
-
-        cv::GaussianBlur(imGray, imGray, cv::Size(5,5), 0);
+        if (!loadImage(cap, _imColor, _imGray, imDownSampling)) { return false; } 
+        cv::GaussianBlur(_imGray, _imGray, cv::Size(5,5), 0);
 
         std::cout << "." << std::flush;
         
         if (isUsingCUDA) {
-            d_imColor.upload(imColor);
-            d_imGray.upload(imGray);
-            
-            views.push_back(ViewData(imColor, imGray, d_imColor, d_imGray));
-        } else 
-            views.push_back(ViewData(imColor, imGray));
+            _d_imColor.upload(_imColor);
+            _d_imGray.upload(_imGray);
+        }
 
-        ofCurrView.setView(&views.back());
+        ofPrevView.setView(&(views.rbegin()[0]));
         
-        if ((ofPrevView.viewPtr->imColor.empty() && ofPrevView.viewPtr->d_imColor.empty()) || ofPrevView.corners.size() < flowMinFeatures) {
+        if (ofPrevView.corners.size() < flowMinFeatures) {
             std::vector<cv::Point2f> corners;
 
             if (isUsingCUDA) {
                 cv::cuda::GpuMat d_corners;
 
-                generateFlowFeatures(d_imGray, d_corners, optFlow.additionalSettings.maxCorn, optFlow.additionalSettings.qualLvl, optFlow.additionalSettings.minDist);
+                featDetector.generateFlowFeatures(_d_imGray, d_corners, optFlow.additionalSettings.maxCorn, optFlow.additionalSettings.qualLvl, optFlow.additionalSettings.minDist);
 
                 d_corners.download(corners);
             } else 
-                generateFlowFeatures(imGray, corners, optFlow.additionalSettings.maxCorn, optFlow.additionalSettings.qualLvl, optFlow.additionalSettings.minDist);
+                featDetector.generateFlowFeatures(_imGray, corners, optFlow.additionalSettings.maxCorn, optFlow.additionalSettings.qualLvl, optFlow.additionalSettings.minDist);
+
+            if (isUsingCUDA) 
+                views.push_back(ViewData(_imColor, _imGray, _d_imColor, _d_imGray));
+            else 
+                views.push_back(ViewData(_imColor, _imGray));
 
             ofCurrView.setPts(corners);
 
@@ -918,21 +934,17 @@ bool findGoodImagePair(cv::VideoCapture cap, OptFlow optFlow, RecoveryPose& recP
         _prevCorners = ofPrevView.corners;
 
         if (isUsingCUDA) {
-            trackingFlowFeatures(optFlow, ofPrevView.viewPtr->d_imGray, d_imGray, _prevCorners, _currCorners);
+            optFlow.computeFlow(ofPrevView.viewPtr->d_imGray, _d_imGray, _prevCorners, _currCorners);
         } else
-            trackingFlowFeatures(optFlow, ofPrevView.viewPtr->imGray, imGray, _prevCorners, _currCorners);
+            optFlow.computeFlow(ofPrevView.viewPtr->imGray, _imGray, _prevCorners, _currCorners);
 
         numSkippedFrames++;
     } while(!findCameraPose(recPose, _prevCorners, _currCorners, camParams._K, recPose.minInliers, numHomInliers));
 
-    // for (int i = 0, idxCorrection = 0; i < _prevCorners.size() && i < _currCorners.size(); ++i) {
-    //     if (recPose.mask.at<uchar>(i) == 0) {
-    //         _prevCorners.erase(_prevCorners.begin() + (i - idxCorrection));
-    //         _currCorners.erase(_currCorners.begin() + (i - idxCorrection));
-
-    //         idxCorrection++;
-    //     }
-    // }
+    if (isUsingCUDA) 
+        views.push_back(ViewData(_imColor, _imGray, _d_imColor, _d_imGray));
+    else 
+        views.push_back(ViewData(_imColor, _imGray));
 
     ofPrevView.setPts(_prevCorners);
     ofCurrView.setPts(_currCorners);
@@ -949,6 +961,10 @@ void composePoseEstimation(cv::Matx33d R, cv::Matx31d t, cv::Matx34d& pose) {
         R(1,0), R(1,1), R(1,2), t(1),
         R(2,0), R(2,1), R(2,2), t(2)
     );
+}
+
+void cvPoseToPCLPose(cv::Matx31d cvPose, pcl::PointXYZ& pclPose) {
+    pclPose = pcl::PointXYZ(cvPose(0), cvPose(1), cvPose(2));
 }
 
 #pragma endregion METHODS
@@ -1052,6 +1068,7 @@ int main(int argc, char** argv) {
     const std::string ptCloudWinName = "Point cloud";
     const std::string usrInpWinName = "User input";
     const std::string recPoseWinName = "Recovery pose";
+    const std::string matchesWinName = "Matches";
 
     cv::VideoCapture cap; if(!cap.open(bSource)) {
         std::cerr << "Error opening video stream or file!!" << "\n";
@@ -1066,10 +1083,12 @@ int main(int argc, char** argv) {
 
     RecoveryPose recPose(peMethod, peProb, peThresh, peMinInl);
 
-    cv::Mat imOutUsrInp, imOutRecPose;
+    cv::Mat imOutUsrInp, imOutRecPose, imOutMatches;
    
-    cv::namedWindow(usrInpWinName, cv::WINDOW_GUI_NORMAL);
-
+    cv::namedWindow(usrInpWinName, cv::WINDOW_NORMAL);
+    cv::namedWindow(recPoseWinName, cv::WINDOW_NORMAL);
+    cv::namedWindow(matchesWinName, cv::WINDOW_NORMAL);
+    
     MouseUsrDataParams mouseUsrDataParams(usrInpWinName, &imOutUsrInp);
 
     cv::setMouseCallback(usrInpWinName, onUsrWinClick, (void*)&mouseUsrDataParams);
@@ -1078,15 +1097,14 @@ int main(int argc, char** argv) {
     FlowView ofPrevView, ofCurrView; 
 
     std::vector<FeatureView> featureViews;
-    std::vector<TrackView> trackViews;
     std::vector<ViewData> views;
 
     std::vector<cv::Matx34f> camPoses;
     std::vector<cv::Point3f> usrPts;
 
-    /*VisualizationPCL visPcl( ptCloudWinName);
+    VisualizationPCL visPcl( ptCloudWinName);
 
-    std::thread visPclThread(&VisualizationPCL::visualize, &visPcl);*/
+    //std::thread visPclThread(&VisualizationPCL::visualize, &visPcl);
 
     Tracking tracking;
 
@@ -1097,31 +1115,39 @@ int main(int argc, char** argv) {
         cv::Matx34d _prevPose; composePoseEstimation(recPose.R, recPose.t, _prevPose);
 
         if (bUseOptFl) {
-            if (!findGoodImagePair(cap, optFlow, recPose, camParams, views, ofPrevView, ofCurrView, ofMinKPts, bDownSamp, isUsingCUDA)) { break; }
+            if (!findGoodImagePair(cap, optFlow, featDetector, recPose, camParams, views, ofPrevView, ofCurrView, ofMinKPts, bDownSamp, isUsingCUDA)) { break; }
 
+            ofPrevView.viewPtr = &(views.rbegin()[1]);
+            ofCurrView.viewPtr = &(views.rbegin()[0]);
+
+            ofPrevView.viewPtr->imColor.copyTo(imOutUsrInp);
             ofPrevView.viewPtr->imColor.copyTo(imOutRecPose);
             optFlow.drawFlow(imOutRecPose, imOutRecPose, ofCurrView.corners, ofPrevView.corners, recPose.mask);
         }
 
+        cv::imshow(usrInpWinName, imOutUsrInp);
         cv::imshow(recPoseWinName, imOutRecPose);
 
         if (bUseOptFl) {
             if (featureViews.empty()) {
                 if (isUsingCUDA) 
-                    generateFeatures(featDetector.detector, featDetector.extractor, ofPrevView.viewPtr->imGray, ofPrevView.viewPtr->d_imGray, featPrevView.keyPts, featPrevView.descriptor);             
+                    featDetector.generateFeatures(ofPrevView.viewPtr->imGray, ofPrevView.viewPtr->d_imGray, featPrevView.keyPts, featPrevView.descriptor);             
                  else
-                    generateFeatures(featDetector.detector, featDetector.extractor, ofPrevView.viewPtr->imGray, featPrevView.keyPts, featPrevView.descriptor);
+                    featDetector.generateFeatures(ofPrevView.viewPtr->imGray, featPrevView.keyPts, featPrevView.descriptor);
 
                 featureViews.push_back(featPrevView);
             }
 
             if (isUsingCUDA) 
-                generateFeatures(featDetector.detector, featDetector.extractor, ofCurrView.viewPtr->imGray, ofCurrView.viewPtr->d_imGray, featCurrView.keyPts, featCurrView.descriptor); 
+                featDetector.generateFeatures(ofCurrView.viewPtr->imGray, ofCurrView.viewPtr->d_imGray, featCurrView.keyPts, featCurrView.descriptor); 
              else
-                generateFeatures(featDetector.detector, featDetector.extractor, ofCurrView.viewPtr->imGray, featCurrView.keyPts, featCurrView.descriptor);
+                featDetector.generateFeatures(ofCurrView.viewPtr->imGray, featCurrView.keyPts, featCurrView.descriptor);
                 
             featureViews.push_back(featCurrView);
         }
+
+        featPrevView.viewPtr = &(views.rbegin()[1]);
+        featCurrView.viewPtr = &(views.rbegin()[0]);
 
         if (featPrevView.keyPts.empty() || featCurrView.keyPts.empty()) { 
             std::cerr << "None keypoints to match, skip matching/triangulation!\n";
@@ -1129,10 +1155,15 @@ int main(int argc, char** argv) {
             continue; 
         }
 
+        std::vector<cv::DMatch> _matches;
         std::vector<cv::Point2f> _prevPts, _currPts;
         std::vector<int> _prevIdx, _currIdx;
         
-        recipAligMatches(descMatcher.matcher, fKnnRatio, featPrevView.keyPts, featCurrView.keyPts, featPrevView.descriptor, featCurrView.descriptor, _prevPts, _currPts, _prevIdx, _currIdx);
+        descMatcher.recipAligMatches(fKnnRatio, featPrevView.keyPts, featCurrView.keyPts, featPrevView.descriptor, featCurrView.descriptor, _prevPts, _currPts, _prevIdx, _currIdx, _matches);
+
+        cv::drawMatches(featPrevView.viewPtr->imColor, featPrevView.keyPts, featCurrView.viewPtr->imColor, featCurrView.keyPts, _matches, imOutMatches);
+
+        cv::imshow(matchesWinName, imOutMatches);
 
         if (_prevPts.empty() || _currPts.empty()) { 
             std::cerr << "None points to triangulate, skip triangulation!\n";
@@ -1140,7 +1171,7 @@ int main(int argc, char** argv) {
             continue; 
         }
 
-        if(!tracking.findRecoveredCameraPose(descMatcher.matcher, fKnnRatio, camParams, featCurrView, recPose.R, recPose.t)) {
+        if(!tracking.findRecoveredCameraPose(descMatcher, fKnnRatio, camParams, featCurrView, recPose.R, recPose.t)) {
             std::cout << "Recovering camera fail, skip current reconstruction iteration!\n";
 
             std::swap(featPrevView, featCurrView);
@@ -1151,8 +1182,8 @@ int main(int argc, char** argv) {
         cv::Matx34d _currPose; composePoseEstimation(recPose.R, recPose.t, _currPose);
         camPoses.push_back(_currPose);
 
-        cv::Mat _prevImgN; cv::undistort(_prevPts, _prevImgN, camParams.K33d, camParams.distCoeffs);
-        cv::Mat _currImgN; cv::undistort(_currPts, _currImgN, camParams.K33d, camParams.distCoeffs);
+        cv::Mat _prevImgN; cv::undistort(_prevPts, _prevImgN, camParams.K33d, cv::Mat());
+        cv::Mat _currImgN; cv::undistort(_currPts, _currImgN, camParams.K33d, cv::Mat());
 
         cv::Mat _homogPts; cv::triangulatePoints(camParams.K33d * _prevPose, camParams.K33d * _currPose, _prevImgN, _currImgN, _homogPts);
 
@@ -1162,9 +1193,15 @@ int main(int argc, char** argv) {
 
         tracking.addTrackView(_mask, _currPts, _points3D, _pointsRGB, featCurrView.keyPts, featCurrView.descriptor, _currIdx);
 
-        //std::cout << "[x: " << t(0) << " y: " << t(1) << " z: " << t(2) << "]\n";
+        pcl::PointXYZ pclPose; cvPoseToPCLPose(-recPose.t, pclPose);
 
-        std::cout << "\n"; cv::waitKey(1);
+        std::cout << "\n" << pclPose << "\n"; cv::waitKey(1);
+
+        visPcl.addPointCloud(tracking.trackViews);
+        visPcl.addCamera(pclPose);
+        visPcl.visualize();
+
+        std::swap(featPrevView, featCurrView);
 
         // if (!usrPts.empty()) {
         //     std::vector<cv::Point2f> pts2D; cv::projectPoints(usrPts, R, t, camParams.K33d, cv::Mat(), pts2D);

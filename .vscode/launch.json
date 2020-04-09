@@ -16,7 +16,7 @@
               "-bcalib=/home/lowcash/Documents/SfM_Resources/Calibration/mobile_cam_calib_1.yml", "-bDownSamp=0.25", "-bUseCuda=false", "-bUseOptFl=true",
             
             //------------------------------- FEATURES ------------------------------//
-            "-fDecType=AKAZE", "-fMatchType=BRUTEFORCE_HAMMING", "-fKnnRatio=0.75",
+            "-fDecType=AKAZE", "-fMatchType=BRUTEFORCE", "-fKnnRatio=0.75",
 
             //----------------------------- OPTICAL FLOW ----------------------------//
             "-ofMinKPts=20", "-ofWinSize=21", "-ofMaxLevel=5", "-ofMaxItCt=100", "-ofItEps=0.01", "-ofMaxError=25.0", "-ofMaxCorn=2000", "-ofQualLvl=0.1", "-ofMinDist=0",
@@ -25,7 +25,7 @@
             "-peMethod=RANSAC", "-peProb=0.95", "-peThresh=1.0", "-peMinInl=5",
 
             //---------------------------- TRIANGULATION ----------------------------//
-            "-tMinDist=0.0001", "-tMaxDist=100", "-tMaxPErr=1"
+            "-tMinDist=0.0001", "-tMaxDist=1000", "-tMaxPErr=1"
             ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
