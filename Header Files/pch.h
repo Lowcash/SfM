@@ -18,6 +18,8 @@
 #include <opencv4/opencv2/viz.hpp>
 #include <opencv4/opencv2/core/utils/logger.hpp>
 #include <opencv4/opencv2/xfeatures2d.hpp>
+#include <opencv4/opencv2/xfeatures2d/nonfree.hpp>
+#include <opencv4/opencv2/xfeatures2d/cuda.hpp>
 #include <opencv4/opencv2/core/cuda.hpp>
 #include <opencv4/opencv2/cudaimgproc.hpp>
 #include <opencv4/opencv2/cudafilters.hpp>

@@ -25,7 +25,7 @@ protected:
 
 class FeatureDetector : protected UsingCUDA {
 private:
-    enum DetectorType { AKAZE = 0, ORB, FAST, STAR, SIFT };
+    enum DetectorType { AKAZE = 0, ORB, FAST, STAR, SIFT, SURF, KAZE, BRISK };
 
     DetectorType m_detectorType;
 public:
@@ -46,6 +46,12 @@ public:
             m_detectorType = DetectorType::STAR;
         else if (method == "SIFT")
             m_detectorType = DetectorType::SIFT;
+        else if (method == "SURF")
+            m_detectorType = DetectorType::SURF;
+        else if (method == "KAZE")
+            m_detectorType = DetectorType::KAZE;
+        else if (method == "BRISK")
+            m_detectorType = DetectorType::BRISK;
         else
             m_detectorType = DetectorType::AKAZE;
 
@@ -57,14 +63,6 @@ public:
 
                 break;
             }
-            case DetectorType::ORB: {
-                if (m_isUsingCUDA)
-                    detector = extractor = cv::cuda::ORB::create();
-                else 
-                    detector = extractor = cv::ORB::create();
-
-                break;
-            }
             case DetectorType::STAR: {
                 m_isUsingCUDA = false;
 
@@ -73,6 +71,23 @@ public:
 
                 break;
             }
+            case DetectorType::SIFT: {
+                m_isUsingCUDA = false;
+
+                detector = extractor = cv::xfeatures2d::SIFT::create();
+
+                break;
+            }
+
+            case DetectorType::ORB: {
+                if (m_isUsingCUDA)
+                    detector = extractor = cv::cuda::ORB::create();
+                else 
+                    detector = extractor = cv::ORB::create();
+
+                break;
+            }
+            
             case DetectorType::FAST: {
                 if (m_isUsingCUDA)
                     detector = cv::cuda::FastFeatureDetector::create();
@@ -83,9 +98,25 @@ public:
 
                 break;
             }
-            case DetectorType::SIFT: {
-                detector = extractor = cv::xfeatures2d::SIFT::create();
+            
+            case DetectorType::SURF: {
+                if (!m_isUsingCUDA)
+                    detector = extractor = cv::xfeatures2d::SURF::create();
 
+                break;
+            }
+            case DetectorType::KAZE: {
+                m_isUsingCUDA = false;
+
+                detector = extractor = cv::KAZE::create();
+
+                break;
+            }
+            case DetectorType::BRISK: {
+                m_isUsingCUDA = false;
+
+                detector = extractor = cv::BRISK::create();
+                
                 break;
             }
         }
@@ -104,18 +135,30 @@ public:
     }
 
     void generateFeatures(cv::Mat& imGray, cv::cuda::GpuMat& d_imGray, std::vector<cv::KeyPoint>& keyPts, cv::Mat& descriptor) {
-        //std::cout << "Generating CUDA features..." << std::flush;
+        if (m_isUsingCUDA) {
+            //std::cout << "Generating CUDA features..." << std::flush;
+            if(m_detectorType == DetectorType::SURF){
+                cv::cuda::SURF_CUDA d_surf;
+                cv::cuda::GpuMat d_keyPts, d_descriptor;
+                std::vector<float> _descriptor;
 
-        if (detector != extractor){
-            detector->detect(d_imGray, keyPts);
-            extractor->compute(imGray, keyPts, descriptor);
-        } else {
-            cv::cuda::GpuMat d_descriptor;
-            detector->detectAndCompute(d_imGray, cv::noArray(), keyPts, d_descriptor);
-            d_descriptor.download(descriptor);
-        }
+                d_surf(d_imGray, cv::cuda::GpuMat(), d_keyPts, d_descriptor);
+                d_surf.downloadKeypoints(d_keyPts, keyPts);
+                d_surf.downloadDescriptors(d_descriptor, _descriptor);
 
-        // std::cout << "[DONE]";
+                descriptor = cv::Mat(_descriptor);
+            } else if (detector != extractor){
+                detector->detect(d_imGray, keyPts);
+                extractor->compute(imGray, keyPts, descriptor);
+            } else {
+                cv::cuda::GpuMat d_descriptor;
+                detector->detectAndCompute(d_imGray, cv::noArray(), keyPts, d_descriptor);
+                d_descriptor.download(descriptor);
+            }
+
+            // std::cout << "[DONE]";
+        } else
+            generateFeatures(imGray, keyPts, descriptor);
     }
 
     void generateFlowFeatures(cv::Mat& imGray, std::vector<cv::Point2f>& corners, int maxCorners, double qualityLevel, double minDistance) {
@@ -271,19 +314,6 @@ public:
             }
         }
     }
-
-    void drawFlow(cv::Mat inputImg, cv::Mat& outputImg, std::vector<cv::Point2f> prevCorners, std::vector<cv::Point2f> currCorners, cv::Mat mask = cv::Mat()) {
-        bool isUsingMask = mask.rows == prevCorners.size();
-
-        inputImg.copyTo(outputImg);
-
-        for (int i = 0; i < prevCorners.size() && i < currCorners.size(); ++i) {
-            cv::arrowedLine(outputImg, currCorners[i], prevCorners[i], CV_RGB(0,200,0), 2);
-
-            if (isUsingMask && mask.at<uchar>(i) == 0)
-                cv::arrowedLine(outputImg, currCorners[i], prevCorners[i], CV_RGB(200,0,0), 2);
-        }
-    }
 };
 
 class CameraParameters {
@@ -345,6 +375,19 @@ public:
         if (method == "LMEDS")
             this->method = cv::LMEDS;
     }
+
+    void drawRecoveredPose(cv::Mat inputImg, cv::Mat& outputImg, std::vector<cv::Point2f> prevPts, std::vector<cv::Point2f> currPts, cv::Mat mask = cv::Mat()) {
+        bool isUsingMask = mask.rows == prevPts.size();
+
+        inputImg.copyTo(outputImg);
+
+        for (int i = 0; i < prevPts.size() && i < currPts.size(); ++i) {
+            cv::arrowedLine(outputImg, currPts[i], prevPts[i], CV_RGB(0,200,0), 2);
+
+            if (isUsingMask && mask.at<uchar>(i) == 0)
+                cv::arrowedLine(outputImg, currPts[i], prevPts[i], CV_RGB(200,0,0), 2);
+        }
+    }
 };
 
 class ViewData {
@@ -397,12 +440,15 @@ public:
 class FeatureView : public View {
 public:
     std::vector<cv::KeyPoint> keyPts;
+    std::vector<cv::Point2f> pts;
 
     cv::Mat descriptor;
 
     void setFeatures(const std::vector<cv::KeyPoint> keyPts, const cv::Mat descriptor) {
         this->keyPts = keyPts;
         this->descriptor = descriptor;
+
+        cv::KeyPoint::convert(this->keyPts, this->pts);
     }
 };
 
@@ -958,8 +1004,8 @@ bool findGoodImagePair(cv::VideoCapture cap, OptFlow optFlow, FeatureDetector fe
     int numSkippedFrames = -1, numHomInliers = 0;
     do {
         if (!loadImage(cap, _imColor, _imGray, imDownSampling)) { return false; } 
-        cv::GaussianBlur(_imGray, _imGray, cv::Size(5,5), 0);
-        //cv::medianBlur(_imGray, _imGray, 5);
+        //cv::GaussianBlur(_imGray, _imGray, cv::Size(5, 5), 0);
+        cv::medianBlur(_imGray, _imGray, 7);
 
         std::cout << "." << std::flush;
         
@@ -1002,6 +1048,9 @@ bool findGoodImagePair(cv::VideoCapture cap, OptFlow optFlow, FeatureDetector fe
         views.push_back(ViewData(_imColor, _imGray));
 
     std::swap(ofPrevView, ofCurrView);
+
+    ofPrevView.setView(&(views.rbegin()[1]));
+    ofCurrView.setView(&(views.rbegin()[0]));
 
     std::cout << "[DONE]" << " - Inliers count: " << numHomInliers << "; Skipped frames: " << numSkippedFrames << "\t" << std::flush;
 
@@ -1061,8 +1110,13 @@ bool findGoodImagePair(cv::VideoCapture cap, FeatureDetector featDetector, Descr
     recPose.R = _R[std::pair{_inliers.rbegin()->second.first, _inliers.rbegin()->second.second}];
     recPose.t = _t[std::pair{_inliers.rbegin()->second.first, _inliers.rbegin()->second.second}];
 
+    auto i = _inliers.rbegin()->second;
+
     prevView.setFeatures(_keyPts[_inliers.rbegin()->second.first], _decriptor[_inliers.rbegin()->second.first]);
     currView.setFeatures(_keyPts[_inliers.rbegin()->second.second], _decriptor[_inliers.rbegin()->second.second]);
+
+    prevView.setView(&(views.rbegin()[1]));
+    currView.setView(&(views.rbegin()[0]));
 
     return true;
 }
@@ -1235,30 +1289,25 @@ int main(int argc, char** argv) {
 
     for ( ; ; ) {
         cv::Matx34d _prevPose; composePoseEstimation(recPose.R, recPose.t, _prevPose);
-        //cv::Matx34d _prevPose; composePoseEstimation(cv::Matx33d::eye(), cv::Matx31d::eye(), _prevPose);
         
         if (bUseOptFl) {
-            if (!findGoodImagePair(cap, optFlow, featDetector, recPose, camParams, views, ofPrevView, ofCurrView, ofMinKPts, bDownSamp, isUsingCUDA)) { break; }
-
-            ofPrevView.setView(&(views.rbegin()[1]));
-            ofCurrView.setView(&(views.rbegin()[0]));
+            if (!findGoodImagePair(cap, optFlow, featDetector, recPose, camParams, views, ofPrevView, ofCurrView, ofMinKPts, bDownSamp, isUsingCUDA)) { break; }           
 
             ofPrevView.viewPtr->imColor.copyTo(imOutUsrInp);
             ofPrevView.viewPtr->imColor.copyTo(imOutRecPose);
 
-            optFlow.drawFlow(imOutRecPose, imOutRecPose, ofCurrView.corners, ofPrevView.corners, recPose.mask);
+            recPose.drawRecoveredPose(imOutRecPose, imOutRecPose, ofCurrView.corners, ofPrevView.corners, recPose.mask);
         } else {
             if (!findGoodImagePair(cap, featDetector, descMatcher, recPose, camParams, views, featPrevView, featCurrView, bDownSamp, isUsingCUDA)) { break; }
 
-            featPrevView.setView(&(views.rbegin()[1]));
-            featCurrView.setView(&(views.rbegin()[0]));
-
             featPrevView.viewPtr->imColor.copyTo(imOutUsrInp);
             featCurrView.viewPtr->imColor.copyTo(imOutRecPose);
+
+            recPose.drawRecoveredPose(imOutRecPose, imOutRecPose, featPrevView.pts, featCurrView.pts, recPose.mask);
         }
 
         cv::imshow(usrInpWinName, imOutUsrInp);
-        cv::imshow(recPoseWinName, imOutRecPose);
+        cv::imshow(recPoseWinName, imOutRecPose); cv::waitKey();
 
         if (bUseOptFl) {
             if (featureViews.empty()) {
@@ -1276,10 +1325,10 @@ int main(int argc, char** argv) {
                 featDetector.generateFeatures(ofCurrView.viewPtr->imGray, featCurrView.keyPts, featCurrView.descriptor);
                 
             featureViews.push_back(featCurrView);
-        }
 
-        featPrevView.setView(&(views.rbegin()[1]));
-        featCurrView.setView(&(views.rbegin()[0]));
+            featPrevView.setView(&(views.rbegin()[1]));
+            featCurrView.setView(&(views.rbegin()[0]));
+        }
 
         if (featPrevView.keyPts.empty() || featCurrView.keyPts.empty()) { 
             std::cerr << "None keypoints to match, skip matching/triangulation!\n";
@@ -1347,7 +1396,7 @@ int main(int argc, char** argv) {
         std::cout << "\n" << pclPose << "\n"; cv::waitKey(20);
 
         visPcl.addPointCloud(tracking.trackViews);
-        //visPcl.addCamera(pclPose);
+        visPcl.addCamera(pclPose);
         visPcl.visualize();
 
         std::swap(featPrevView, featCurrView);
