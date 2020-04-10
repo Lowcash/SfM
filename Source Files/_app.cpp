@@ -25,7 +25,7 @@ protected:
 
 class FeatureDetector : protected UsingCUDA {
 private:
-    enum DetectorType { AKAZE = 0, ORB, FAST, STAR, HOG, SIFT };
+    enum DetectorType { AKAZE = 0, ORB, FAST, STAR, SIFT };
 
     DetectorType m_detectorType;
 public:
@@ -44,8 +44,6 @@ public:
             m_detectorType = DetectorType::FAST;
         else if (method == "STAR")
             m_detectorType = DetectorType::STAR;
-        else if (method == "HOG")
-            m_detectorType = DetectorType::HOG;
         else if (method == "SIFT")
             m_detectorType = DetectorType::SIFT;
         else
@@ -82,12 +80,6 @@ public:
                     detector = cv::FastFeatureDetector::create();
 
                 extractor = cv::xfeatures2d::BriefDescriptorExtractor::create();
-
-                break;
-            }
-            case DetectorType::HOG: {
-                // if (m_isUsingCUDA)
-                //     detector = extractor = cv::cuda::HOG::create();
 
                 break;
             }
@@ -202,7 +194,7 @@ public:
 
                     matches.push_back(fM);
 
-                    break;
+                    //break;
                 }
             }
 
@@ -674,7 +666,7 @@ public:
                 pointCloud->push_back(rgbPoint);
             }
 
-            break;
+            //break;
         }
 
         m_viewer->updatePointCloud(pointCloud);
@@ -709,6 +701,10 @@ public:
     void attach2DPoints(std::vector<cv::Point> userPrevPts, std::vector<cv::Point> userCurrPts, std::vector<cv::Point2f>& prevPts, std::vector<cv::Point2f>& currPts) {
         prevPts.insert(prevPts.end(), userPrevPts.begin(), userPrevPts.end());
         currPts.insert(currPts.end(), userCurrPts.begin(), userCurrPts.end());
+    }
+
+    void detach2DPoints(std::vector<cv::Point> userPts2D, std::vector<cv::Point2f>& points2D) {
+        points2D.erase(points2D.end() - userPts2D.size(), points2D.end());
     }
 
     void detach3DPoints(std::vector<cv::Point> userPts2D, std::vector<cv::Point3f>& points3D) {
@@ -993,15 +989,6 @@ bool findGoodImagePair(cv::VideoCapture cap, OptFlow optFlow, FeatureDetector fe
         ofPrevView.setView(&(views.rbegin()[0]));
 
         if (isUsingCUDA) {
-            cv::cuda::GpuMat d_corners;
-
-            featDetector.generateFlowFeatures(_d_imGray, d_corners, optFlow.additionalSettings.maxCorn, optFlow.additionalSettings.qualLvl, optFlow.additionalSettings.minDist);
-
-            d_corners.download(ofCurrView.corners);
-        } else 
-            featDetector.generateFlowFeatures(_imGray, ofCurrView.corners, optFlow.additionalSettings.maxCorn, optFlow.additionalSettings.qualLvl, optFlow.additionalSettings.minDist);
-
-        if (isUsingCUDA) {
             optFlow.computeFlow(ofPrevView.viewPtr->d_imGray, _d_imGray, ofPrevView.corners, ofCurrView.corners);
         } else
             optFlow.computeFlow(ofPrevView.viewPtr->imGray, _imGray, ofPrevView.corners, ofCurrView.corners);
@@ -1102,9 +1089,11 @@ int main(int argc, char** argv) {
 		"{ help h ?  |            | help }"
         "{ bSource   | .          | source video file [.mp4, .avi ...] }"
 		"{ bcalib    | .          | camera intric parameters file path }"
+        "{ bDownSamp | 1          | downsampling of input source images }"
+        "{ bWinWidth | 1024       | debug windows width }"
+        "{ bWinHeight| 768        | debug windows height }"
         "{ bUseCuda  | false      | is nVidia CUDA used }"
         "{ bUseOptFl | true       | is optical flow matching used }"
-        "{ bDownSamp | 1          | downsampling of input source images }"
 
         "{ fDecType  | AKAZE      | used detector type }"
         "{ fMatchType| BRUTEFORCE | used matcher type }"
@@ -1139,6 +1128,8 @@ int main(int argc, char** argv) {
     const std::string bSource = parser.get<std::string>("bSource");
     const std::string bcalib = parser.get<std::string>("bcalib");
     const float bDownSamp = parser.get<float>("bDownSamp");
+    const int bWinWidth = parser.get<int>("bWinWidth");
+    const int bWinHeight = parser.get<int>("bWinHeight");
     const bool bUseCuda = parser.get<bool>("bUseCuda");
     const bool bUseOptFl = parser.get<bool>("bUseOptFl");
 
@@ -1209,14 +1200,16 @@ int main(int argc, char** argv) {
     RecoveryPose recPose(peMethod, peProb, peThresh, peMinInl);
 
     cv::Mat imOutUsrInp, imOutRecPose, imOutMatches;
-   
+    
+    cv::startWindowThread();
+
     cv::namedWindow(usrInpWinName, cv::WINDOW_NORMAL);
     cv::namedWindow(recPoseWinName, cv::WINDOW_NORMAL);
     cv::namedWindow(matchesWinName, cv::WINDOW_NORMAL);
     
-    cv::resizeWindow(usrInpWinName, cv::Size(960, 540));
-    cv::resizeWindow(recPoseWinName, cv::Size(960, 540));
-    cv::resizeWindow(matchesWinName, cv::Size(960, 540));
+    cv::resizeWindow(usrInpWinName, cv::Size(bWinWidth, bWinHeight));
+    cv::resizeWindow(recPoseWinName, cv::Size(bWinWidth, bWinHeight));
+    cv::resizeWindow(matchesWinName, cv::Size(bWinWidth, bWinHeight));
 
     MouseUsrDataParams mouseUsrDataParams(usrInpWinName, &imOutUsrInp);
 
@@ -1241,8 +1234,8 @@ int main(int argc, char** argv) {
     std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
 
     for ( ; ; ) {
-        //cv::Matx34d _prevPose; composePoseEstimation(recPose.R, recPose.t, _prevPose);
-        cv::Matx34d _prevPose; composePoseEstimation(cv::Matx33d::eye(), cv::Matx31d::eye(), _prevPose);
+        cv::Matx34d _prevPose; composePoseEstimation(recPose.R, recPose.t, _prevPose);
+        //cv::Matx34d _prevPose; composePoseEstimation(cv::Matx33d::eye(), cv::Matx31d::eye(), _prevPose);
         
         if (bUseOptFl) {
             if (!findGoodImagePair(cap, optFlow, featDetector, recPose, camParams, views, ofPrevView, ofCurrView, ofMinKPts, bDownSamp, isUsingCUDA)) { break; }
@@ -1310,13 +1303,13 @@ int main(int argc, char** argv) {
             continue; 
         }
 
-        // if(!tracking.findRecoveredCameraPose(descMatcher, fKnnRatio, camParams, featCurrView, recPose.R, recPose.t)) {
-        //     std::cout << "Recovering camera fail, skip current reconstruction iteration!\n";
+        if(!tracking.findRecoveredCameraPose(descMatcher, fKnnRatio, camParams, featCurrView, recPose.R, recPose.t)) {
+            std::cout << "Recovering camera fail, skip current reconstruction iteration!\n";
 
-        //     std::swap(featPrevView, featCurrView);
+            std::swap(featPrevView, featCurrView);
 
-        //     continue;
-        // }
+            continue;
+        }
 
         userInput.recoverPoints(cv::Mat(recPose.R), cv::Mat(recPose.t), camParams, imOutUsrInp);
 
@@ -1341,18 +1334,17 @@ int main(int argc, char** argv) {
         _usrPts.insert(_usrPts.end(), _points3D.end() - mouseUsrDataParams.m_clickedPoint.size(), _points3D.end());
         userInput.insert3DPoints(_usrPts);
 
+        userInput.detach2DPoints(mouseUsrDataParams.m_clickedPoint, _currPts);
         userInput.detach3DPoints(mouseUsrDataParams.m_clickedPoint, _points3D);
         mouseUsrDataParams.m_clickedPoint.clear();
 
-        //tracking.trackViews.clear();
         tracking.addTrackView(_mask, _currPts, _points3D, _pointsRGB, featCurrView.keyPts, featCurrView.descriptor, _currIdx);
 
         adjustBundle(tracking.trackViews, camParams, camPoses);
-        //camPoses.clear();
 
         pcl::PointXYZ pclPose; cvPoseToPCLPose(-recPose.t, pclPose);
 
-        std::cout << "\n" << pclPose << "\n"; cv::waitKey();
+        std::cout << "\n" << pclPose << "\n"; cv::waitKey(20);
 
         visPcl.addPointCloud(tracking.trackViews);
         //visPcl.addCamera(pclPose);
