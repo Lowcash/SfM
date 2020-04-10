@@ -8,6 +8,9 @@
             "args": [
                 "-g", "-std=gnu++1z",
                 "-g", "Source Files/_app.cpp",
+                "-g", "Source Files/visualization.cpp",
+                "-g", "Source Files/tracking.cpp",
+                "-g", "Source Files/feature_processing.cpp",
                 "-o", "${workspaceFolder}/SfM_App.out",
                 "-I", "/usr/local/include/opencv4",
                 "-I", "/usr/local/include/ceres",
