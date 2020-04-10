@@ -23,6 +23,194 @@ protected:
     bool getIsUsingCUDA() const { return m_isUsingCUDA; }
 };
 
+class FeatureDetector : protected UsingCUDA {
+private:
+    enum DetectorType { AKAZE = 0, ORB, FAST, STAR, HOG, SIFT };
+
+    DetectorType m_detectorType;
+public:
+    cv::Ptr<cv::FeatureDetector> detector, extractor;
+
+    FeatureDetector(std::string method, bool isUsingCUDA = false) {
+        m_isUsingCUDA = isUsingCUDA;
+
+        std::for_each(method.begin(), method.end(), [](char& c){
+            c = ::toupper(c);
+        });
+
+        if (method == "ORB")
+            m_detectorType = DetectorType::ORB;
+        else if (method == "FAST")
+            m_detectorType = DetectorType::FAST;
+        else if (method == "STAR")
+            m_detectorType = DetectorType::STAR;
+        else if (method == "HOG")
+            m_detectorType = DetectorType::HOG;
+        else if (method == "SIFT")
+            m_detectorType = DetectorType::SIFT;
+        else
+            m_detectorType = DetectorType::AKAZE;
+
+        switch (m_detectorType) {
+            case DetectorType::AKAZE: {
+                m_isUsingCUDA = false;
+
+                detector = extractor = cv::AKAZE::create();
+
+                break;
+            }
+            case DetectorType::ORB: {
+                if (m_isUsingCUDA)
+                    detector = extractor = cv::cuda::ORB::create();
+                else 
+                    detector = extractor = cv::ORB::create();
+
+                break;
+            }
+            case DetectorType::STAR: {
+                m_isUsingCUDA = false;
+
+                detector = cv::xfeatures2d::StarDetector::create();
+                extractor = cv::xfeatures2d::BriefDescriptorExtractor::create();
+
+                break;
+            }
+            case DetectorType::FAST: {
+                if (m_isUsingCUDA)
+                    detector = cv::cuda::FastFeatureDetector::create();
+                else 
+                    detector = cv::FastFeatureDetector::create();
+
+                extractor = cv::xfeatures2d::BriefDescriptorExtractor::create();
+
+                break;
+            }
+            case DetectorType::HOG: {
+                // if (m_isUsingCUDA)
+                //     detector = extractor = cv::cuda::HOG::create();
+
+                break;
+            }
+            case DetectorType::SIFT: {
+                detector = extractor = cv::xfeatures2d::SIFT::create();
+
+                break;
+            }
+        }
+    }
+
+    void generateFeatures(cv::Mat& imGray, std::vector<cv::KeyPoint>& keyPts, cv::Mat& descriptor) {
+        //std::cout << "Generating features..." << std::flush;
+
+        if (detector != extractor){
+            detector->detect(imGray, keyPts);
+            extractor->compute(imGray, keyPts, descriptor);
+        } else
+            detector->detectAndCompute(imGray, cv::noArray(), keyPts, descriptor);
+
+        //std::cout << "[DONE]";
+    }
+
+    void generateFeatures(cv::Mat& imGray, cv::cuda::GpuMat& d_imGray, std::vector<cv::KeyPoint>& keyPts, cv::Mat& descriptor) {
+        //std::cout << "Generating CUDA features..." << std::flush;
+
+        if (detector != extractor){
+            detector->detect(d_imGray, keyPts);
+            extractor->compute(imGray, keyPts, descriptor);
+        } else {
+            cv::cuda::GpuMat d_descriptor;
+            detector->detectAndCompute(d_imGray, cv::noArray(), keyPts, d_descriptor);
+            d_descriptor.download(descriptor);
+        }
+
+        // std::cout << "[DONE]";
+    }
+
+    void generateFlowFeatures(cv::Mat& imGray, std::vector<cv::Point2f>& corners, int maxCorners, double qualityLevel, double minDistance) {
+        std::cout << "Generating flow features..." << std::flush;
+
+        cv::goodFeaturesToTrack(imGray, corners, maxCorners, qualityLevel, minDistance);
+
+        std::cout << "[DONE]";
+    }
+
+    void generateFlowFeatures(cv::cuda::GpuMat& d_imGray, cv::cuda::GpuMat& corners, int maxCorners, double qualityLevel, double minDistance) {
+        std::cout << "Generating CUDA flow features..." << std::flush;
+
+        cv::Ptr<cv::cuda::CornersDetector> cudaCornersDetector = cv::cuda::createGoodFeaturesToTrackDetector(d_imGray.type(), maxCorners, qualityLevel, minDistance);
+
+        cudaCornersDetector->detect(d_imGray, corners);
+
+        std::cout << "[DONE]";
+    }
+};
+
+class DescriptorMatcher : protected UsingCUDA {
+public:
+    const float m_ratioThreshold;
+
+    cv::Ptr<cv::DescriptorMatcher> matcher;
+
+    DescriptorMatcher(std::string method, const float ratioThreshold, bool isUsingCUDA = false)
+        : m_ratioThreshold(ratioThreshold) {
+        m_isUsingCUDA = isUsingCUDA;
+
+        std::for_each(method.begin(), method.end(), [](char& c){
+            c = ::toupper(c);
+        });
+
+        if (method == "BRUTEFORCE_HAMMING")
+            matcher = cv::DescriptorMatcher::create(cv::DescriptorMatcher::MatcherType::BRUTEFORCE_HAMMING);
+        else if (method == "BRUTEFORCE_SL2")
+            matcher = cv::DescriptorMatcher::create(cv::DescriptorMatcher::MatcherType::BRUTEFORCE_SL2);
+        else if (method == "FLANNBASED")
+            matcher = cv::DescriptorMatcher::create(cv::DescriptorMatcher::MatcherType::FLANNBASED);
+        else 
+            matcher = cv::DescriptorMatcher::create(cv::DescriptorMatcher::MatcherType::BRUTEFORCE);
+    }
+
+    void ratioMaches(const cv::Mat lDesc, const cv::Mat rDesc, std::vector<cv::DMatch>& matches) {
+        std::vector<std::vector<cv::DMatch>> knnMatches;
+
+        matcher->knnMatch(lDesc, rDesc, knnMatches, 2);
+
+        matches.clear();
+        for (const auto& k : knnMatches) {
+            if (k[0].distance < m_ratioThreshold * k[1].distance) 
+                matches.push_back(k[0]);
+        }
+    }
+
+    void recipAligMatches(std::vector<cv::KeyPoint> prevKeyPts, std::vector<cv::KeyPoint> currKeyPts, cv::Mat prevDesc, cv::Mat currDesc, std::vector<cv::Point2f>& prevPts, std::vector<cv::Point2f>& currPts, std::vector<int>& prevIdx, std::vector<int>& currIdx, std::vector<cv::DMatch>& matches) {
+        std::vector<cv::DMatch> fMatches, bMatches;
+
+        ratioMaches(prevDesc, currDesc, fMatches);
+        ratioMaches(currDesc, prevDesc, bMatches);
+
+        for (const auto& bM : bMatches) {
+            bool isFound = false;
+
+            for (const auto& fM : fMatches) {
+                if (bM.queryIdx == fM.trainIdx && bM.trainIdx == fM.queryIdx) {
+                    prevPts.push_back(prevKeyPts[fM.queryIdx].pt);
+                    currPts.push_back(currKeyPts[fM.trainIdx].pt);
+
+                    prevIdx.push_back(fM.queryIdx);
+                    currIdx.push_back(fM.trainIdx);
+
+                    isFound = true;
+
+                    matches.push_back(fM);
+
+                    break;
+                }
+            }
+
+            if (isFound) { continue; }
+        }
+    }
+};
+
 class OptFlow : protected UsingCUDA {
 public:
     cv::Ptr<cv::SparsePyrLKOpticalFlow> optFlow;
@@ -102,176 +290,6 @@ public:
 
             if (isUsingMask && mask.at<uchar>(i) == 0)
                 cv::arrowedLine(outputImg, currCorners[i], prevCorners[i], CV_RGB(200,0,0), 2);
-        }
-    }
-};
-
-class FeatureDetector : protected UsingCUDA {
-private:
-    enum DetectorType { AKAZE = 0, ORB, FAST, STAR };
-
-    DetectorType m_detectorType;
-public:
-    cv::Ptr<cv::FeatureDetector> detector, extractor;
-
-    FeatureDetector(std::string method, bool isUsingCUDA = false) {
-        m_isUsingCUDA = isUsingCUDA;
-
-        std::for_each(method.begin(), method.end(), [](char& c){
-            c = ::toupper(c);
-        });
-
-        if (method == "ORB")
-            m_detectorType = DetectorType::ORB;
-        else if (method == "FAST")
-            m_detectorType = DetectorType::FAST;
-        else if (method == "STAR")
-            m_detectorType = DetectorType::STAR;
-        else
-            m_detectorType = DetectorType::AKAZE;
-
-        switch (m_detectorType) {
-            case DetectorType::AKAZE: {
-                m_isUsingCUDA = false;
-
-                detector = extractor = cv::AKAZE::create();
-
-                break;
-            }
-            case DetectorType::ORB: {
-                if (m_isUsingCUDA)
-                    detector = extractor = cv::cuda::ORB::create();
-                else 
-                    detector = extractor = cv::ORB::create();
-
-                break;
-            }
-            case DetectorType::STAR: {
-                m_isUsingCUDA = false;
-
-                detector = cv::xfeatures2d::StarDetector::create();
-                extractor = cv::xfeatures2d::BriefDescriptorExtractor::create();
-
-                break;
-            }
-            case DetectorType::FAST: {
-                if (m_isUsingCUDA)
-                    detector = cv::cuda::FastFeatureDetector::create();
-                else 
-                    detector = cv::FastFeatureDetector::create();
-
-                extractor = cv::xfeatures2d::BriefDescriptorExtractor::create();
-
-                break;
-            }
-        }
-    }
-
-    void generateFeatures(cv::Mat& imGray, std::vector<cv::KeyPoint>& keyPts, cv::Mat& descriptor) {
-        //std::cout << "Generating features..." << std::flush;
-
-        if (detector != extractor){
-            detector->detect(imGray, keyPts);
-            extractor->compute(imGray, keyPts, descriptor);
-        } else
-            detector->detectAndCompute(imGray, cv::noArray(), keyPts, descriptor);
-
-        //std::cout << "[DONE]";
-    }
-
-    void generateFeatures(cv::Mat& imGray, cv::cuda::GpuMat& d_imGray, std::vector<cv::KeyPoint>& keyPts, cv::Mat& descriptor) {
-        //std::cout << "Generating CUDA features..." << std::flush;
-
-        if (detector != extractor){
-            detector->detect(d_imGray, keyPts);
-            extractor->compute(imGray, keyPts, descriptor);
-        } else {
-            cv::cuda::GpuMat d_descriptor;
-            detector->detectAndCompute(d_imGray, cv::noArray(), keyPts, d_descriptor);
-            d_descriptor.download(descriptor);
-        }
-
-        // std::cout << "[DONE]";
-    }
-
-    void generateFlowFeatures(cv::Mat& imGray, std::vector<cv::Point2f>& corners, int maxCorners, double qualityLevel, double minDistance) {
-        std::cout << "Generating flow features..." << std::flush;
-
-        cv::goodFeaturesToTrack(imGray, corners, maxCorners, qualityLevel, minDistance);
-
-        std::cout << "[DONE]";
-    }
-
-    void generateFlowFeatures(cv::cuda::GpuMat& d_imGray, cv::cuda::GpuMat& corners, int maxCorners, double qualityLevel, double minDistance) {
-        std::cout << "Generating CUDA flow features..." << std::flush;
-
-        cv::Ptr<cv::cuda::CornersDetector> cudaCornersDetector = cv::cuda::createGoodFeaturesToTrackDetector(d_imGray.type(), maxCorners, qualityLevel, minDistance);
-
-        cudaCornersDetector->detect(d_imGray, corners);
-
-        std::cout << "[DONE]";
-    }
-};
-
-class DescriptorMatcher : protected UsingCUDA {
-public:
-    cv::Ptr<cv::DescriptorMatcher> matcher;
-
-    DescriptorMatcher(std::string method, bool isUsingCUDA = false) {
-        m_isUsingCUDA = isUsingCUDA;
-
-        std::for_each(method.begin(), method.end(), [](char& c){
-            c = ::toupper(c);
-        });
-
-        if (method == "BRUTEFORCE_HAMMING")
-            matcher = cv::DescriptorMatcher::create(cv::DescriptorMatcher::MatcherType::BRUTEFORCE_HAMMING);
-        else if (method == "BRUTEFORCE_SL2")
-            matcher = cv::DescriptorMatcher::create(cv::DescriptorMatcher::MatcherType::BRUTEFORCE_SL2);
-        else if (method == "FLANNBASED")
-            matcher = cv::DescriptorMatcher::create(cv::DescriptorMatcher::MatcherType::FLANNBASED);
-        else 
-            matcher = cv::DescriptorMatcher::create(cv::DescriptorMatcher::MatcherType::BRUTEFORCE);
-    }
-
-    void ratioMaches(float ratioThresh, const cv::Mat lDesc, const cv::Mat rDesc, std::vector<cv::DMatch>& matches) {
-        std::vector<std::vector<cv::DMatch>> knnMatches;
-
-        matcher->knnMatch(lDesc, rDesc, knnMatches, 2);
-
-        matches.clear();
-        for (const auto& k : knnMatches) {
-            if (k[0].distance < ratioThresh * k[1].distance) 
-                matches.push_back(k[0]);
-        }
-    }
-
-    void recipAligMatches(float ratioThresh, std::vector<cv::KeyPoint> prevKeyPts, std::vector<cv::KeyPoint> currKeyPts, cv::Mat prevDesc, cv::Mat currDesc, std::vector<cv::Point2f>& prevPts, std::vector<cv::Point2f>& currPts, std::vector<int>& prevIdx, std::vector<int>& currIdx, std::vector<cv::DMatch>& matches) {
-        std::vector<cv::DMatch> fMatches, bMatches;
-
-        ratioMaches(ratioThresh, prevDesc, currDesc, fMatches);
-        ratioMaches(ratioThresh, currDesc, prevDesc, bMatches);
-
-        for (const auto& bM : bMatches) {
-            bool isFound = false;
-
-            for (const auto& fM : fMatches) {
-                if (bM.queryIdx == fM.trainIdx && bM.trainIdx == fM.queryIdx) {
-                    prevPts.push_back(prevKeyPts[fM.queryIdx].pt);
-                    currPts.push_back(currKeyPts[fM.trainIdx].pt);
-
-                    prevIdx.push_back(fM.queryIdx);
-                    currIdx.push_back(fM.trainIdx);
-
-                    isFound = true;
-
-                    matches.push_back(fM);
-
-                    break;
-                }
-            }
-
-            if (isFound) { continue; }
         }
     }
 };
@@ -450,7 +468,7 @@ public:
             std::vector<cv::DMatch> _matches;
             std::vector<cv::Point2f> _prevPts, _currPts;
             std::vector<int> _prevIdx, _currIdx;
-            matcher.recipAligMatches(knnRatio, t->keyPoints, featView.keyPts, t->descriptor, featView.descriptor, _prevPts, _currPts, _prevIdx, _currIdx, _matches);
+            matcher.recipAligMatches(t->keyPoints, featView.keyPts, t->descriptor, featView.descriptor, _prevPts, _currPts, _prevIdx, _currIdx, _matches);
 
             //cv::Mat _inOutMatch; t->viewPtr->imColor.copyTo(_inOutMatch); 
             //cv::hconcat(_inOutMatch, featView.viewPtr->imColor, _inOutMatch);
@@ -656,7 +674,7 @@ public:
                 pointCloud->push_back(rgbPoint);
             }
 
-            //break;
+            break;
         }
 
         m_viewer->updatePointCloud(pointCloud);
@@ -683,13 +701,63 @@ public:
     }
 };
 
+class UserInput {
+private:
+    std::vector<cv::Point3f> m_usrPts;
+
+public:
+    void attach2DPoints(std::vector<cv::Point> userPrevPts, std::vector<cv::Point> userCurrPts, std::vector<cv::Point2f>& prevPts, std::vector<cv::Point2f>& currPts) {
+        prevPts.insert(prevPts.end(), userPrevPts.begin(), userPrevPts.end());
+        currPts.insert(currPts.end(), userCurrPts.begin(), userCurrPts.end());
+    }
+
+    void detach3DPoints(std::vector<cv::Point> userPts2D, std::vector<cv::Point3f>& points3D) {
+        points3D.erase(points3D.end() - userPts2D.size(), points3D.end());
+    }
+
+    void insert3DPoints(std::vector<cv::Point3f> points3D) {
+        m_usrPts.insert(m_usrPts.end(), points3D.begin(), points3D.end());
+    }
+
+    void recoverPoints(cv::Mat R, cv::Mat t, CameraParameters camParams, cv::Mat& imOutUsr) {
+        if (!m_usrPts.empty()) {
+            std::vector<cv::Point2f> pts2D; cv::projectPoints(m_usrPts, R, t, camParams.K33d, cv::Mat(), pts2D);
+
+            for (const auto p : pts2D) {
+                std::cout << "Point projected to: " << p << "\n";
+
+                cv::circle(imOutUsr, p, 3, CV_RGB(150, 200, 0), cv::FILLED, cv::LINE_AA);
+            }
+        }
+    }
+
+    void movePoints(const std::vector<cv::Point2f> prevPts, const std::vector<cv::Point2f> currPts, const std::vector<cv::Point> inputPts, std::vector<cv::Point>& outputPts) {
+        cv::Point2f move; int ptsSize = MIN(prevPts.size(), currPts.size());
+
+        for (int i = 0; i < ptsSize; ++i) 
+            move += currPts[i] - prevPts[i];
+        
+        move.x /= ptsSize;
+        move.y /= ptsSize;
+
+        for (int i = 0; i < inputPts.size(); ++i) {
+            outputPts.push_back(
+                cv::Point2f(
+                    inputPts[i].x + move.x, 
+                    inputPts[i].y + move.y
+                )
+            );
+        }
+    }
+};
+
 struct MouseUsrDataParams {
 public:
     const std::string m_inputWinName;
 
     cv::Mat* m_inputMat;
 
-    std::list<cv::Point> m_clickedPoint;
+    std::vector<cv::Point> m_clickedPoint;
 
     MouseUsrDataParams(const std::string inputWinName, cv::Mat* inputMat)
         : m_inputWinName(inputWinName) {
@@ -888,8 +956,6 @@ bool loadImage(cv::VideoCapture& cap, cv::Mat& imColor, cv::Mat& imGray, float d
 bool findGoodImagePair(cv::VideoCapture cap, OptFlow optFlow, FeatureDetector featDetector, RecoveryPose& recPose, CameraParameters camParams, std::vector<ViewData>& views, FlowView& ofPrevView, FlowView& ofCurrView, uint flowMinFeatures, float imDownSampling = 1.0f, bool isUsingCUDA = false) {
     std::cout << "Finding good image pair" << std::flush;
 
-    std::vector<cv::Point2f> _prevCorners, _currCorners;
-
     cv::Mat _imColor, _imGray;
     cv::cuda::GpuMat _d_imColor, _d_imGray;
 
@@ -897,6 +963,7 @@ bool findGoodImagePair(cv::VideoCapture cap, OptFlow optFlow, FeatureDetector fe
     do {
         if (!loadImage(cap, _imColor, _imGray, imDownSampling)) { return false; } 
         cv::GaussianBlur(_imGray, _imGray, cv::Size(5,5), 0);
+        //cv::medianBlur(_imGray, _imGray, 5);
 
         std::cout << "." << std::flush;
         
@@ -905,52 +972,110 @@ bool findGoodImagePair(cv::VideoCapture cap, OptFlow optFlow, FeatureDetector fe
             _d_imGray.upload(_imGray);
         }
 
-        ofPrevView.setView(&(views.rbegin()[0]));
-        
         if (ofPrevView.corners.size() < flowMinFeatures) {
-            std::vector<cv::Point2f> corners;
-
             if (isUsingCUDA) {
                 cv::cuda::GpuMat d_corners;
 
                 featDetector.generateFlowFeatures(_d_imGray, d_corners, optFlow.additionalSettings.maxCorn, optFlow.additionalSettings.qualLvl, optFlow.additionalSettings.minDist);
 
-                d_corners.download(corners);
+                d_corners.download(ofPrevView.corners);
             } else 
-                featDetector.generateFlowFeatures(_imGray, corners, optFlow.additionalSettings.maxCorn, optFlow.additionalSettings.qualLvl, optFlow.additionalSettings.minDist);
+                featDetector.generateFlowFeatures(_imGray, ofPrevView.corners, optFlow.additionalSettings.maxCorn, optFlow.additionalSettings.qualLvl, optFlow.additionalSettings.minDist);
 
             if (isUsingCUDA) 
                 views.push_back(ViewData(_imColor, _imGray, _d_imColor, _d_imGray));
             else 
                 views.push_back(ViewData(_imColor, _imGray));
 
-            ofCurrView.setPts(corners);
-
-            std::swap(ofPrevView, ofCurrView);
-
             continue; 
         }
 
-        _prevCorners = ofPrevView.corners;
+        ofPrevView.setView(&(views.rbegin()[0]));
 
         if (isUsingCUDA) {
-            optFlow.computeFlow(ofPrevView.viewPtr->d_imGray, _d_imGray, _prevCorners, _currCorners);
+            cv::cuda::GpuMat d_corners;
+
+            featDetector.generateFlowFeatures(_d_imGray, d_corners, optFlow.additionalSettings.maxCorn, optFlow.additionalSettings.qualLvl, optFlow.additionalSettings.minDist);
+
+            d_corners.download(ofCurrView.corners);
+        } else 
+            featDetector.generateFlowFeatures(_imGray, ofCurrView.corners, optFlow.additionalSettings.maxCorn, optFlow.additionalSettings.qualLvl, optFlow.additionalSettings.minDist);
+
+        if (isUsingCUDA) {
+            optFlow.computeFlow(ofPrevView.viewPtr->d_imGray, _d_imGray, ofPrevView.corners, ofCurrView.corners);
         } else
-            optFlow.computeFlow(ofPrevView.viewPtr->imGray, _imGray, _prevCorners, _currCorners);
+            optFlow.computeFlow(ofPrevView.viewPtr->imGray, _imGray, ofPrevView.corners, ofCurrView.corners);
 
         numSkippedFrames++;
-    } while(!findCameraPose(recPose, _prevCorners, _currCorners, camParams._K, recPose.minInliers, numHomInliers));
+    } while(!findCameraPose(recPose, ofPrevView.corners, ofCurrView.corners, camParams._K, recPose.minInliers, numHomInliers));
 
     if (isUsingCUDA) 
         views.push_back(ViewData(_imColor, _imGray, _d_imColor, _d_imGray));
     else 
         views.push_back(ViewData(_imColor, _imGray));
 
-    ofPrevView.setPts(_prevCorners);
-    ofCurrView.setPts(_currCorners);
     std::swap(ofPrevView, ofCurrView);
 
     std::cout << "[DONE]" << " - Inliers count: " << numHomInliers << "; Skipped frames: " << numSkippedFrames << "\t" << std::flush;
+
+    return true;
+}
+
+bool findGoodImagePair(cv::VideoCapture cap, FeatureDetector featDetector, DescriptorMatcher matcher, RecoveryPose& recPose, CameraParameters camParams, std::vector<ViewData>& views, FeatureView& prevView, FeatureView& currView, float imDownSampling = 1.0f, bool isUsingCUDA = false) {
+    std::vector<ViewData> _views;
+    std::vector<cv::Mat> _imGrays;
+
+    std::map<std::pair<int, int>, std::vector<cv::DMatch>> _matchingMatrix;
+    std::map<std::pair<int, int>, std::vector<cv::Point2f>> _prevPts;
+    std::map<std::pair<int, int>, std::vector<cv::Point2f>> _currPts;
+    std::map<int, std::pair<int, int>> _inliers;
+    std::map<std::pair<int, int>, cv::Matx33d> _R;
+    std::map<std::pair<int, int>, cv::Matx31d> _t;
+    for (int i = 0; i < 6; ++i) {
+        cv::Mat _imColor, _imGray;
+
+        if (!loadImage(cap, _imColor, _imGray, imDownSampling)) { return false; } 
+        cv::GaussianBlur(_imGray, _imGray, cv::Size(5,5), 0);
+
+        _views.push_back(ViewData(_imColor, _imGray));
+        _imGrays.push_back(_imGray);
+
+        for (int j = i; j < 6; ++j) {
+            _matchingMatrix[std::pair{i, j}] = std::vector<cv::DMatch>();
+            _prevPts[std::pair{i, j}] = std::vector<cv::Point2f>();
+            _currPts[std::pair{i, j}] = std::vector<cv::Point2f>();
+        }
+    }
+
+    std::vector<std::vector<cv::KeyPoint>> _keyPts;
+    std::vector<cv::Mat> _decriptor;
+
+    featDetector.detector->detect(_imGrays, _keyPts);
+    featDetector.extractor->compute(_imGrays, _keyPts, _decriptor);
+
+    for (auto& m : _matchingMatrix) {
+        std::vector<int> _prevIdx, _currIdx;
+
+        matcher.recipAligMatches(_keyPts[m.first.first], _keyPts[m.first.second], _decriptor[m.first.first], _decriptor[m.first.second], _prevPts[std::pair{m.first.first, m.first.second}], _currPts[std::pair{m.first.first, m.first.second}], _prevIdx, _currIdx, m.second);
+    }
+
+    for (auto& m : _matchingMatrix) {
+        int inliers; findCameraPose(recPose, _prevPts[std::pair{m.first.first, m.first.second}], _currPts[std::pair{m.first.first, m.first.second}], camParams._K, recPose.minInliers, inliers);
+
+        _R[std::pair{m.first.first, m.first.second}] = recPose.R;
+        _t[std::pair{m.first.first, m.first.second}] = recPose.t;
+
+        _inliers[inliers] = std::pair{m.first.first, m.first.second};
+    }
+
+    views.push_back(_views[_inliers.rbegin()->second.first]);
+    views.push_back(_views[_inliers.rbegin()->second.second]);
+
+    recPose.R = _R[std::pair{_inliers.rbegin()->second.first, _inliers.rbegin()->second.second}];
+    recPose.t = _t[std::pair{_inliers.rbegin()->second.first, _inliers.rbegin()->second.second}];
+
+    prevView.setFeatures(_keyPts[_inliers.rbegin()->second.first], _decriptor[_inliers.rbegin()->second.first]);
+    currView.setFeatures(_keyPts[_inliers.rbegin()->second.second], _decriptor[_inliers.rbegin()->second.second]);
 
     return true;
 }
@@ -1076,7 +1201,7 @@ int main(int argc, char** argv) {
     }
 
     FeatureDetector featDetector(fDecType, isUsingCUDA);
-    DescriptorMatcher descMatcher(fMatchType, isUsingCUDA);
+    DescriptorMatcher descMatcher(fMatchType, fKnnRatio, isUsingCUDA);
     
     cv::TermCriteria flowTermCrit(cv::TermCriteria::COUNT + cv::TermCriteria::EPS, ofMaxItCt, ofItEps);
     OptFlow optFlow(flowTermCrit, ofWinSize, ofMaxLevel, ofMaxError, ofMaxCorn, ofQualLvl, ofMinDist, isUsingCUDA);
@@ -1089,6 +1214,10 @@ int main(int argc, char** argv) {
     cv::namedWindow(recPoseWinName, cv::WINDOW_NORMAL);
     cv::namedWindow(matchesWinName, cv::WINDOW_NORMAL);
     
+    cv::resizeWindow(usrInpWinName, cv::Size(960, 540));
+    cv::resizeWindow(recPoseWinName, cv::Size(960, 540));
+    cv::resizeWindow(matchesWinName, cv::Size(960, 540));
+
     MouseUsrDataParams mouseUsrDataParams(usrInpWinName, &imOutUsrInp);
 
     cv::setMouseCallback(usrInpWinName, onUsrWinClick, (void*)&mouseUsrDataParams);
@@ -1103,26 +1232,36 @@ int main(int argc, char** argv) {
     std::vector<cv::Point3f> usrPts;
 
     VisualizationPCL visPcl( ptCloudWinName);
-
     //std::thread visPclThread(&VisualizationPCL::visualize, &visPcl);
 
     Tracking tracking;
+    UserInput userInput;
 
 #pragma endregion INIT 
     std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
 
     for ( ; ; ) {
-        cv::Matx34d _prevPose; composePoseEstimation(recPose.R, recPose.t, _prevPose);
-
+        //cv::Matx34d _prevPose; composePoseEstimation(recPose.R, recPose.t, _prevPose);
+        cv::Matx34d _prevPose; composePoseEstimation(cv::Matx33d::eye(), cv::Matx31d::eye(), _prevPose);
+        
         if (bUseOptFl) {
             if (!findGoodImagePair(cap, optFlow, featDetector, recPose, camParams, views, ofPrevView, ofCurrView, ofMinKPts, bDownSamp, isUsingCUDA)) { break; }
 
-            ofPrevView.viewPtr = &(views.rbegin()[1]);
-            ofCurrView.viewPtr = &(views.rbegin()[0]);
+            ofPrevView.setView(&(views.rbegin()[1]));
+            ofCurrView.setView(&(views.rbegin()[0]));
 
             ofPrevView.viewPtr->imColor.copyTo(imOutUsrInp);
             ofPrevView.viewPtr->imColor.copyTo(imOutRecPose);
+
             optFlow.drawFlow(imOutRecPose, imOutRecPose, ofCurrView.corners, ofPrevView.corners, recPose.mask);
+        } else {
+            if (!findGoodImagePair(cap, featDetector, descMatcher, recPose, camParams, views, featPrevView, featCurrView, bDownSamp, isUsingCUDA)) { break; }
+
+            featPrevView.setView(&(views.rbegin()[1]));
+            featCurrView.setView(&(views.rbegin()[0]));
+
+            featPrevView.viewPtr->imColor.copyTo(imOutUsrInp);
+            featCurrView.viewPtr->imColor.copyTo(imOutRecPose);
         }
 
         cv::imshow(usrInpWinName, imOutUsrInp);
@@ -1146,8 +1285,8 @@ int main(int argc, char** argv) {
             featureViews.push_back(featCurrView);
         }
 
-        featPrevView.viewPtr = &(views.rbegin()[1]);
-        featCurrView.viewPtr = &(views.rbegin()[0]);
+        featPrevView.setView(&(views.rbegin()[1]));
+        featCurrView.setView(&(views.rbegin()[0]));
 
         if (featPrevView.keyPts.empty() || featCurrView.keyPts.empty()) { 
             std::cerr << "None keypoints to match, skip matching/triangulation!\n";
@@ -1159,7 +1298,7 @@ int main(int argc, char** argv) {
         std::vector<cv::Point2f> _prevPts, _currPts;
         std::vector<int> _prevIdx, _currIdx;
         
-        descMatcher.recipAligMatches(fKnnRatio, featPrevView.keyPts, featCurrView.keyPts, featPrevView.descriptor, featCurrView.descriptor, _prevPts, _currPts, _prevIdx, _currIdx, _matches);
+        descMatcher.recipAligMatches(featPrevView.keyPts, featCurrView.keyPts, featPrevView.descriptor, featCurrView.descriptor, _prevPts, _currPts, _prevIdx, _currIdx, _matches);
 
         cv::drawMatches(featPrevView.viewPtr->imColor, featPrevView.keyPts, featCurrView.viewPtr->imColor, featCurrView.keyPts, _matches, imOutMatches);
 
@@ -1171,13 +1310,20 @@ int main(int argc, char** argv) {
             continue; 
         }
 
-        if(!tracking.findRecoveredCameraPose(descMatcher, fKnnRatio, camParams, featCurrView, recPose.R, recPose.t)) {
-            std::cout << "Recovering camera fail, skip current reconstruction iteration!\n";
+        // if(!tracking.findRecoveredCameraPose(descMatcher, fKnnRatio, camParams, featCurrView, recPose.R, recPose.t)) {
+        //     std::cout << "Recovering camera fail, skip current reconstruction iteration!\n";
 
-            std::swap(featPrevView, featCurrView);
+        //     std::swap(featPrevView, featCurrView);
 
-            continue;
-        }
+        //     continue;
+        // }
+
+        userInput.recoverPoints(cv::Mat(recPose.R), cv::Mat(recPose.t), camParams, imOutUsrInp);
+
+        std::vector<cv::Point> movedPts;
+        userInput.movePoints(_prevPts, _currPts, mouseUsrDataParams.m_clickedPoint, movedPts);
+
+        userInput.attach2DPoints(mouseUsrDataParams.m_clickedPoint, movedPts, _prevPts, _currPts);
 
         cv::Matx34d _currPose; composePoseEstimation(recPose.R, recPose.t, _currPose);
         camPoses.push_back(_currPose);
@@ -1191,58 +1337,28 @@ int main(int argc, char** argv) {
         std::vector<cv::Vec3b> _pointsRGB;
         std::vector<bool> _mask; homogPtsToRGBCloud(featCurrView.viewPtr->imColor, camParams, cv::Mat(recPose.R), cv::Mat(recPose.t), _homogPts, _currPts, _points3D, _pointsRGB, tMinDist, tMaxDist, tMaxPErr, _mask);
 
+        std::vector<cv::Point3f> _usrPts;
+        _usrPts.insert(_usrPts.end(), _points3D.end() - mouseUsrDataParams.m_clickedPoint.size(), _points3D.end());
+        userInput.insert3DPoints(_usrPts);
+
+        userInput.detach3DPoints(mouseUsrDataParams.m_clickedPoint, _points3D);
+        mouseUsrDataParams.m_clickedPoint.clear();
+
+        //tracking.trackViews.clear();
         tracking.addTrackView(_mask, _currPts, _points3D, _pointsRGB, featCurrView.keyPts, featCurrView.descriptor, _currIdx);
+
+        adjustBundle(tracking.trackViews, camParams, camPoses);
+        //camPoses.clear();
 
         pcl::PointXYZ pclPose; cvPoseToPCLPose(-recPose.t, pclPose);
 
-        std::cout << "\n" << pclPose << "\n"; cv::waitKey(1);
+        std::cout << "\n" << pclPose << "\n"; cv::waitKey();
 
         visPcl.addPointCloud(tracking.trackViews);
-        visPcl.addCamera(pclPose);
+        //visPcl.addCamera(pclPose);
         visPcl.visualize();
 
         std::swap(featPrevView, featCurrView);
-
-        // if (!usrPts.empty()) {
-        //     std::vector<cv::Point2f> pts2D; cv::projectPoints(usrPts, R, t, camParams.K33d, cv::Mat(), pts2D);
-
-        //     for (const auto p : pts2D) {
-        //         std::cout << "Point projected to: " << p << "\n";
-
-        //         cv::circle(imUsrInp, p * mouseUsrDataParams.m_inputImgScale, 3, CV_RGB(150, 200, 0), cv::FILLED, cv::LINE_AA);
-        //     }
-        // }
-
-        /*cv::Point2f move; int ptsSize = MIN(_prevPts.size(), _currPts.size());
-
-        for (int i = 0; i < ptsSize; ++i) 
-            move += _currPts[i] - _prevPts[i];
-        
-        move.x /= ptsSize;
-        move.y /= ptsSize;
-
-        _prevPts.insert(_prevPts.end(), mouseUsrDataParams.m_clickedPoint.begin(), mouseUsrDataParams.m_clickedPoint.end());
-
-        for (auto& p : mouseUsrDataParams.m_clickedPoint) {
-            p.x += move.x;
-            p.y += move.y;
-        }
-
-        _currPts.insert(_currPts.end(), mouseUsrDataParams.m_clickedPoint.begin(), mouseUsrDataParams.m_clickedPoint.end());
-
-        usrPts.insert(usrPts.end(), points3D.end() - mouseUsrDataParams.m_clickedPoint.size(), points3D.end());
-        points3D.erase(points3D.end() - mouseUsrDataParams.m_clickedPoint.size(), points3D.end());
-        mouseUsrDataParams.m_clickedPoint.clear();
-
-        adjustBundle(trackViews, camParams, camPoses);
-
-        visPcl.addPointCloud(trackViews);
-        visPcl.addPoints(usrPts);
-        visPcl.addCamera(pcl::PointXYZ(-t.at<double>(0), -t.at<double>(1), -t.at<double>(2)));
-
-        idx++;
-
-        std::cout << "Point cloud points: " << track.points3D.size() << "/" << ptsCount << "\n";*/
     }
 
     std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
@@ -1250,7 +1366,5 @@ int main(int argc, char** argv) {
     std::cout << "\n----------------------------------------------------------\n\n";
     std::cout << "Total computing time: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count() << " milliseconds!\n";
 
-    cv::waitKey();
-
-    exit(0);
+    cv::waitKey(); exit(0);
 }
