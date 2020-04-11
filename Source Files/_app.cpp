@@ -163,55 +163,6 @@ struct SimpleReprojectionError {
     double observed_y;
 };
 
-struct SnavelyReprojectionError {
-  SnavelyReprojectionError(double observed_x, double observed_y)
-      : observed_x(observed_x), observed_y(observed_y) {}
-
-  template <typename T>
-  bool operator()(const T* const camera,
-                  const T* const point,
-                  T* residuals) const {
-    // camera[0,1,2] are the angle-axis rotation.
-    T p[3];
-    ceres::AngleAxisRotatePoint(camera, point, p);
-    // camera[3,4,5] are the translation.
-    p[0] += camera[3]; p[1] += camera[4]; p[2] += camera[5];
-
-    // Compute the center of distortion. The sign change comes from
-    // the camera model that Noah Snavely's Bundler assumes, whereby
-    // the camera coordinate system has a negative z axis.
-    T xp = - p[0] / p[2];
-    T yp = - p[1] / p[2];
-
-    // Apply second and fourth order radial distortion.
-    const T& l1 = camera[7];
-    const T& l2 = camera[8];
-    T r2 = xp*xp + yp*yp;
-    T distortion = T(1.0) + r2  * (l1 + l2  * r2);
-
-    // Compute final projected point position.
-    const T& focal = camera[6];
-    T predicted_x = focal * distortion * xp;
-    T predicted_y = focal * distortion * yp;
-
-    // The error is the difference between the predicted and observed position.
-    residuals[0] = predicted_x - T(observed_x);
-    residuals[1] = predicted_y - T(observed_y);
-    return true;
-  }
-
-   // Factory to hide the construction of the CostFunction object from
-   // the client code.
-   static ceres::CostFunction* Create(const double observed_x,
-                                      const double observed_y) {
-     return (new ceres::AutoDiffCostFunction<SnavelyReprojectionError, 2, 9, 3>(
-                 new SnavelyReprojectionError(observed_x, observed_y)));
-   }
-
-  double observed_x;
-  double observed_y;
-};
-
 #pragma endregion STRUCTS
 
 #pragma region METHODS
@@ -265,25 +216,21 @@ void homogPtsToRGBCloud(cv::Mat imgColor, Camera camera, cv::Mat R, cv::Mat t, c
     }
 }
 
-void adjustBundle(std::vector<TrackView>& tracks, Camera& camera, std::vector<cv::Matx34f>& camPoses) {
+void adjustBundle(std::vector<TrackView>& tracks, Camera& camera, std::vector<cv::Matx34f>& camPoses, uint maxIter = 999) {
     std::cout << "Bundle adjustment...\n" << std::flush;
 
-    ceres::Problem problem;
+    std::vector<cv::Matx16d> camPoses6d;
 
-    std::vector<cv::Matx16d> camPoses6d; camPoses6d.reserve(camPoses.size());
-    
-    uint ptsCount = 0;
+    for (auto [c, cEnd, it] = std::tuple{camPoses.crbegin(), camPoses.crend(), 0}; c != cEnd && it < maxIter; ++c, ++it) {
+        cv::Matx34f cam = (cv::Matx34f)*c;
 
-    for (int i = 0; i < camPoses.size(); ++i) {
-        cv::Matx34f c = camPoses[i];
-
-        if ((0, 0) == 0 && c(1, 1) == 0 && c(2, 2) == 0) { 
+        if (cam(0, 0) == 0 && cam(1, 1) == 0 && cam(2, 2) == 0) { 
             camPoses6d.push_back(cv::Matx16d());
             continue; 
         }
 
-        cv::Vec3f t(c(0, 3), c(1, 3), c(2, 3));
-        cv::Matx33f R = c.get_minor<3, 3>(0, 0);
+        cv::Vec3f t(cam(0, 3), cam(1, 3), cam(2, 3));
+        cv::Matx33f R = cam.get_minor<3, 3>(0, 0);
         float angleAxis[3]; ceres::RotationMatrixToAngleAxis<float>(R.t().val, angleAxis);
 
         camPoses6d.push_back(cv::Matx16d(
@@ -294,30 +241,25 @@ void adjustBundle(std::vector<TrackView>& tracks, Camera& camera, std::vector<cv
             t(1),
             t(2)
         ));
-
-        ptsCount += tracks[i].points3D.size();
     }
 
+    std::reverse(camPoses6d.begin(), camPoses6d.end());
+
+    ceres::Problem problem;
     ceres::LossFunction* lossFunction = new ceres::HuberLoss(1.0);
 
     double focalLength = camera.focalLength;
 
-    std::vector<cv::Vec3d> pts3D(ptsCount);
-
-    for (int j = 0, ptsCount = 0; j < tracks.size(); ++j) {
-        for (int i = 0; i < tracks[j].points2D.size() && i < tracks[j].points3D.size(); ++i) {
-            pts3D[ptsCount] = cv::Vec3d(tracks[j].points3D[i].x, tracks[j].points3D[i].y, tracks[j].points3D[i].z);
-
-            cv::Point2f p2d = tracks[j].points2D[i];
+    for (auto [t, tEnd, c, cEnd, it] = std::tuple{tracks.rbegin(), tracks.rend(), camPoses6d.rbegin(), camPoses6d.rend(), 0}; t != tEnd && c != cEnd && it < maxIter; ++t, ++c, ++it) {
+        for (size_t i = 0; i < t->numTracks; ++i) {
+            cv::Point2f p2d = t->points2D[i];
             p2d.x -= camera.K33d(0, 2);
             p2d.y -= camera.K33d(1, 2);
 
             ceres::CostFunction* costFunc = SimpleReprojectionError::Create(p2d.x, p2d.y);
 
-            problem.AddResidualBlock(costFunc, lossFunction, camPoses6d[j].val, pts3D[ptsCount].val, &focalLength);
-            
-
-            ptsCount++;
+            //problem.AddResidualBlock(costFunc, lossFunction, camPoses6d[j].val, tracks[j].points3D[i].val, &focalLength);
+            problem.AddResidualBlock(costFunc, NULL, c->val, t->points3D[i].val, &focalLength);
         }
     }
     
@@ -359,33 +301,24 @@ void adjustBundle(std::vector<TrackView>& tracks, Camera& camera, std::vector<cv
 			<< std::endl;
 	}
     
-    for (int i = 0; i < camPoses.size(); ++i) {
-        cv::Matx34f& c = camPoses[i];
-        
-        if (c(0, 0) == 0 && c(1, 1) == 0 && c(2, 2) == 0) { continue; }
+    for (auto [c, cEnd, c6, c6End, it] = std::tuple{camPoses.rbegin(), camPoses.rend(), camPoses6d.rbegin(), camPoses6d.rend(), 0}; c != cEnd && it < maxIter; ++c, ++c6, ++it) {
+        cv::Matx34f& cam = (cv::Matx34f&)*c;
+        cv::Matx16d& cam6 = (cv::Matx16d&)*c6;
+
+        if (cam(0, 0) == 0 && cam(1, 1) == 0 && cam(2, 2) == 0) { continue; }
 
         double rotationMat[9] = { 0 };
-        ceres::AngleAxisToRotationMatrix(camPoses6d[i].val, rotationMat);
+        ceres::AngleAxisToRotationMatrix(cam6.val, rotationMat);
 
         for (int row = 0; row < 3; row++) {
             for (int column = 0; column < 3; column++) {
-                c(column, row) = rotationMat[row * 3 + column];
+                cam(column, row) = rotationMat[row * 3 + column];
             }
         }
 
-        c(0, 3) = camPoses6d[i](3); 
-        c(1, 3) = camPoses6d[i](4); 
-        c(2, 3) = camPoses6d[i](5);
-    }
-
-    for (int j = 0, ptsCount = 0; j < tracks.size(); ++j) {
-        for (int i = 0; i < tracks[j].points2D.size() && i < tracks[j].points3D.size(); ++i) {
-            tracks[j].points3D[i].x = pts3D[ptsCount](0);
-            tracks[j].points3D[i].y = pts3D[ptsCount](1);
-            tracks[j].points3D[i].z = pts3D[ptsCount](2);
-
-            ptsCount++;
-        }
+        cam(0, 3) = cam6(3); 
+        cam(1, 3) = cam6(4); 
+        cam(2, 3) = cam6(5);
     }
 
     std::cout << "[DONE]\n";
@@ -584,6 +517,7 @@ int main(int argc, char** argv) {
         "{ peMinInl  | 50         | pose estimation in number of homography inliers user for reconstruction }"
 
         "{ rpMinMatch| 50         | recovery pose min matches to break }"
+        "{ rpBAIter  | 50         | recovery pose bundle adjustment max iteration }"
 
         "{ tMinDist  | 1.0        | triangulation points min distance }"
         "{ tMaxDist  | 100.0      | triangulation points max distance }"
@@ -627,7 +561,8 @@ int main(int argc, char** argv) {
     const int peMinInl = parser.get<int>("peMinInl");
 
     //---------------------------- RECOVERY POSE ----------------------------//
-     const int rpMinMatch = parser.get<int>("rpMinMatch");
+    const int rpMinMatch = parser.get<int>("rpMinMatch");
+    const int rpBAIter = parser.get<int>("rpBAIter");
 
     //---------------------------- TRIANGULATION ----------------------------//
     const float tMinDist = parser.get<float>("tMinDist");
@@ -720,7 +655,7 @@ int main(int argc, char** argv) {
             ofPrevView.viewPtr->imColor.copyTo(imOutUsrInp);
             ofPrevView.viewPtr->imColor.copyTo(imOutRecPose);
 
-            recPose.drawRecoveredPose(imOutRecPose, imOutRecPose, ofCurrView.corners, ofPrevView.corners, recPose.mask);
+            recPose.drawRecoveredPose(imOutRecPose, imOutRecPose, ofPrevView.corners, ofCurrView.corners, recPose.mask);
         } else {
             if (!findGoodImagePair(cap, featDetector, descMatcher, recPose, camera, viewContainer, featPrevView, featCurrView, _matches, _prevIdx, _currIdx, bDownSamp, isUsingCUDA)) { break; }
 
@@ -812,7 +747,10 @@ int main(int argc, char** argv) {
 
         tracking.addTrackView(featCurrView.viewPtr, _mask, _currPts, _points3D, _pointsRGB, featCurrView.keyPts, featCurrView.descriptor, _currIdx);
 
-        adjustBundle(tracking.trackViews, camera, camPoses);
+        visPcl.addPointCloud(tracking.trackViews);
+        visPcl.visualize();
+
+        adjustBundle(tracking.trackViews, camera, camPoses, rpBAIter);
 
         std::cout << "\n Cam pose: " << _currPose << "\n"; cv::waitKey(1);
 

@@ -13,8 +13,12 @@ public:
     cv::Mat descriptor;
 
     std::vector<cv::Point2f> points2D;
-    std::vector<cv::Point3f> points3D;
+    std::vector<cv::Vec3d> points3D;
     std::vector<cv::Vec3b> pointsRGB;
+
+    size_t numTracks;
+
+    TrackView() { numTracks = 0; }
 
     void addTrack(const cv::Point2f point2D, const cv::Point3d point3D, const cv::Vec3b pointRGB, const cv::KeyPoint keyPoint, cv::Mat descriptor) {
         points2D.push_back(point2D);
@@ -23,6 +27,8 @@ public:
 
         this->keyPoints.push_back(keyPoint);
         this->descriptor.push_back(descriptor);
+
+        numTracks++;
     }
 };
 

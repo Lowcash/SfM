@@ -49,27 +49,21 @@ void VisPCL::addPointCloud(const std::vector<cv::Point3f>& points3D, const std::
 void VisPCL::addPointCloud(const std::vector<TrackView>& trackViews) {
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr pointCloud(new pcl::PointCloud<pcl::PointXYZRGB>);
 
-    for (auto [tIt, tEnd, tIdx] = std::tuple{trackViews.crbegin(), trackViews.crend(), 0}; tIt != tEnd; ++tIt, ++tIdx) {
-        auto t = (TrackView)*tIt;
-
-        for (auto [it, end, i] = std::tuple{t.points3D.cbegin(), t.points3D.cend(), 0}; it != end; ++it, ++i) {
+    for (auto t = trackViews.crbegin(); t != trackViews.crend(); ++t) {
+        for (auto [p3d, p3dEnd, pClr, pClrEnd] = std::tuple{t->points3D.cbegin(), t->points3D.cend(), t->pointsRGB.cbegin(), t->pointsRGB.cend()}; p3d != p3dEnd && pClr != pClrEnd; ++p3d, ++pClr) {
             pcl::PointXYZRGB rgbPoint;
 
-            auto p3d = (cv::Point3d)*it;
-            auto pClr = t.pointsRGB[i];
+            rgbPoint.x = p3d->val[0];
+            rgbPoint.y = p3d->val[1];
+            rgbPoint.z = p3d->val[2];
 
-            rgbPoint.x = p3d.x;
-            rgbPoint.y = p3d.y;
-            rgbPoint.z = p3d.z;
-
-            rgbPoint.r = pClr[2];
-            rgbPoint.g = pClr[1];
-            rgbPoint.b = pClr[0];
+            rgbPoint.r = pClr->val[2];
+            rgbPoint.g = pClr->val[1];
+            rgbPoint.b = pClr->val[0];
 
             pointCloud->push_back(rgbPoint);
         }
-
-        break;
+        //break;
     }
 
     m_viewer->updatePointCloud(pointCloud);

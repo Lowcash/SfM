@@ -41,8 +41,8 @@ void Tracking::addTrackView(ViewData* view, const std::vector<bool>& mask, const
         cv::Mat _imOutMatch; cv::drawMatches(t->viewPtr->imColor, t->keyPoints, featView.viewPtr->imColor, featView.keyPts, _matches, _imOutMatch);
 
         for (const auto& m : _matches) {
-            cv::Point3f _point3D = t->points3D[m.queryIdx];
-            cv::Point2f _point2D = featView.keyPts[m.trainIdx].pt;
+            cv::Point3f _point3D = (cv::Point3f)t->points3D[m.queryIdx];
+            cv::Point2f _point2D = (cv::Point2f)featView.keyPts[m.trainIdx].pt;
 
             _posePoints2D.push_back(_point2D);
             _posePoints3D.push_back(_point3D);
