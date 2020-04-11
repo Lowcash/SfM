@@ -246,7 +246,7 @@ void adjustBundle(std::vector<TrackView>& tracks, Camera& camera, std::vector<cv
     std::reverse(camPoses6d.begin(), camPoses6d.end());
 
     ceres::Problem problem;
-    ceres::LossFunction* lossFunction = new ceres::HuberLoss(1.0);
+    ceres::LossFunction* lossFunction = new ceres::CauchyLoss(0.5);
 
     double focalLength = camera.focalLength;
 
@@ -258,18 +258,14 @@ void adjustBundle(std::vector<TrackView>& tracks, Camera& camera, std::vector<cv
 
             ceres::CostFunction* costFunc = SimpleReprojectionError::Create(p2d.x, p2d.y);
 
-            //problem.AddResidualBlock(costFunc, lossFunction, camPoses6d[j].val, tracks[j].points3D[i].val, &focalLength);
-            problem.AddResidualBlock(costFunc, NULL, c->val, t->points3D[i].val, &focalLength);
+            problem.AddResidualBlock(costFunc, lossFunction, c->val, t->points3D[i].val, &focalLength);
         }
     }
     
     ceres::Solver::Options options;
     options.linear_solver_type = ceres::LinearSolverType::SPARSE_NORMAL_CHOLESKY;
     options.minimizer_progress_to_stdout = true;
-    //options.max_num_iterations = 500;
-    //options.eta = 1e-2;
-    //options.max_solver_time_in_seconds = 10;
-    //options.logging_type = ceres::LoggingType::SILENT;
+    options.eta = 1e-2;
     options.num_threads = 8;
 
     ceres::Solver::Summary summary;
@@ -278,12 +274,12 @@ void adjustBundle(std::vector<TrackView>& tracks, Camera& camera, std::vector<cv
 
     std::cout << summary.FullReport() << "\n";
 
-    // cv::Mat K; camera._K.copyTo(K);
+    cv::Mat K; camera._K.copyTo(K);
 
-    // K.at<double>(0,0) = focalLength;
-    // K.at<double>(1,1) = focalLength;
+    K.at<double>(0,0) = focalLength;
+    K.at<double>(1,1) = focalLength;
 
-    // camera.updateCameraParameters(K, camera.distCoeffs);
+    camera.updateCameraParameters(K, camera.distCoeffs);
 
     std::cout << "Focal length: " << focalLength << "\n";
 
@@ -633,8 +629,11 @@ int main(int argc, char** argv) {
     std::vector<cv::Matx34f> camPoses;
     std::vector<cv::Point3f> usrPts;
 
-    VisPCL visPcl(ptCloudWinName, cv::Size(bWinWidth, bWinHeight));
-    //std::thread visPclThread(&VisualizationPCL::visualize, &visPcl);
+    VisPCL visPCL(ptCloudWinName, cv::Size(bWinWidth, bWinHeight));
+    //std::thread visPCLThread(&VisPCL::visualize, &visPCL);
+
+    VisVTK visVTK(ptCloudWinName, cv::Size(bWinWidth, bWinHeight));
+    //std::thread visVTKThread(&VisVTK::visualize, &visVTK);
 
     Tracking tracking;
     UserInput userInput;
@@ -652,14 +651,14 @@ int main(int argc, char** argv) {
         if (bUseOptFl) {
             if (!findGoodImagePair(cap, optFlow, featDetector, recPose, camera, viewContainer, ofPrevView, ofCurrView, ofMinKPts, bDownSamp, isUsingCUDA)) { break; }           
 
-            ofPrevView.viewPtr->imColor.copyTo(imOutUsrInp);
-            ofPrevView.viewPtr->imColor.copyTo(imOutRecPose);
+            ofCurrView.viewPtr->imColor.copyTo(imOutUsrInp);
+            ofCurrView.viewPtr->imColor.copyTo(imOutRecPose);
 
             recPose.drawRecoveredPose(imOutRecPose, imOutRecPose, ofPrevView.corners, ofCurrView.corners, recPose.mask);
         } else {
             if (!findGoodImagePair(cap, featDetector, descMatcher, recPose, camera, viewContainer, featPrevView, featCurrView, _matches, _prevIdx, _currIdx, bDownSamp, isUsingCUDA)) { break; }
 
-            featPrevView.viewPtr->imColor.copyTo(imOutUsrInp);
+            featCurrView.viewPtr->imColor.copyTo(imOutUsrInp);
             featCurrView.viewPtr->imColor.copyTo(imOutRecPose);
 
             recPose.drawRecoveredPose(imOutRecPose, imOutRecPose, featPrevView.pts, featCurrView.pts, recPose.mask);
@@ -747,18 +746,18 @@ int main(int argc, char** argv) {
 
         tracking.addTrackView(featCurrView.viewPtr, _mask, _currPts, _points3D, _pointsRGB, featCurrView.keyPts, featCurrView.descriptor, _currIdx);
 
-        visPcl.addPointCloud(tracking.trackViews);
-        visPcl.visualize();
-
         adjustBundle(tracking.trackViews, camera, camPoses, rpBAIter);
 
         std::cout << "\n Cam pose: " << _currPose << "\n"; cv::waitKey(1);
 
-        visPcl.addPointCloud(tracking.trackViews);
-        //visPcl.addCamera(-_currPose);
-        visPcl.updateCameras(camPoses);
-        visPcl.visualize();
-            
+        visPCL.addPointCloud(tracking.trackViews);
+        visPCL.updateCameras(camPoses);
+        visPCL.visualize();
+        
+        visVTK.addPointCloud(tracking.trackViews);
+        visVTK.updateCameras(camPoses, camera.K33d);
+        visVTK.visualize();
+
         std::swap(ofPrevView, ofCurrView);
         std::swap(featPrevView, featCurrView);
     }

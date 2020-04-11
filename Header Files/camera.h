@@ -21,7 +21,7 @@ public:
     void updateCameraParameters(const cv::Mat K, const cv::Mat distCoeffs, const double downSample = 1.0f) {
         _K = K * downSample;
 
-        //_K.at<double>(2,2) = 1.0;
+        _K.at<double>(2,2) = 1.0;
     
         std::cout << "\nCamera intrices: " << _K << "\n";
 

@@ -11,28 +11,28 @@
             "program": "${workspaceFolder}/SfM_App.out",
             "args": [
             //--------------------------------- BASE --------------------------------//
-              "-bSource=/home/lowcash/Documents/SfM_Resources/Video/vid_10.mp4", 
+              "-bSource=/home/lowcash/Documents/SfM_Resources/Video/vid_6.mp4", 
               //"-bSource=https://192.168.1.100:8080/video", 
               "-bcalib=/home/lowcash/Documents/SfM_Resources/Calibration/mobile_cam_calib_1.yml", "-bDownSamp=1.0", "-bWinWidth=960", "-bWinHeight=540", "-bUseCuda=false", "-bUseOptFl=true",
             
             //------------------------------- FEATURES ------------------------------//
             //"-fDecType=AKAZE", "-fMatchType=BRUTEFORCE_HAMMING", "-fKnnRatio=0.75",
             //"-fDecType=KAZE", "-fMatchType=FLANNBASED", "-fKnnRatio=0.75",
-            "-fDecType=FAST", "-fMatchType=BRUTEFORCE_HAMMING", "-fKnnRatio=0.75",
-            //"-fDecType=SURF", "-fMatchType=FLANNBASED", "-fKnnRatio=0.75",
-            //"-fDecType=SIFT", "-fMatchType=FLANNBASED", "-fKnnRatio=0.25",
+            //"-fDecType=FAST", "-fMatchType=BRUTEFORCE_HAMMING", "-fKnnRatio=0.5",
+            "-fDecType=SURF", "-fMatchType=FLANNBASED", "-fKnnRatio=0.5",
+            //"-fDecType=SIFT", "-fMatchType=FLANNBASED", "-fKnnRatio=0.5",
 
             //----------------------------- OPTICAL FLOW ----------------------------//
-            "-ofMinKPts=20", "-ofWinSize=21", "-ofMaxLevel=5", "-ofMaxItCt=100", "-ofItEps=0.01", "-ofMaxError=25.0", "-ofMaxCorn=2000", "-ofQualLvl=0.1", "-ofMinDist=5",
+            "-ofMinKPts=20", "-ofWinSize=21", "-ofMaxLevel=5", "-ofMaxItCt=100", "-ofItEps=0.01", "-ofMaxError=12.0", "-ofMaxCorn=2000", "-ofQualLvl=0.1", "-ofMinDist=5",
             
             //--------------------------- POSE ESTIMATION ---------------------------//
-            "-peMethod=RANSAC", "-peProb=0.99", "-peThresh=1.0", "-peMinInl=5", 
+            "-peMethod=RANSAC", "-peProb=0.99", "-peThresh=1.0", "-peMinInl=15", 
             
             //---------------------------- RECOVERY POSE ----------------------------//
-            "-rpMinMatch=200", "-rpBAIter=3",
+            "-rpMinMatch=150", "-rpBAIter=999",
 
             //---------------------------- TRIANGULATION ----------------------------//
-            "-tMinDist=0.0001", "-tMaxDist=1000", "-tMaxPErr=5"
+            "-tMinDist=0.0001", "-tMaxDist=300", "-tMaxPErr=3"
             ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",

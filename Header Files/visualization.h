@@ -36,7 +36,29 @@ public:
     void visualize();
 };
 
-class VisVTK : public IVisualizable {
+class VisVTKUtils {
+private:
+    void decomposeCvPose(cv::Matx34f cvPose, cv::Matx33f& R, cv::Vec3f& t) {
+        R = cvPose.get_minor<3, 3>(0, 0);
+        t = cv::Vec3f(cvPose(0, 3), cvPose(1, 3), cvPose(2, 3));
+    }
+
+protected:
+    void cvPoseToVTKPose(cv::Matx34f cvPose, cv::Affine3d& vtkPose) {
+        cv::Matx33f R; cv::Vec3f t; decomposeCvPose(cvPose, R, t);
+
+        vtkPose = cv::Affine3d(R, t);
+    }
+
+    void cvPoseToInverseVTKPose(cv::Matx34f cvPose, cv::Affine3d& vtkPose) {
+        cv::Matx33f R; cv::Vec3f t; decomposeCvPose(cvPose, R, t);
+
+        vtkPose = cv::Affine3d(-R, -t);
+    }
+};
+
+
+class VisVTK : public VisVTKUtils, public IVisualizable {
 private:
     cv::viz::Viz3d m_viewer;
 public:
@@ -46,7 +68,7 @@ public:
 
     void addPointCloud(const std::vector<TrackView>& trackViews);
 
-    void updateCameras(const std::vector<cv::Matx34f> camPoses);
+    void updateCameras(const std::vector<cv::Matx34f> camPoses, const cv::Matx33d K33d);
 
     void addCamera(const cv::Matx34f camPose);
 
