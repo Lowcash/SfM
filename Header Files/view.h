@@ -42,4 +42,15 @@ public:
     void setView(ViewData* view) { this->viewPtr = view; }
 };
 
+class ViewDataContainer {
+private:
+    std::list<ViewData> m_dataContainer;
+public:
+    void addItem(ViewData viewData) { m_dataContainer.push_back(viewData); }
+
+    ViewData* getLastOneItem() { return &*m_dataContainer.rbegin(); }
+
+    ViewData* getLastButOneItem() { return &*++m_dataContainer.rbegin(); }
+};
+
 #endif //VIEW_H

@@ -30,9 +30,9 @@ class Tracking {
 public:
     std::vector<TrackView> trackViews;
 
-    void addTrackView(const std::vector<bool>& mask, const std::vector<cv::Point2f>& points2D, const std::vector<cv::Point3f> points3D, const std::vector<cv::Vec3b>& pointsRGB, const std::vector<cv::KeyPoint>& keyPoints, const cv::Mat& descriptor, const std::vector<int>& featureIndexer = std::vector<int>());
+    void addTrackView(ViewData* view, const std::vector<bool>& mask, const std::vector<cv::Point2f>& points2D, const std::vector<cv::Point3f> points3D, const std::vector<cv::Vec3b>& pointsRGB, const std::vector<cv::KeyPoint>& keyPoints, const cv::Mat& descriptor, const std::vector<int>& featureIndexer = std::vector<int>());
 
-    bool findRecoveredCameraPose(DescriptorMatcher matcher, float knnRatio, Camera camParams, FeatureView& featView, cv::Matx33d& R, cv::Matx31d& t);
+    bool findRecoveredCameraPose(DescriptorMatcher matcher, int minMatches, Camera camParams, FeatureView& featView, cv::Matx33d& R, cv::Matx31d& t);
 };
 
 #endif //TRACKING_H

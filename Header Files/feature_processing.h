@@ -86,10 +86,6 @@ public:
         this->keyPts = keyPts;
         this->descriptor = descriptor;
 
-        convertKeyPts();
-    }
-
-    void convertKeyPts() {
         cv::KeyPoint::convert(this->keyPts, this->pts);
     }
 };
