@@ -5,6 +5,7 @@ VisPCL::VisPCL(const std::string windowName, const cv::Size windowSize, const cv
         
     m_numClouds = 0;
     m_numCams = 0;
+    m_numPoints = 0;
 }
 
 boost::shared_ptr<pcl::visualization::PCLVisualizer> VisPCL::getNewViewer(const std::string windowName, const cv::Size windowSize, const cv::viz::Color bColor) {
@@ -19,31 +20,6 @@ boost::shared_ptr<pcl::visualization::PCLVisualizer> VisPCL::getNewViewer(const 
     viewer->setSize(windowSize.width, windowSize.height);
     
     return (viewer);
-}
-
-void VisPCL::addPointCloud(const std::vector<cv::Point3f>& points3D, const std::vector<cv::Vec3b>& pointsRGB) {
-    pcl::PointCloud<pcl::PointXYZRGB>::Ptr pointCloud(new pcl::PointCloud<pcl::PointXYZRGB>);
-
-    for (auto [it, end, i] = std::tuple{points3D.cbegin(), points3D.cend(), 0}; it != end; ++it, ++i) {
-        pcl::PointXYZRGB rgbPoint;
-
-        auto p3d = (cv::Point3d)*it;
-        auto pClr = pointsRGB[i];
-
-        rgbPoint.x = p3d.x;
-        rgbPoint.y = p3d.y;
-        rgbPoint.z = p3d.z;
-
-        rgbPoint.r = pClr[2];
-        rgbPoint.g = pClr[1];
-        rgbPoint.b = pClr[0];
-
-        pointCloud->push_back(rgbPoint);
-    }
-    
-    m_viewer->addPointCloud<pcl::PointXYZRGB>(pointCloud, "cloud_" + std::to_string(m_numClouds));
-    
-    m_numClouds++;
 }
 
 void VisPCL::addPointCloud(const std::vector<TrackView>& trackViews) {
@@ -67,6 +43,16 @@ void VisPCL::addPointCloud(const std::vector<TrackView>& trackViews) {
     }
 
     m_viewer->updatePointCloud(pointCloud);
+}
+
+void VisPCL::addPoints(const std::vector<cv::Vec3d> points3D) {
+    for (const auto& p : points3D) {
+        pcl::PointXYZ pclPose(p.val[0], p.val[1], p.val[2]);
+
+        m_viewer->addSphere(pclPose, 2.5, 128, 0, 128, "point_" + std::to_string(m_numPoints));
+
+        m_numPoints++;
+    }
 }
 
 void VisPCL::addCamera(const cv::Matx34f camPose) {       
@@ -94,8 +80,8 @@ void VisPCL::updateCameras(const std::vector<cv::Matx34f> camPoses) {
 
 void VisPCL::visualize() {
     //while(!m_viewer->wasStopped())
-        //m_viewer->spinOnce(60);
-    m_viewer->spin();
+        m_viewer->spinOnce(60);
+    //m_viewer->spin();
 }
 
 VisVTK::VisVTK(const std::string windowName, const cv::Size windowSize, const cv::viz::Color backgroundColor) {
@@ -103,11 +89,20 @@ VisVTK::VisVTK(const std::string windowName, const cv::Size windowSize, const cv
     m_viewer.setBackgroundColor(cv::viz::Color::black());
     m_viewer.setWindowSize(windowSize);
 
+    cv::Mat rotVec = cv::Mat::zeros(1,3,CV_32F);
+
+    //rotVec.at<float>(0,0) += CV_PI * 1.0f;
+	//rotVec.at<float>(0,2) += CV_PI * 1.0f;
+
+	cv::Mat rotMat; cv::Rodrigues(rotVec, rotMat);
+
+    cv::Affine3f rotation(rotMat, cv::Vec3d());
+    
+    m_viewer.setViewerPose(rotation.translate(cv::Vec3d(0, 0, -100)));
+
     m_numClouds = 0;
     m_numCams = 0;
 }
-
-void VisVTK::addPointCloud(const std::vector<cv::Point3f>& points3D, const std::vector<cv::Vec3b>& pointsRGB) {}
 
 void VisVTK::addPointCloud(const std::vector<TrackView>& trackViews) {
    for (auto [t, end, idx] = std::tuple{trackViews.cbegin(), trackViews.cend(), 0}; t != end; ++t, ++idx) {
@@ -120,6 +115,16 @@ void VisVTK::addPointCloud(const std::vector<TrackView>& trackViews) {
     }
 
     m_numClouds++;
+}
+
+void VisVTK::addPoints(const std::vector<cv::Vec3d> points3D) {
+    for (const auto& p : points3D) {
+        const cv::viz::WSphere _point(cv::Point3d(), 5, 20, cv::viz::Color::purple());
+
+        m_viewer.showWidget("point_" + std::to_string(m_numPoints), _point, cv::Affine3d(cv::Vec3d(), p));
+
+        m_numPoints++;
+    }
 }
 
 void VisVTK::updateCameras(const std::vector<cv::Matx34f> camPoses, const cv::Matx33d K33d) {
@@ -144,10 +149,16 @@ void VisVTK::updateCameras(const std::vector<cv::Matx34f> camPoses, const cv::Ma
     m_numCams++;
 }
 
+void VisVTK::setViewerPose(const cv::Matx34d camPose) {
+    cv::Affine3d vtkPose; cvPoseToInverseVTKPose(camPose, vtkPose);
+
+    m_viewer.setViewerPose(vtkPose);
+}
+
 void VisVTK::addCamera(const cv::Matx34f camPose) {}
 
 void VisVTK::visualize() {
     //while(!m_viewer->wasStopped())
-        //m_viewer->spinOnce(60);
-    m_viewer.spin();
+        m_viewer.spinOnce(60);
+    //m_viewer.spin();
 }

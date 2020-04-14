@@ -8,8 +8,8 @@
 
 class UserInput {
 private:
-    std::vector<cv::Point3f> m_usrPts;
-
+    std::vector<cv::Vec3d> m_usrPts;
+    std::vector<cv::Vec3f> m_projUsrPts;
 public:
     void attach2DPoints(std::vector<cv::Point> userPrevPts, std::vector<cv::Point> userCurrPts, std::vector<cv::Point2f>& prevPts, std::vector<cv::Point2f>& currPts) {
         prevPts.insert(prevPts.end(), userPrevPts.begin(), userPrevPts.end());
@@ -20,17 +20,18 @@ public:
         points2D.erase(points2D.end() - userPts2D.size(), points2D.end());
     }
 
-    void detach3DPoints(std::vector<cv::Point> userPts2D, std::vector<cv::Point3f>& points3D) {
+    void detach3DPoints(std::vector<cv::Point> userPts2D, std::vector<cv::Vec3d>& points3D) {
         points3D.erase(points3D.end() - userPts2D.size(), points3D.end());
     }
 
-    void insert3DPoints(std::vector<cv::Point3f> points3D) {
+    void insert3DPoints(std::vector<cv::Vec3d> points3D) {
         m_usrPts.insert(m_usrPts.end(), points3D.begin(), points3D.end());
+        m_projUsrPts.insert(m_projUsrPts.end(), points3D.begin(), points3D.end());
     }
 
     void recoverPoints(cv::Mat R, cv::Mat t, Camera camera, cv::Mat& imOutUsr) {
         if (!m_usrPts.empty()) {
-            std::vector<cv::Point2f> pts2D; cv::projectPoints(m_usrPts, R, t, camera.K33d, cv::Mat(), pts2D);
+            std::vector<cv::Point2f> pts2D; cv::projectPoints(m_projUsrPts, R, t, camera.K33d, cv::Mat(), pts2D);
 
             for (const auto p : pts2D) {
                 std::cout << "Point projected to: " << p << "\n";
@@ -195,7 +196,7 @@ bool findCameraPose(RecoveryPose& recPose, std::vector<cv::Point2f> prevPts, std
     return numInliers > minInliers;
 }
 
-void homogPtsToRGBCloud(cv::Mat imgColor, Camera camera, cv::Mat R, cv::Mat t, cv::Mat homPoints, std::vector<cv::Point2f>& points2D, std::vector<cv::Point3f>& points3D, std::vector<cv::Vec3b>& pointsRGB, float minDist, float maxDist, float maxProjErr, std::vector<bool>& mask) {
+void homogPtsToRGBCloud(cv::Mat imgColor, Camera camera, cv::Mat R, cv::Mat t, cv::Mat homPoints, std::vector<cv::Point2f>& points2D, std::vector<cv::Vec3d>& points3D, std::vector<cv::Vec3b>& pointsRGB, float minDist, float maxDist, float maxProjErr, std::vector<bool>& mask) {
     cv::Mat point3DMat; cv::convertPointsFromHomogeneous(homPoints.t(), point3DMat);
 
     std::vector<cv::Point2f> _pts2D; cv::projectPoints(point3DMat, R, t, camera.K33d, cv::Mat(), _pts2D);
@@ -204,7 +205,7 @@ void homogPtsToRGBCloud(cv::Mat imgColor, Camera camera, cv::Mat R, cv::Mat t, c
     pointsRGB.clear();
     
     for(int i = 0, idxCorrection = 0; i < point3DMat.rows; ++i) {
-        const cv::Point3f point3D = point3DMat.at<cv::Point3f>(i, 0);
+        const cv::Vec3d point3D = point3DMat.at<cv::Vec3f>(i, 0);
         const cv::Vec3b imPoint2D = imgColor.at<cv::Vec3b>(points2D[i]);
 
         const float err = cv::norm(_pts2D[i] - points2D[i]);
@@ -212,7 +213,7 @@ void homogPtsToRGBCloud(cv::Mat imgColor, Camera camera, cv::Mat R, cv::Mat t, c
         points3D.push_back( point3D );
         pointsRGB.push_back( imPoint2D );
 
-        mask.push_back( point3D.z > minDist && point3D.z < maxDist && err <  maxProjErr);
+        mask.push_back( point3D.val[2] > minDist && point3D.val[2] < maxDist && err <  maxProjErr);
     }
 }
 
@@ -629,11 +630,12 @@ int main(int argc, char** argv) {
     std::vector<cv::Matx34f> camPoses;
     std::vector<cv::Point3f> usrPts;
 
-    VisPCL visPCL(ptCloudWinName, cv::Size(bWinWidth, bWinHeight));
+    VisPCL visPCL(ptCloudWinName + " PCL", cv::Size(bWinWidth, bWinHeight));
     //std::thread visPCLThread(&VisPCL::visualize, &visPCL);
 
-    VisVTK visVTK(ptCloudWinName, cv::Size(bWinWidth, bWinHeight));
+    VisVTK visVTK(ptCloudWinName + " VTK", cv::Size(bWinWidth, bWinHeight));
     //std::thread visVTKThread(&VisVTK::visualize, &visVTK);
+    //cv::Matx34d viewPose; viewPose(2, 3) = -100; visVTK.setViewerPose(viewPose);
 
     Tracking tracking;
     UserInput userInput;
@@ -664,7 +666,6 @@ int main(int argc, char** argv) {
             recPose.drawRecoveredPose(imOutRecPose, imOutRecPose, featPrevView.pts, featCurrView.pts, recPose.mask);
         }
 
-        cv::imshow(usrInpWinName, imOutUsrInp);
         cv::imshow(recPoseWinName, imOutRecPose);
 
         if (bUseOptFl) {
@@ -719,6 +720,8 @@ int main(int argc, char** argv) {
 
         userInput.recoverPoints(cv::Mat(recPose.R), cv::Mat(recPose.t), camera, imOutUsrInp);
 
+        cv::imshow(usrInpWinName, imOutUsrInp);
+
         std::vector<cv::Point> movedPts;
         userInput.movePoints(_prevPts, _currPts, mouseUsrDataParams.m_clickedPoint, movedPts);
 
@@ -732,16 +735,19 @@ int main(int argc, char** argv) {
 
         cv::Mat _homogPts; cv::triangulatePoints(camera.K33d * _prevPose, camera.K33d * _currPose, _prevImgN, _currImgN, _homogPts);
 
-        std::vector<cv::Point3f> _points3D;
+        std::vector<cv::Vec3d> _points3D;
         std::vector<cv::Vec3b> _pointsRGB;
         std::vector<bool> _mask; homogPtsToRGBCloud(featCurrView.viewPtr->imColor, camera, cv::Mat(recPose.R), cv::Mat(recPose.t), _homogPts, _currPts, _points3D, _pointsRGB, tMinDist, tMaxDist, tMaxPErr, _mask);
 
-        std::vector<cv::Point3f> _usrPts;
+        std::vector<cv::Vec3d> _usrPts;
         _usrPts.insert(_usrPts.end(), _points3D.end() - mouseUsrDataParams.m_clickedPoint.size(), _points3D.end());
         userInput.insert3DPoints(_usrPts);
 
         userInput.detach2DPoints(mouseUsrDataParams.m_clickedPoint, _currPts);
         userInput.detach3DPoints(mouseUsrDataParams.m_clickedPoint, _points3D);
+
+        visPCL.addPoints(_usrPts);
+        visVTK.addPoints(_usrPts);
         mouseUsrDataParams.m_clickedPoint.clear();
 
         tracking.addTrackView(featCurrView.viewPtr, _mask, _currPts, _points3D, _pointsRGB, featCurrView.keyPts, featCurrView.descriptor, _currIdx);

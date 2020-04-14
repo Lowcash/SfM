@@ -25,10 +25,10 @@ private:
 public:
     VisPCL(const std::string windowName, const cv::Size windowSize, const cv::viz::Color backgroundColor = cv::viz::Color::black());
 
-    void addPointCloud(const std::vector<cv::Point3f>& points3D, const std::vector<cv::Vec3b>& pointsRGB);
-
     void addPointCloud(const std::vector<TrackView>& trackViews);
 
+    void addPoints(const std::vector<cv::Vec3d> points3D);
+    
     void updateCameras(const std::vector<cv::Matx34f> camPoses);
 
     void addCamera(const cv::Matx34f camPose);
@@ -64,13 +64,15 @@ private:
 public:
     VisVTK(const std::string windowName, const cv::Size windowSize, const cv::viz::Color backgroundColor = cv::viz::Color::black());
 
-    void addPointCloud(const std::vector<cv::Point3f>& points3D, const std::vector<cv::Vec3b>& pointsRGB);
-
     void addPointCloud(const std::vector<TrackView>& trackViews);
+
+    void addPoints(const std::vector<cv::Vec3d> points3D);
 
     void updateCameras(const std::vector<cv::Matx34f> camPoses, const cv::Matx33d K33d);
 
     void addCamera(const cv::Matx34f camPose);
+    
+    void setViewerPose(const cv::Matx34d camPose); 
 
     void visualize();
 };
