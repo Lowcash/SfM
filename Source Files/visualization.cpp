@@ -16,7 +16,7 @@ boost::shared_ptr<pcl::visualization::PCLVisualizer> VisPCL::getNewViewer(const 
     viewer->setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 1);
     viewer->setBackgroundColor(bColor.val[0], bColor.val[1], bColor.val[1]);
     viewer->initCameraParameters();
-    viewer->setCameraPosition(0, 0, -1, 0, -1, 0);
+    viewer->setCameraPosition(0, 0, -50, 0, -1, 0);
     viewer->setSize(windowSize.width, windowSize.height);
     
     return (viewer);
@@ -119,7 +119,7 @@ void VisVTK::addPointCloud(const std::vector<TrackView>& trackViews) {
 
 void VisVTK::addPoints(const std::vector<cv::Vec3d> points3D) {
     for (const auto& p : points3D) {
-        const cv::viz::WSphere _point(cv::Point3d(), 5, 20, cv::viz::Color::purple());
+        const cv::viz::WSphere _point(cv::Point3d(), 2.5, 20, cv::viz::Color::purple());
 
         m_viewer.showWidget("point_" + std::to_string(m_numPoints), _point, cv::Affine3d(cv::Vec3d(), p));
 
@@ -134,13 +134,13 @@ void VisVTK::updateCameras(const std::vector<cv::Matx34f> camPoses, const cv::Ma
         cv::Affine3d vtkPose; cvPoseToInverseVTKPose(c, vtkPose);
 
         if (idx != m_numCams) {
-            const cv::viz::WCameraPosition _cam(K33d, -5, cv::viz::Color::orange());
+            const cv::viz::WCameraPosition _cam(K33d, -2, cv::viz::Color::orange());
 
             m_viewer.removeWidget("cam_" + std::to_string(idx));
 
             m_viewer.showWidget("cam_" + std::to_string(idx), _cam, vtkPose);
         } else {
-            const cv::viz::WCameraPosition _cam(K33d, -8, cv::viz::Color::red());
+            const cv::viz::WCameraPosition _cam(K33d, -4, cv::viz::Color::red());
 
             m_viewer.showWidget("cam_" + std::to_string(idx), _cam, vtkPose);
         }
