@@ -9,16 +9,17 @@
 
 class RecoveryPose {
 public:
-    int method;
+    int recPoseMethod, poseEstMethod;
 
     const double prob, threshold;
-    const uint minInliers;
-
+    const uint minInliers, numIter;
+    const bool useExtrinsicGuess;
+    
     cv::Matx33d R;
     cv::Matx31d t;
     cv::Mat mask;
 
-    RecoveryPose(std::string method, const double prob, const double threshold, const uint minInliers);
+    RecoveryPose(std::string method, const double prob, const double threshold, const uint minInliers, std::string poseEstMethod, const bool useExtrinsicGuess, const uint numIter);
 
     void drawRecoveredPose(cv::Mat inputImg, cv::Mat& outputImg, const std::vector<cv::Point2f> prevPts, const std::vector<cv::Point2f> currPts, cv::Mat mask = cv::Mat());
 };

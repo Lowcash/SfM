@@ -144,10 +144,45 @@ static void onUsrWinClick (int event, int x, int y, int flags, void* params) {
     cv::imshow(mouseParams->m_inputWinName, *mouseParams->m_inputMat);
 }
 
+void pointsToMat(std::vector<cv::Point2f>& points, cv::Mat& pointsMat) {
+    pointsMat = (cv::Mat_<double>(2,1) << 1, 1);;
+
+    for (const auto& p : points) {
+        cv::Mat _pointMat = (cv::Mat_<double>(2,1) << p.x, p.y);
+
+        cv::hconcat(pointsMat, _pointMat, pointsMat);
+    } 
+
+    pointsMat = pointsMat.colRange(1, pointsMat.cols);
+}
+
+void pointsToMat(cv::Mat& points, cv::Mat& pointsMat) {
+    pointsMat = (cv::Mat_<double>(2,1) << 1, 1);;
+
+    for (size_t i = 0; i < points.cols; ++i) {
+        cv::Point2f _point = points.at<cv::Point2f>(i);
+
+        cv::Mat _pointMat = (cv::Mat_<double>(2,1) << _point.x, _point.y);
+
+        cv::hconcat(pointsMat, _pointMat, pointsMat);
+    } 
+
+    pointsMat = pointsMat.colRange(1, pointsMat.cols);
+}
+
 bool findCameraPose(RecoveryPose& recPose, std::vector<cv::Point2f> prevPts, std::vector<cv::Point2f> currPts, cv::Mat cameraK, int minInliers, int& numInliers) {
     if (prevPts.size() <= 5 || currPts.size() <= 5) { return false; }
 
-    cv::Mat E = cv::findEssentialMat(prevPts, currPts, cameraK, recPose.method, recPose.prob, recPose.threshold, recPose.mask);
+    //cv::Mat _prevPtsMat; pointsToMat(prevPts, _prevPtsMat);
+    //cv::Mat _currPtsMat; pointsToMat(currPts, _currPtsMat);
+
+    //cv::Mat F, E; std::vector<int> inl;
+    //double bestError = cv::sfm::fundamentalFromCorrespondences8PointRobust(_prevPtsMat, _currPtsMat, recPose.threshold, F, inl);
+    //cv::sfm::essentialFromFundamental(F, cameraK, cameraK, E);
+    cv::Mat E = cv::findEssentialMat(prevPts, currPts, cameraK, recPose.recPoseMethod, recPose.prob, recPose.threshold, recPose.mask);
+
+    //std::vector<cv::Mat> R, t;
+    //cv::sfm::motionFromEssential(E, R, t);
 
     if (!(E.cols == 3 && E.rows == 3)) { return false; }
 
@@ -156,29 +191,24 @@ bool findCameraPose(RecoveryPose& recPose, std::vector<cv::Point2f> prevPts, std
     return numInliers > minInliers;
 }
 
-void homogPtsToRGBCloud(cv::Mat imgColor, Camera camera, cv::Mat R, cv::Mat t, cv::Mat homPoints, std::vector<cv::Point2f>& points2D, std::vector<cv::Vec3d>& points3D, std::vector<cv::Vec3b>& pointsRGB, float minDist, float maxDist, float maxProjErr, std::vector<bool>& mask) {
-    //cv::Mat point3DMat; cv::convertPointsFromHomogeneous(homPoints.t(), point3DMat);
+void pointsToRGBCloud(cv::Mat imgColor, Camera camera, cv::Mat R, cv::Mat t, cv::Mat points3D, cv::Mat inputPts2D, std::vector<cv::Vec3d>& cloud3D, std::vector<cv::Vec3b>& cloudRGB, float minDist, float maxDist, float maxProjErr, std::vector<bool>& mask) {
+    cv::Mat _pts2D; cv::projectPoints(points3D, R, t, camera._K, cv::Mat(), _pts2D);
 
-    //cv::sfm::homogeneousToEuclidean(homPoints, point3DMat);
-
-    //std::vector<cv::Point2f> _pts2D; cv::projectPoints(point3DMat, R, t, camera.K33d, cv::Mat(), _pts2D);
-
-    homPoints = homPoints.t();
-
-    points3D.clear();
-    pointsRGB.clear();
+    cloud3D.clear();
+    cloudRGB.clear();
     
-    for(int i = 0, idxCorrection = 0; i < homPoints.rows; ++i) {
-        const cv::Vec3d point3D = homPoints.at<cv::Vec3d>(i, 0);
-        const cv::Vec3b imPoint2D = imgColor.at<cv::Vec3b>(points2D[i]);
+    for(size_t i = 0; i < points3D.rows; ++i) {
+        const cv::Vec3d point3D = points3D.at<cv::Vec3d>(i);
+        const cv::Vec2d point2D = inputPts2D.at<cv::Vec2d>(i);
+        const cv::Vec2d _point2D = _pts2D.at<cv::Vec2d>(i);
+        const cv::Vec3b imPoint2D = imgColor.at<cv::Vec3b>(cv::Point(point2D));
 
-        //const float err = cv::norm(_pts2D[i] - points2D[i]);
+        const double err = cv::norm(_point2D - point2D);
 
-        points3D.push_back( point3D );
-        pointsRGB.push_back( imPoint2D );
+        cloud3D.push_back( point3D );
+        cloudRGB.push_back( imPoint2D );
 
-        //mask.push_back( point3D.val[2] > minDist && point3D.val[2] < maxDist && err <  maxProjErr);
-        mask.push_back( point3D.val[2] > minDist && point3D.val[2] < maxDist);
+        mask.push_back( err <  maxProjErr && point3D[2] > minDist && point3D[2] < maxDist );
     }
 }
 
@@ -210,7 +240,7 @@ void adjustBundle(std::vector<TrackView>& tracks, Camera& camera, std::vector<cv
     }
 
     ceres::Problem problem;
-    ceres::LossFunction* lossFunction = new ceres::CauchyLoss(0.5);
+    ceres::LossFunction* lossFunction = new ceres::CauchyLoss(1.0);
 
     double focalLength = camera.focalLength;
 
@@ -227,7 +257,7 @@ void adjustBundle(std::vector<TrackView>& tracks, Camera& camera, std::vector<cv
     }
     
     ceres::Solver::Options options;
-    options.linear_solver_type = ceres::LinearSolverType::DENSE_SCHUR;
+    options.linear_solver_type = ceres::LinearSolverType::SPARSE_NORMAL_CHOLESKY;
     options.minimizer_progress_to_stdout = true;
     //options.eta = 1e-2;
     options.num_threads = std::thread::hardware_concurrency();
@@ -314,7 +344,7 @@ bool findGoodImagePair(cv::VideoCapture cap, OptFlow optFlow, FeatureDetector fe
     int numSkippedFrames = -1, numHomInliers = 0;
     do {
         if (!loadImage(cap, _imColor, _imGray, imDownSampling)) { return false; } 
-        cv::GaussianBlur(_imGray, _imGray, cv::Size(7, 7), 0);
+        //cv::GaussianBlur(_imGray, _imGray, cv::Size(5, 5), 0);
         //cv::medianBlur(_imGray, _imGray, 7);
 
         std::cout << "." << std::flush;
@@ -388,7 +418,7 @@ bool findGoodImagePair(cv::VideoCapture cap, FeatureDetector featDetector, Descr
         cv::Mat _imColor, _imGray;
 
         if (!loadImage(cap, _imColor, _imGray, imDownSampling)) { return false; } 
-        //cv::GaussianBlur(_imGray, _imGray, cv::Size(5,5), 0);
+        //cv::GaussianBlur(_imGray, _imGray, cv::Size(5, 5), 0);
         //cv::medianBlur(_imGray, _imGray, 7);
 
         _views.push_back(ViewData(_imColor, _imGray));
@@ -491,10 +521,13 @@ int main(int argc, char** argv) {
         "{ peProb    | 0.999      | pose estimation confidence/probability }"
         "{ peThresh  | 1.0        | pose estimation threshold }"
         "{ peMinInl  | 50         | pose estimation in number of homography inliers user for reconstruction }"
+        "{ peMinMatch| 50         | pose estimation min matches to break }"
+        "{ peBAIter  | 50         | pose estimation bundle adjustment max iteration }"
+        "{ pePMetrod | 50         | pose estimation method SOLVEPNP_ITERATIVE/SOLVEPNP_P3P/SOLVEPNP_AP3P }"
+        "{ peExGuess | false      | pose estimation use extrinsic guess }"
+        "{ peNumIteR | 250        | pose estimation max iteration }"
 
-        "{ rpMinMatch| 50         | recovery pose min matches to break }"
-        "{ rpBAIter  | 50         | recovery pose bundle adjustment max iteration }"
-
+        "{ tMethod   | ITERATIVE  | triangulation method ITERATIVE/DLT }"
         "{ tMinDist  | 1.0        | triangulation points min distance }"
         "{ tMaxDist  | 100.0      | triangulation points max distance }"
         "{ tMaxPErr  | 100.0      | triangulation points max reprojection error }"
@@ -535,12 +568,14 @@ int main(int argc, char** argv) {
     const float peProb = parser.get<float>("peProb");
     const float peThresh = parser.get<float>("peThresh");
     const int peMinInl = parser.get<int>("peMinInl");
-
-    //---------------------------- RECOVERY POSE ----------------------------//
-    const int rpMinMatch = parser.get<int>("rpMinMatch");
-    const int rpBAIter = parser.get<int>("rpBAIter");
+    const int peMinMatch = parser.get<int>("peMinMatch");
+    const int peBAIter = parser.get<int>("peBAIter");
+    const std::string pePMetrod = parser.get<std::string>("pePMetrod");
+    const bool peExGuess = parser.get<bool>("peExGuess");
+    const int peNumIteR = parser.get<int>("peNumIteR");
 
     //---------------------------- TRIANGULATION ----------------------------//
+    const std::string tMethod = parser.get<std::string>("tMethod");
     const float tMinDist = parser.get<float>("tMinDist");
     const float tMaxDist = parser.get<float>("tMaxDist");
     const float tMaxPErr = parser.get<float>("tMaxPErr");
@@ -582,7 +617,7 @@ int main(int argc, char** argv) {
     cv::TermCriteria flowTermCrit(cv::TermCriteria::COUNT + cv::TermCriteria::EPS, ofMaxItCt, ofItEps);
     OptFlow optFlow(flowTermCrit, ofWinSize, ofMaxLevel, ofMaxError, ofMaxCorn, ofQualLvl, ofMinDist, isUsingCUDA);
 
-    RecoveryPose recPose(peMethod, peProb, peThresh, peMinInl);
+    RecoveryPose recPose(peMethod, peProb, peThresh, peMinInl, pePMetrod, peExGuess, peNumIteR);
 
     cv::Mat imOutUsrInp, imOutRecPose, imOutMatches;
     
@@ -689,7 +724,7 @@ int main(int argc, char** argv) {
             continue; 
         }
 
-        if(!tracking.findRecoveredCameraPose(descMatcher, rpMinMatch, camera, featCurrView, recPose)) {
+        if(!tracking.findRecoveredCameraPose(descMatcher, peMinMatch, camera, featCurrView, recPose)) {
             std::cout << "Recovering camera fail, skip current reconstruction iteration!\n";
   
             std::swap(ofPrevView, ofCurrView);
@@ -713,35 +748,27 @@ int main(int argc, char** argv) {
         cv::Mat _prevPtsN; cv::undistort(_prevPts, _prevPtsN, camera.K33d, cv::Mat());
         cv::Mat _currPtsN; cv::undistort(_currPts, _currPtsN, camera.K33d, cv::Mat());
 
-        cv::Mat _homogPts; //cv::triangulatePoints(camera.K33d * _prevPose, camera.K33d * _currPose, _prevPtsN, _currPtsN, _homogPts);
+        cv::Mat _prevPtsMat; pointsToMat(_prevPtsN, _prevPtsMat);
+        cv::Mat _currPtsMat; pointsToMat(_currPtsN, _currPtsMat);
 
-        cv::Mat_<double> points1Mat = (cv::Mat_<double>(2,1) << 1, 1);
-        cv::Mat_<double> points2Mat = (cv::Mat_<double>(2,1) << 1, 1);
+        cv::Mat _homogPts, _pts3D;
 
-        for (int i=0; i < _prevPtsN.cols; i++) {
-            cv::Point2f myPoint1 = _prevPtsN.at<cv::Point2f>(i);
-            cv::Point2f myPoint2 = _currPtsN.at<cv::Point2f>(i);
-            cv::Mat matPoint1 = (cv::Mat_<double>(2,1) << myPoint1.x, myPoint1.y);
-            cv::Mat matPoint2 = (cv::Mat_<double>(2,1) << myPoint2.x, myPoint2.y);
-            cv::hconcat(points1Mat, matPoint1, points1Mat);
-            cv::hconcat(points2Mat, matPoint2, points2Mat);
+        if (tMethod == "DLT") {
+            std::vector<cv::Mat> _pts, _projMats;
+            _pts.push_back(_prevPtsMat);
+            _pts.push_back(_currPtsMat);
+            _projMats.push_back(cv::Mat(camera.K33d * _prevPose));
+            _projMats.push_back(cv::Mat(camera.K33d * _currPose));
+
+            cv::sfm::triangulatePoints(_pts, _projMats, _pts3D); _pts3D = _pts3D.t();
+        } else {
+            cv::triangulatePoints(camera.K33d * _prevPose, camera.K33d * _currPose, _prevPtsMat, _currPtsMat, _homogPts);
+            cv::convertPointsFromHomogeneous(_homogPts.t(), _pts3D);
         }
-
-        points1Mat = points1Mat.colRange(1, points1Mat.cols);
-        points2Mat = points2Mat.colRange(1, points2Mat.cols);
-
-        std::vector<cv::Mat> _pts, _projMats;
-        _pts.push_back(points1Mat);
-        _pts.push_back(points2Mat);
-        _projMats.push_back(cv::Mat(camera.K33d * _prevPose));
-        _projMats.push_back(cv::Mat(camera.K33d * _currPose));
-
-        cv::triangulatePoints(camera.K33d * _prevPose, camera.K33d * _currPose, points1Mat, points2Mat, _homogPts);
-        cv::sfm::triangulatePoints(_pts, _projMats, _homogPts);
 
         std::vector<cv::Vec3d> _points3D;
         std::vector<cv::Vec3b> _pointsRGB;
-        std::vector<bool> _mask; homogPtsToRGBCloud(featCurrView.viewPtr->imColor, camera, cv::Mat(recPose.R), cv::Mat(recPose.t), _homogPts, _currPts, _points3D, _pointsRGB, tMinDist, tMaxDist, tMaxPErr, _mask);
+        std::vector<bool> _mask; pointsToRGBCloud(featCurrView.viewPtr->imColor, camera, cv::Mat(recPose.R), cv::Mat(recPose.t), _pts3D, _currPtsMat.t(), _points3D, _pointsRGB, tMinDist, tMaxDist, tMaxPErr, _mask);
 
         std::vector<cv::Vec3d> _usrPts;
         _usrPts.insert(_usrPts.end(), _points3D.end() - mouseUsrDataParams.m_clickedPoint.size(), _points3D.end());
@@ -756,8 +783,8 @@ int main(int argc, char** argv) {
 
         tracking.addTrackView(featCurrView.viewPtr, _mask, _currPts, _points3D, _pointsRGB, featCurrView.keyPts, featCurrView.descriptor, _currIdx);
 
-        adjustBundle(tracking.trackViews, camera, camPoses, rpBAIter);
-
+        adjustBundle(tracking.trackViews, camera, camPoses, peBAIter);
+        
         std::cout << "\n Cam pose: " << _currPose << "\n"; cv::waitKey(1);
 
         visPCL.addPointCloud(tracking.trackViews);

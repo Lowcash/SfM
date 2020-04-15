@@ -1,18 +1,29 @@
 #include "tracking.h"
 
-RecoveryPose::RecoveryPose(std::string method, const double prob, const double threshold, const uint minInliers) 
-    : prob(prob), threshold(threshold), minInliers(minInliers) {
+RecoveryPose::RecoveryPose(std::string recPoseMethod, const double prob, const double threshold, const uint minInliers, std::string poseEstMethod, const bool useExtrinsicGuess, const uint numIter) 
+    : prob(prob), threshold(threshold), minInliers(minInliers), useExtrinsicGuess(useExtrinsicGuess), numIter(numIter) {
     R = cv::Matx33d::eye();
     t = cv::Matx31d::eye();
 
-    std::for_each(method.begin(), method.end(), [](char& c){
+    std::for_each(recPoseMethod.begin(), recPoseMethod.end(), [](char& c){
         c = ::toupper(c);
     });
 
-    if (method == "RANSAC")
-        this->method = cv::RANSAC;
+    if (recPoseMethod == "RANSAC")
+        this->recPoseMethod = cv::RANSAC;
     else
-        this->method = cv::LMEDS;
+        this->recPoseMethod = cv::LMEDS;
+
+    std::for_each(poseEstMethod.begin(), poseEstMethod.end(), [](char& c){
+        c = ::toupper(c);
+    });
+
+    if (poseEstMethod == "SOLVEPNP_P3P")
+        this->poseEstMethod = cv::SolvePnPMethod::SOLVEPNP_P3P;
+    else if (poseEstMethod == "SOLVEPNP_AP3P")
+        this->poseEstMethod = cv::SolvePnPMethod::SOLVEPNP_AP3P;
+    else
+        this->poseEstMethod = cv::SolvePnPMethod::SOLVEPNP_ITERATIVE;
 }
 
 void RecoveryPose::drawRecoveredPose(cv::Mat inputImg, cv::Mat& outputImg, const std::vector<cv::Point2f> prevPts, const std::vector<cv::Point2f> currPts, cv::Mat mask) {
@@ -187,7 +198,7 @@ void Tracking::addTrackView(ViewData* view, const std::vector<bool>& mask, const
 
     if (_posePoints2D.size() < 4 || _posePoints3D.size() < 4) { return false; }
 
-    if (!cv::solvePnPRansac(_posePoints3D, _posePoints2D, camera._K, cv::Mat(), _R, _t, true, 500, recPose.threshold, recPose.prob, _inliers, cv::SolvePnPMethod::SOLVEPNP_P3P)) { return false; }
+    if (!cv::solvePnPRansac(_posePoints3D, _posePoints2D, camera._K, cv::Mat(), _R, _t, recPose.useExtrinsicGuess, recPose.numIter, recPose.threshold, recPose.prob, _inliers, recPose.poseEstMethod)) { return false; }
     //if (!cv::solvePnP(_posePoints3D, _posePoints2D, camera._K, cv::Mat(), _R, _t, false, cv::SolvePnPMethod::SOLVEPNP_EPNP)) { return false; }
 
     std::cout << "Recover pose inliers: " << _inliers.rows << "\n";

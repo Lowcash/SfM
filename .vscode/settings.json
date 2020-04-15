@@ -66,7 +66,9 @@
         "variant": "cpp",
         "*.ipp": "cpp",
         "shared_mutex": "cpp",
-        "core": "cpp"
+        "core": "cpp",
+        "polynomials": "cpp",
+        "*.txx": "cpp"
     },
     "git.ignoreLimitWarning": true
 }
