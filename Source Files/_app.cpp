@@ -212,7 +212,7 @@ void pointsToRGBCloud(cv::Mat imgColor, Camera camera, cv::Mat R, cv::Mat t, cv:
     }
 }
 
-void adjustBundle(std::vector<TrackView>& tracks, Camera& camera, std::vector<cv::Matx34f>& camPoses, uint maxIter = 999) {
+void adjustBundle(std::vector<TrackView>& tracks, Camera& camera, std::vector<cv::Matx34f>& camPoses, std::string solverType, std::string lossType, double lossFunctionScale, uint maxIter = 999) {
     std::cout << "Bundle adjustment...\n" << std::flush;
 
     std::vector<cv::Matx16d> camPoses6d;
@@ -240,7 +240,12 @@ void adjustBundle(std::vector<TrackView>& tracks, Camera& camera, std::vector<cv
     }
 
     ceres::Problem problem;
-    ceres::LossFunction* lossFunction = new ceres::CauchyLoss(1.0);
+    ceres::LossFunction* lossFunction;
+
+    if (lossType == "HUBER")
+        lossFunction = new ceres::HuberLoss(lossFunctionScale);
+    else
+        lossFunction = new ceres::CauchyLoss(lossFunctionScale);
 
     double focalLength = camera.focalLength;
 
@@ -252,27 +257,23 @@ void adjustBundle(std::vector<TrackView>& tracks, Camera& camera, std::vector<cv
 
             ceres::CostFunction* costFunc = SimpleReprojectionError::Create(p2d.x, p2d.y);
 
-            problem.AddResidualBlock(costFunc, lossFunction, c->val, t->points3D[i].val, &focalLength);
+            problem.AddResidualBlock(costFunc, lossType != "NONE" ? lossFunction : NULL, c->val, t->points3D[i].val, &focalLength);
         }
     }
     
     ceres::Solver::Options options;
-    options.linear_solver_type = ceres::LinearSolverType::SPARSE_NORMAL_CHOLESKY;
+    if (solverType == "DENSE_SCHUR")
+        options.linear_solver_type = ceres::LinearSolverType::DENSE_SCHUR;
+    else
+        options.linear_solver_type = ceres::LinearSolverType::SPARSE_NORMAL_CHOLESKY;
+
     options.minimizer_progress_to_stdout = true;
     //options.eta = 1e-2;
     options.num_threads = std::thread::hardware_concurrency();
 
     ceres::Solver::Summary summary;
 
-    //std::vector<TrackView> _v = tracks;
-
     ceres::Solve(options, &problem, &summary);
-
-    // for (auto [t, tEnd, c, cEnd, it] = std::tuple{tracks.rbegin(), tracks.rend(), _v.rbegin(), _v.rend(), 0}; t != tEnd && c != cEnd && it < maxIter; ++t, ++c, ++it) {
-    //     for (size_t i = 0; i < t->numTracks; ++i) {
-    //         std::cout << t->points3D[i] << ", " << c->points3D[i] << "\n";
-    //     }
-    // }
 
     //std::cout << summary.FullReport() << "\n";
 
@@ -503,34 +504,39 @@ int main(int argc, char** argv) {
         "{ bUseCuda  | false      | is nVidia CUDA used }"
         "{ bUseOptFl | true       | is optical flow matching used }"
 
-        "{ fDecType  | AKAZE      | used detector type }"
-        "{ fMatchType| BRUTEFORCE | used matcher type }"
-        "{ fKnnRatio | 0.75       | knn ration match }"
+        "{ fDecType  | AKAZE       | used detector type }"
+        "{ fMatchType| BRUTEFORCE  | used matcher type }"
+        "{ fKnnRatio | 0.75        | knn ration match }"
 
-        "{ ofMinKPts | 500        | optical flow min descriptor to generate new one }"
-        "{ ofWinSize | 21         | optical flow window size }"
-        "{ ofMaxLevel| 3          | optical flow max pyramid level }"
-        "{ ofMaxItCt | 30         | optical flow max iteration count }"
-        "{ ofItEps   | 0.1        | optical flow iteration epsilon }"
-        "{ ofMaxError| 0          | optical flow max error }"
-        "{ ofMaxCorn | 500        | optical flow max generated corners }"
-        "{ ofQualLvl | 0.1        | optical flow generated corners quality level }"
-        "{ ofMinDist | 25.0       | optical flow generated corners min distance }"
+        "{ ofMinKPts | 500         | optical flow min descriptor to generate new one }"
+        "{ ofWinSize | 21          | optical flow window size }"
+        "{ ofMaxLevel| 3           | optical flow max pyramid level }"
+        "{ ofMaxItCt | 30          | optical flow max iteration count }"
+        "{ ofItEps   | 0.1         | optical flow iteration epsilon }"
+        "{ ofMaxError| 0           | optical flow max error }"
+        "{ ofMaxCorn | 500         | optical flow max generated corners }"
+        "{ ofQualLvl | 0.1         | optical flow generated corners quality level }"
+        "{ ofMinDist | 25.0        | optical flow generated corners min distance }"
 
-        "{ peMethod  | LMEDS      | pose estimation fundamental matrix computation method [RANSAC/LMEDS] }"
-        "{ peProb    | 0.999      | pose estimation confidence/probability }"
-        "{ peThresh  | 1.0        | pose estimation threshold }"
-        "{ peMinInl  | 50         | pose estimation in number of homography inliers user for reconstruction }"
-        "{ peMinMatch| 50         | pose estimation min matches to break }"
-        "{ peBAIter  | 50         | pose estimation bundle adjustment max iteration }"
-        "{ pePMetrod | 50         | pose estimation method SOLVEPNP_ITERATIVE/SOLVEPNP_P3P/SOLVEPNP_AP3P }"
-        "{ peExGuess | false      | pose estimation use extrinsic guess }"
-        "{ peNumIteR | 250        | pose estimation max iteration }"
+        "{ peMethod  | LMEDS       | pose estimation fundamental matrix computation method [RANSAC/LMEDS] }"
+        "{ peProb    | 0.999       | pose estimation confidence/probability }"
+        "{ peThresh  | 1.0         | pose estimation threshold }"
+        "{ peMinInl  | 50          | pose estimation in number of homography inliers user for reconstruction }"
+        "{ peMinMatch| 50          | pose estimation min matches to break }"
+       
+        "{ pePMetrod | 50          | pose estimation method SOLVEPNP_ITERATIVE/SOLVEPNP_P3P/SOLVEPNP_AP3P }"
+        "{ peExGuess | false       | pose estimation use extrinsic guess }"
+        "{ peNumIteR | 250         | pose estimation max iteration }"
 
-        "{ tMethod   | ITERATIVE  | triangulation method ITERATIVE/DLT }"
-        "{ tMinDist  | 1.0        | triangulation points min distance }"
-        "{ tMaxDist  | 100.0      | triangulation points max distance }"
-        "{ tMaxPErr  | 100.0      | triangulation points max reprojection error }"
+        "{ baMethod  | DENSE_SCHUR | bundle adjustment used solver type DENSE_SCHUR/SPARSE_NORMAL_CHOLESKY }"
+        "{ baNumIter | 50          | bundle adjustment max iteration }"
+        "{ baLossFunc| NONE        | bundle adjustment used loss function NONE/HUBER/CAUCHY }"
+        "{ baLossSc  | 1.0         | bundle adjustment loss function scaling parameter }"
+
+        "{ tMethod   | ITERATIVE   | triangulation method ITERATIVE/DLT }"
+        "{ tMinDist  | 1.0         | triangulation points min distance }"
+        "{ tMaxDist  | 100.0       | triangulation points max distance }"
+        "{ tMaxPErr  | 100.0       | triangulation points max reprojection error }"
     );
 
     if (parser.has("help")) {
@@ -569,10 +575,16 @@ int main(int argc, char** argv) {
     const float peThresh = parser.get<float>("peThresh");
     const int peMinInl = parser.get<int>("peMinInl");
     const int peMinMatch = parser.get<int>("peMinMatch");
-    const int peBAIter = parser.get<int>("peBAIter");
+    
     const std::string pePMetrod = parser.get<std::string>("pePMetrod");
     const bool peExGuess = parser.get<bool>("peExGuess");
     const int peNumIteR = parser.get<int>("peNumIteR");
+
+    //-------------------------- BUNDLE ADJUSTMENT --------------------------//
+    const std::string baMethod = parser.get<std::string>("baMethod");
+    const int baNumIter = parser.get<int>("baNumIter");
+    const std::string baLossFunc = parser.get<std::string>("baLossFunc");
+    const double baLossSc = parser.get<double>("baLossSc");
 
     //---------------------------- TRIANGULATION ----------------------------//
     const std::string tMethod = parser.get<std::string>("tMethod");
@@ -783,7 +795,7 @@ int main(int argc, char** argv) {
 
         tracking.addTrackView(featCurrView.viewPtr, _mask, _currPts, _points3D, _pointsRGB, featCurrView.keyPts, featCurrView.descriptor, _currIdx);
 
-        adjustBundle(tracking.trackViews, camera, camPoses, peBAIter);
+        adjustBundle(tracking.trackViews, camera, camPoses, baMethod, baLossFunc, baLossSc, baNumIter);
         
         std::cout << "\n Cam pose: " << _currPose << "\n"; cv::waitKey(1);
 
