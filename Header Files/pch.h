@@ -33,10 +33,7 @@
 
 #include <boost/format.hpp>
 #include <boost/filesystem.hpp>
-#include <boost/graph/copy.hpp>
-#include <boost/graph/adjacency_list.hpp>
-#include <boost/graph/graphviz.hpp>
-#include <boost/graph/connected_components.hpp>
+#include <boost/thread.hpp>
 
 #include <pcl/common/common_headers.h>
 #include <pcl/visualization/pcl_visualizer.h>

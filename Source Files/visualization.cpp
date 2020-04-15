@@ -2,10 +2,12 @@
 
 VisPCL::VisPCL(const std::string windowName, const cv::Size windowSize, const cv::viz::Color backgroundColor) {
     m_viewer = getNewViewer(windowName, windowSize, backgroundColor);
-        
+
     m_numClouds = 0;
     m_numCams = 0;
     m_numPoints = 0;
+
+    m_isUpdate = false;
 }
 
 boost::shared_ptr<pcl::visualization::PCLVisualizer> VisPCL::getNewViewer(const std::string windowName, const cv::Size windowSize, const cv::viz::Color bColor) {
@@ -39,10 +41,17 @@ void VisPCL::addPointCloud(const std::vector<TrackView>& trackViews) {
 
             pointCloud->push_back(rgbPoint);
         }
+
         //break;
     }
 
+    //boost::mutex::scoped_lock updateLock(m_updateModelMutex);
+
     m_viewer->updatePointCloud(pointCloud);
+    // m_isUpdate = false;
+
+    // updateLock.unlock();
+    // m_isUpdate = true;
 }
 
 void VisPCL::addPoints(const std::vector<cv::Vec3d> points3D) {
@@ -79,9 +88,19 @@ void VisPCL::updateCameras(const std::vector<cv::Matx34f> camPoses) {
 }
 
 void VisPCL::visualize() {
-    //while(!m_viewer->wasStopped())
-        m_viewer->spinOnce(60);
-    //m_viewer->spin();
+    // while(!m_viewer->wasStopped()) {
+    //     boost::mutex::scoped_lock updateLock(m_updateModelMutex);
+
+    //     if (m_isUpdate) {
+    //         m_viewer->spinOnce(60);
+
+    //         m_isUpdate = false;
+    //     }
+
+    //     updateLock.unlock();
+    // }
+
+    m_viewer->spinOnce(60);
 }
 
 VisVTK::VisVTK(const std::string windowName, const cv::Size windowSize, const cv::viz::Color backgroundColor) {
@@ -98,20 +117,23 @@ VisVTK::VisVTK(const std::string windowName, const cv::Size windowSize, const cv
 
     cv::Affine3f rotation(rotMat, cv::Vec3d());
     
-    m_viewer.setViewerPose(rotation.translate(cv::Vec3d(0, 0, -100)));
+    m_viewer.setViewerPose(rotation.translate(cv::Vec3d(0, 0, -150)));
 
     m_numClouds = 0;
     m_numCams = 0;
 }
 
 void VisVTK::addPointCloud(const std::vector<TrackView>& trackViews) {
-   for (auto [t, end, idx] = std::tuple{trackViews.cbegin(), trackViews.cend(), 0}; t != end; ++t, ++idx) {
+    m_viewer.removeAllWidgets();
+    for (auto [t, end, idx] = std::tuple{trackViews.crbegin(), trackViews.crend(), 0}; t != end; ++t, ++idx) {
         const cv::viz::WCloud _pCloud(t->points3D, t->pointsRGB);
 
-        if (idx != m_numClouds)
-            m_viewer.removeWidget("cloud_" + std::to_string(idx));
+        //if (idx != m_numClouds)
+        //    m_viewer.removeWidget("cloud_" + std::to_string(idx));
 
         m_viewer.showWidget("cloud_" + std::to_string(idx), _pCloud);
+
+        break;
     }
 
     m_numClouds++;
@@ -147,12 +169,6 @@ void VisVTK::updateCameras(const std::vector<cv::Matx34f> camPoses, const cv::Ma
     }
 
     m_numCams++;
-}
-
-void VisVTK::setViewerPose(const cv::Matx34d camPose) {
-    cv::Affine3d vtkPose; cvPoseToInverseVTKPose(camPose, vtkPose);
-
-    m_viewer.setViewerPose(vtkPose);
 }
 
 void VisVTK::addCamera(const cv::Matx34f camPose) {}

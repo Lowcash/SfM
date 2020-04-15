@@ -50,9 +50,9 @@ FeatureDetector::FeatureDetector(std::string method, bool isUsingCUDA) {
 
         case DetectorType::ORB: {
             if (m_isUsingCUDA)
-                detector = extractor = cv::cuda::ORB::create();
+                detector = extractor = cv::cuda::ORB::create(2000, 1.2, 1);
             else 
-                detector = extractor = cv::ORB::create();
+                detector = extractor = cv::ORB::create(2000, 1.2, 1);
 
             break;
         }
@@ -134,7 +134,7 @@ void FeatureDetector::generateFlowFeatures(cv::Mat& imGray, std::vector<cv::Poin
     std::cout << "Generating flow features..." << std::flush;
 
     cv::goodFeaturesToTrack(imGray, corners, maxCorners, qualityLevel, minDistance);
-
+    
     std::cout << "[DONE]";
 }
 
@@ -155,7 +155,7 @@ DescriptorMatcher::DescriptorMatcher(std::string method, const float ratioThresh
     std::for_each(method.begin(), method.end(), [](char& c){
         c = ::toupper(c);
     });
-
+    
     if (method == "BRUTEFORCE_HAMMING")
         matcher = cv::DescriptorMatcher::create(cv::DescriptorMatcher::MatcherType::BRUTEFORCE_HAMMING);
     else if (method == "BRUTEFORCE_SL2")
@@ -254,7 +254,7 @@ void OptFlow::computeFlow(cv::cuda::GpuMat& d_imPrevGray, cv::cuda::GpuMat& d_im
     d_currPts.download(currPts);
     d_status.download(status);
     d_err.download(err);
-
+    
     for (uint i = 0, idxCorrection = 0; i < status.size() && i < err.size(); ++i) {
         cv::Point2f pt = currPts[i - idxCorrection];
 

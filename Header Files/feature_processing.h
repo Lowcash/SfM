@@ -71,8 +71,8 @@ public:
     std::vector<cv::Point2f> corners;
     cv::cuda::GpuMat d_corners;
 
-    void setPts(const std::vector<cv::Point2f> corners) { this->corners = corners; }
-    void setPts(const cv::cuda::GpuMat corners) { this->d_corners = corners; }
+    void setCorners(const std::vector<cv::Point2f> corners) { this->corners = corners; }
+    void setCorners(const cv::cuda::GpuMat corners) { this->d_corners = corners; }
 };
 
 class FeatureView : public View {

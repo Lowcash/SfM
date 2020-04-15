@@ -19,6 +19,10 @@ protected:
 
 class VisPCL : public VisPCLUtils, public IVisualizable {
 private:
+    bool m_isUpdate;
+
+    boost::mutex m_updateModelMutex;
+
     boost::shared_ptr<pcl::visualization::PCLVisualizer> m_viewer;
 
     boost::shared_ptr<pcl::visualization::PCLVisualizer> getNewViewer (const std::string windowName, const cv::Size windowSize, const cv::viz::Color bColor = cv::viz::Color::black());
@@ -57,7 +61,6 @@ protected:
     }
 };
 
-
 class VisVTK : public VisVTKUtils, public IVisualizable {
 private:
     cv::viz::Viz3d m_viewer;
@@ -71,8 +74,6 @@ public:
     void updateCameras(const std::vector<cv::Matx34f> camPoses, const cv::Matx33d K33d);
 
     void addCamera(const cv::Matx34f camPose);
-    
-    void setViewerPose(const cv::Matx34d camPose); 
 
     void visualize();
 };
