@@ -46,8 +46,8 @@ void VisPCL::addPointCloud(const std::vector<TrackView>& trackViews) {
     }
 
     //boost::mutex::scoped_lock updateLock(m_updateModelMutex);
-
-    m_viewer->updatePointCloud(pointCloud);
+    m_viewer->removePointCloud();
+    m_viewer->addPointCloud(pointCloud);
     // m_isUpdate = false;
 
     // updateLock.unlock();

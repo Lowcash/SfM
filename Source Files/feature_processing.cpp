@@ -217,7 +217,7 @@ void DescriptorMatcher::recipAligMatches(std::vector<cv::KeyPoint> prevKeyPts, s
     }
 }
 
-OptFlow::OptFlow(cv::TermCriteria termcrit, int winSize, int maxLevel, float maxError, uint maxCorners, float qualityLevel, float minCornersDistance, bool isUsingCUDA) {
+OptFlow::OptFlow(cv::TermCriteria termcrit, int winSize, int maxLevel, float maxError, uint maxCorners, float qualityLevel, float minCornersDistance, uint minFeatures, bool isUsingCUDA) {
     m_isUsingCUDA = isUsingCUDA;
 
     if (m_isUsingCUDA)
@@ -229,6 +229,7 @@ OptFlow::OptFlow(cv::TermCriteria termcrit, int winSize, int maxLevel, float max
     additionalSettings.setMaxCorners(maxCorners);
     additionalSettings.setQualityLvl(qualityLevel);
     additionalSettings.setMinDistance(minCornersDistance);
+    additionalSettings.setMinFeatures(minFeatures);
 }
 
 void OptFlow::computeFlow(cv::Mat imPrevGray, cv::Mat imCurrGray, std::vector<cv::Point2f>& prevPts, std::vector<cv::Point2f>& currPts, cv::Mat& statusMask, bool useImageCorrection, bool useErrorCorrection) {

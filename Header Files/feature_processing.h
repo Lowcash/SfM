@@ -39,7 +39,7 @@ public:
 class OptFlowAddSettings {
 public:
     float maxError, qualLvl, minDist;
-    uint maxCorn;
+    uint maxCorn, minFeatures;
 
     void setMaxError(float maxError) { this->maxError = maxError; }
 
@@ -48,6 +48,8 @@ public:
     void setQualityLvl(float qualLvl) { this->qualLvl = qualLvl; }
 
     void setMinDistance(float minDist) { this->minDist = minDist; }
+
+    void setMinFeatures(uint minFeatures) { this->minFeatures = minFeatures; }
 };
 
 class OptFlow : protected CUDAUsable {
@@ -57,7 +59,7 @@ public:
 
     OptFlowAddSettings additionalSettings;
 
-    OptFlow(cv::TermCriteria termcrit, int winSize, int maxLevel, float maxError, uint maxCorners, float qualityLevel, float minCornersDistance, bool isUsingCUDA = false);
+    OptFlow(cv::TermCriteria termcrit, int winSize, int maxLevel, float maxError, uint maxCorners, float qualityLevel, float minCornersDistance, uint minFeatures, bool isUsingCUDA = false);
 
     void computeFlow(cv::Mat imPrevGray, cv::Mat imCurrGray, std::vector<cv::Point2f>& prevPts, std::vector<cv::Point2f>& currPts, cv::Mat& statusMask, bool useImageCorrection = false, bool useErrorCorrection = false);
 };
