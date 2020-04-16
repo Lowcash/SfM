@@ -43,10 +43,22 @@ public:
         }
     }
 
-    void recoverPoints(cv::Mat& imOutUsr, std::vector<cv::Point> pts2D) {
-        for (const auto p : pts2D) {
-            std::cout << "Point projected to: " << p << "\n";
+    void updatePoints(cv::Mat& imOutUsr, std::vector<cv::Point>& pts2D) {
+        for (int i = 0, idxCorrection = 0; i < pts2D.size(); ++i) {
+            auto p = pts2D[i];
 
+            if (p.x < 0 + 10 || p.y < 0 + 10 || p.x > imOutUsr.cols - 10 || p.y > imOutUsr.rows - 10) {
+                pts2D.erase(pts2D.begin() + (i - idxCorrection));
+
+                idxCorrection++;
+            } 
+        }
+    }
+
+    void recoverPoints(cv::Mat& imOutUsr, std::vector<cv::Point>& pts2D) {
+        for (const auto& p : pts2D) {
+            //std::cout << "Point projected to: " << p << "\n";
+                
             cv::circle(imOutUsr, p, 3, CV_RGB(150, 200, 0), cv::FILLED, cv::LINE_AA);
         }
     }
@@ -160,6 +172,57 @@ struct SimpleReprojectionError {
     double observed_y;
 };
 
+struct SnavelyReprojectionError {
+    SnavelyReprojectionError(double observed_x, double observed_y)
+        : observed_x(observed_x), observed_y(observed_y) {}
+
+    template <typename T>
+    bool operator()(const T* const camera,
+                    const T* const point,
+                    T* residuals) const {
+        // camera[0,1,2] are the angle-axis rotation.
+        T p[3];
+        ceres::AngleAxisRotatePoint(camera, point, p);
+        // camera[3,4,5] are the translation.
+        p[0] += camera[3]; 
+        p[1] += camera[4]; 
+        p[2] += camera[5];
+
+        // Compute the center of distortion. The sign change comes from
+        // the camera model that Noah Snavely's Bundler assumes, whereby
+        // the camera coordinate system has a negative z axis.
+        T xp = - p[0] / p[2];
+        T yp = - p[1] / p[2];
+
+        // Apply second and fourth order radial distortion.
+        const T& l1 = camera[7];
+        const T& l2 = camera[8];
+        T r2 = xp*xp + yp*yp;
+        T distortion = T(1.0) + r2  * (l1 + l2  * r2);
+
+        // Compute final projected point position.
+        const T& focal = camera[6];
+        T predicted_x = focal * distortion * xp;
+        T predicted_y = focal * distortion * yp;
+
+        // The error is the difference between the predicted and observed position.
+        residuals[0] = predicted_x - T(observed_x);
+        residuals[1] = predicted_y - T(observed_y);
+        return true;
+    }
+
+    // Factory to hide the construction of the CostFunction object from
+    // the client code.
+    static ceres::CostFunction* Create(const double observed_x,
+                                        const double observed_y) {
+        return (new ceres::AutoDiffCostFunction<SnavelyReprojectionError, 2, 9, 3>(
+                    new SnavelyReprojectionError(observed_x, observed_y)));
+    }
+
+    double observed_x;
+    double observed_y;
+};
+
 #pragma endregion STRUCTS
 
 #pragma region METHODS
@@ -209,16 +272,7 @@ void pointsToMat(cv::Mat& points, cv::Mat& pointsMat) {
 bool findCameraPose(RecoveryPose& recPose, std::vector<cv::Point2f> prevPts, std::vector<cv::Point2f> currPts, cv::Mat cameraK, int minInliers, int& numInliers) {
     if (prevPts.size() <= 5 || currPts.size() <= 5) { return false; }
 
-    //cv::Mat _prevPtsMat; pointsToMat(prevPts, _prevPtsMat);
-    //cv::Mat _currPtsMat; pointsToMat(currPts, _currPtsMat);
-
-    //cv::Mat F, E; std::vector<int> inl;
-    //double bestError = cv::sfm::fundamentalFromCorrespondences8PointRobust(_prevPtsMat, _currPtsMat, recPose.threshold, F, inl);
-    //cv::sfm::essentialFromFundamental(F, cameraK, cameraK, E);
     cv::Mat E = cv::findEssentialMat(prevPts, currPts, cameraK, recPose.recPoseMethod, recPose.prob, recPose.threshold, recPose.mask);
-
-    //std::vector<cv::Mat> R, t;
-    //cv::sfm::motionFromEssential(E, R, t);
 
     if (!(E.cols == 3 && E.rows == 3)) { return false; }
 
@@ -253,7 +307,7 @@ void adjustBundle(std::vector<TrackView>& tracks, Camera& camera, std::vector<cv
 
     std::vector<cv::Matx16d> camPoses6d;
 
-    for (auto [c, cEnd, it] = std::tuple{camPoses.crbegin(), camPoses.crend(), 0}; c != cEnd && it < maxIter; ++c, ++it) {
+    for (auto [c, cEnd, it] = std::tuple{camPoses.cbegin(), camPoses.cend(), 0}; c != cEnd && it < maxIter; ++c, ++it) {
         cv::Matx34f cam = (cv::Matx34f)*c;
 
         if (cam(0, 0) == 0 && cam(1, 1) == 0 && cam(2, 2) == 0) { 
@@ -285,15 +339,18 @@ void adjustBundle(std::vector<TrackView>& tracks, Camera& camera, std::vector<cv
 
     double focalLength = camera.focalLength;
 
-    for (auto [t, tEnd, c, cEnd, it] = std::tuple{tracks.rbegin(), tracks.rend(), camPoses6d.begin(), camPoses6d.end(), 0}; t != tEnd && c != cEnd && it < maxIter; ++t, ++c, ++it) {
+    for (auto [t, tEnd, c, cEnd, it] = std::tuple{tracks.begin(), tracks.end(), camPoses6d.begin(), camPoses6d.end(), 0}; t != tEnd && c != cEnd && it < maxIter; ++t, ++c, ++it) {
         for (size_t i = 0; i < t->numTracks; ++i) {
             cv::Point2f p2d = t->points2D[i];
             p2d.x -= camera.K33d(0, 2);
             p2d.y -= camera.K33d(1, 2);
 
             ceres::CostFunction* costFunc = SimpleReprojectionError::Create(p2d.x, p2d.y);
+            //ceres::CostFunction* costFunc2 = SnavelyReprojectionError::Create(p2d.x, p2d.y);
 
             problem.AddResidualBlock(costFunc, lossType != "NONE" ? lossFunction : NULL, c->val, t->points3D[i].val, &focalLength);
+
+            //problem.AddResidualBlock(costFunc2, lossType != "NONE" ? lossFunction : NULL, c->val, t->points3D[i].val);
         }
     }
     
@@ -304,7 +361,7 @@ void adjustBundle(std::vector<TrackView>& tracks, Camera& camera, std::vector<cv
         options.linear_solver_type = ceres::LinearSolverType::SPARSE_NORMAL_CHOLESKY;
 
     options.minimizer_progress_to_stdout = true;
-    //options.eta = 1e-2;
+    options.eta = 1e-2;
     options.num_threads = std::thread::hardware_concurrency();
 
     ceres::Solver::Summary summary;
@@ -320,9 +377,9 @@ void adjustBundle(std::vector<TrackView>& tracks, Camera& camera, std::vector<cv
 
     camera.updateCameraParameters(K, camera.distCoeffs);
 
-    /*std::cout << "Focal length: " << focalLength << "\n";
+    std::cout << "Focal length: " << focalLength << "\n";
 
-    if (!summary.IsSolutionUsable()) {
+    /*if (!summary.IsSolutionUsable()) {
 		std::cout << "Bundle Adjustment failed." << std::endl;
 	} else {
 		// Display statistics about the minimization
@@ -336,7 +393,7 @@ void adjustBundle(std::vector<TrackView>& tracks, Camera& camera, std::vector<cv
 			<< std::endl;
 	}*/
     
-    for (auto [c, cEnd, c6, c6End, it] = std::tuple{camPoses.rbegin(), camPoses.rend(), camPoses6d.begin(), camPoses6d.end(), 0}; c != cEnd && c6 != c6End && it < maxIter; ++c, ++c6, ++it) {
+    for (auto [c, cEnd, c6, c6End, it] = std::tuple{camPoses.begin(), camPoses.end(), camPoses6d.begin(), camPoses6d.end(), 0}; c != cEnd && c6 != c6End && it < maxIter; ++c, ++c6, ++it) {
         cv::Matx34f& cam = (cv::Matx34f&)*c;
         cv::Matx16d& cam6 = (cv::Matx16d&)*c6;
 
@@ -374,7 +431,6 @@ bool findGoodImagePair(cv::VideoCapture cap, OptFlow optFlow, FeatureDetector fe
     std::cout << "Finding good image pair" << std::flush;
 
     cv::Mat _imColor, _imGray;
-    cv::cuda::GpuMat _d_imColor, _d_imGray;
 
     std::vector<cv::Point2f> _prevCorners, _currCorners;
 
@@ -386,42 +442,26 @@ bool findGoodImagePair(cv::VideoCapture cap, OptFlow optFlow, FeatureDetector fe
 
         std::cout << "." << std::flush;
         
-        if (isUsingCUDA) {
-            _d_imColor.upload(_imColor);
-            _d_imGray.upload(_imGray);
+        if (ofPrevView.corners.size() < flowMinFeatures) {
+            featDetector.generateFlowFeatures(_imGray, ofPrevView.corners, optFlow.additionalSettings.maxCorn, optFlow.additionalSettings.qualLvl, optFlow.additionalSettings.minDist);
+
+            viewContainer.addItem(ViewData(_imColor, _imGray));
+
+            continue; 
         }
-
-        // if (ofPrevView.corners.size() < flowMinFeatures) {
-        //     if (isUsingCUDA) {
-        //         featDetector.generateFlowFeatures(_d_imGray, ofPrevView.corners, optFlow.additionalSettings.maxCorn, optFlow.additionalSettings.qualLvl, optFlow.additionalSettings.minDist);
-        //     } else 
-        //         featDetector.generateFlowFeatures(_imGray, ofPrevView.corners, optFlow.additionalSettings.maxCorn, optFlow.additionalSettings.qualLvl, optFlow.additionalSettings.minDist);
-
-        //     if (isUsingCUDA) 
-        //         viewContainer.addItem(ViewData(_imColor, _imGray, _d_imColor, _d_imGray));
-        //     else 
-        //         viewContainer.addItem(ViewData(_imColor, _imGray));
-
-        //     continue; 
-        // }
 
         ofPrevView.setView(viewContainer.getLastOneItem());
 
         _prevCorners = ofPrevView.corners;
         _currCorners = ofCurrView.corners;
 
-        if (isUsingCUDA) {
-            //optFlow.computeFlow(ofPrevView.viewPtr->d_imGray, _d_imGray, _prevCorners, _currCorners);
-        } else
-            //optFlow.computeFlow(ofPrevView.viewPtr->imGray, _imGray, _prevCorners, _currCorners);
+        cv::Mat mask;
+        optFlow.computeFlow(ofPrevView.viewPtr->imGray, _imGray, _prevCorners, _currCorners, mask, true, true);
 
         numSkippedFrames++;
     } while(!findCameraPose(recPose, _prevCorners, _currCorners, camera._K, recPose.minInliers, numHomInliers));
 
-    if (isUsingCUDA) 
-        viewContainer.addItem(ViewData(_imColor, _imGray, _d_imColor, _d_imGray));
-    else 
-        viewContainer.addItem(ViewData(_imColor, _imGray));
+    viewContainer.addItem(ViewData(_imColor, _imGray));
 
     ofCurrView.setView(viewContainer.getLastOneItem());
 
@@ -433,82 +473,22 @@ bool findGoodImagePair(cv::VideoCapture cap, OptFlow optFlow, FeatureDetector fe
     return true;
 }
 
-bool findGoodImagePair(cv::VideoCapture cap, FeatureDetector featDetector, DescriptorMatcher matcher, RecoveryPose& recPose, Camera camera, ViewDataContainer& viewContainer, FeatureView& prevView, FeatureView& currView, std::vector<cv::DMatch>& matches, std::vector<cv::Point2f>& prevPts, std::vector<cv::Point2f>& currPts, std::vector<int>& prevIdx, std::vector<int>& currIdx, float imDownSampling = 1.0f, bool isUsingCUDA = false) {
-    std::vector<ViewData> _views;
-    std::vector<cv::Mat> _imGrays;
-
-    std::map<std::pair<int, int>, std::vector<cv::DMatch>> _matchingMatrix;
-    std::map<std::pair<int, int>, std::vector<cv::Point2f>> _prevPts;
-    std::map<std::pair<int, int>, std::vector<cv::Point2f>> _currPts;
-    std::map<std::pair<int, int>, std::vector<int>> _prevIdx;
-    std::map<std::pair<int, int>, std::vector<int>> _currIdx;
-    std::map<int, std::pair<int, int>> _inliers;
-    std::map<std::pair<int, int>, cv::Matx33d> _R;
-    std::map<std::pair<int, int>, cv::Matx31d> _t;
-    std::map<std::pair<int, int>, cv::Mat> _masks;
-
-    for (int i = 0; i < 6; ++i) {
-        cv::Mat _imColor, _imGray;
-
-        if (!loadImage(cap, _imColor, _imGray, imDownSampling)) { return false; } 
-        //cv::GaussianBlur(_imGray, _imGray, cv::Size(5, 5), 0);
-        //cv::medianBlur(_imGray, _imGray, 7);
-
-        _views.push_back(ViewData(_imColor, _imGray));
-        _imGrays.push_back(_imGray);
-
-        for (int j = i; j < 6; ++j) 
-            _matchingMatrix[std::pair{i, j}] = std::vector<cv::DMatch>();
-    }
-
-    std::vector<std::vector<cv::KeyPoint>> _vecKeyPts;
-    std::vector<cv::Mat> _vecDesc;
-
-    featDetector.detector->detect(_imGrays, _vecKeyPts);
-    featDetector.extractor->compute(_imGrays, _vecKeyPts, _vecDesc);
-
-    for (auto& m : _matchingMatrix) {
-        matcher.recipAligMatches(_vecKeyPts[m.first.first], _vecKeyPts[m.first.second], _vecDesc[m.first.first], _vecDesc[m.first.second], _prevPts[std::pair{m.first.first, m.first.second}], _currPts[std::pair{m.first.first, m.first.second}], m.second, _prevIdx[std::pair{m.first.first, m.first.second}], _currIdx[std::pair{m.first.first, m.first.second}]);
-
-        int numInliers; findCameraPose(recPose, _prevPts[std::pair{m.first.first, m.first.second}], _currPts[std::pair{m.first.first, m.first.second}], camera._K, recPose.minInliers, numInliers);
-
-        _R[std::pair{m.first.first, m.first.second}] = recPose.R;
-        _t[std::pair{m.first.first, m.first.second}] = recPose.t;
-        _masks[std::pair{m.first.first, m.first.second}] = recPose.mask;
-
-        _inliers[numInliers] = std::pair{m.first.first, m.first.second};
-    }
-
-    std::pair<int, int> _bestInlierPair = _inliers.rbegin()->second;
-
-    viewContainer.addItem(_views[_bestInlierPair.first]);
-    viewContainer.addItem(_views[_bestInlierPair.second]);
-
-    recPose.R = _R[_bestInlierPair];
-    recPose.t = _t[_bestInlierPair];
-    recPose.mask = _masks[_bestInlierPair];
-
-    matches = _matchingMatrix[_bestInlierPair];
-    prevPts = _prevPts[_bestInlierPair];
-    currPts = _currPts[_bestInlierPair];
-    prevIdx = _prevIdx[_bestInlierPair];
-    currIdx = _currIdx[_bestInlierPair];
-
-    prevView.setFeatures(_vecKeyPts[_bestInlierPair.first], _vecDesc[_bestInlierPair.first]);
-    currView.setFeatures(_vecKeyPts[_bestInlierPair.second], _vecDesc[_bestInlierPair.second]);
-
-    prevView.setView(viewContainer.getLastButOneItem());
-    currView.setView(viewContainer.getLastOneItem());
-
-    return true;
-}
-
 void composePoseEstimation(cv::Matx33d R, cv::Matx31d t, cv::Matx34d& pose) {
     pose = cv::Matx34d(
         R(0,0), R(0,1), R(0,2), t(0),
         R(1,0), R(1,1), R(1,2), t(1),
         R(2,0), R(2,1), R(2,2), t(2)
     );
+}
+
+void drawTrajectory(cv::Mat& imOutTraj, cv::Matx31d t) {
+    const int x = int(t(0) + (imOutTraj.cols / 2));
+    const int y = int(t(2) + (imOutTraj.rows / 2));
+    cv::circle(imOutTraj, cv::Point(x, y), 1, CV_RGB(255, 0, 0), 2);
+
+    cv::rectangle(imOutTraj, cv::Point(10, 30), cv::Point(550, 50), CV_RGB(0, 0, 0), CV_FILLED);
+    char text[100]; sprintf(text, "Coordinates: x = %02fm y = %02fm z = %02fm", t(0), t(1), t(2));
+    cv::putText(imOutTraj, text, cv::Point(10, 50), cv::FONT_HERSHEY_PLAIN, 1, cv::Scalar::all(255), 1, 8);
 }
 
 #pragma endregion METHODS
@@ -642,6 +622,7 @@ int main(int argc, char** argv) {
     const std::string usrInpWinName = "User input";
     const std::string recPoseWinName = "Recovery pose";
     const std::string matchesWinName = "Matches";
+    const std::string trajWinName = "Trajectory";
 
     cv::VideoCapture cap; if(!cap.open(bSource)) {
         std::cerr << "Error opening video stream or file!!" << "\n";
@@ -651,6 +632,8 @@ int main(int argc, char** argv) {
     Method usedMethod;
     if (bUseMethod == "KLT_2D") 
         usedMethod = Method::KLT_2D;
+    if (bUseMethod == "KLT_3D")
+        usedMethod = Method::KLT_3D;
 
     FeatureDetector featDetector(fDecType, isUsingCUDA);
     DescriptorMatcher descMatcher(fMatchType, fKnnRatio, isUsingCUDA);
@@ -660,16 +643,19 @@ int main(int argc, char** argv) {
 
     RecoveryPose recPose(peMethod, peProb, peThresh, peMinInl, pePMetrod, peExGuess, peNumIteR);
 
-    cv::Mat imOutUsrInp, imOutRecPose, imOutMatches;
+    cv::Mat imOutUsrInp, imOutRecPose, imOutMatches, imOutTraj;
     
     cv::startWindowThread();
 
     cv::namedWindow(usrInpWinName, cv::WINDOW_NORMAL);
     cv::namedWindow(recPoseWinName, cv::WINDOW_NORMAL);
+    cv::namedWindow(recPoseWinName, cv::WINDOW_NORMAL);
+    //cv::namedWindow(trajWinName, cv::WINDOW_NORMAL);
     cv::namedWindow(matchesWinName, cv::WINDOW_NORMAL);
     
     cv::resizeWindow(usrInpWinName, cv::Size(bWinWidth, bWinHeight));
     cv::resizeWindow(recPoseWinName, cv::Size(bWinWidth, bWinHeight));
+    //cv::resizeWindow(trajWinName, cv::Size(bWinWidth, bWinHeight));
     cv::resizeWindow(matchesWinName, cv::Size(bWinWidth, bWinHeight));
 
     MouseUsrDataParams mouseUsrDataParams(usrInpWinName, &imOutUsrInp);
@@ -702,116 +688,46 @@ int main(int argc, char** argv) {
     cv::Matx33d R = cv::Matx33d::eye();
     cv::Matx31d t = cv::Matx31d::eye();
 
+    //imOutTraj = cv::Mat::zeros(cv::Size(bWinWidth, bWinHeight), CV_8UC3);
+
     for ( ; ; ) {
         std::vector<cv::Point2f> _prevPts, _currPts;
         std::vector<cv::DMatch> _matches;
         std::vector<int> _prevIdx, _currIdx;
 
-        //cv::Matx34d _prevPose; composePoseEstimation(recPose.R, recPose.t, _prevPose);
+        cv::Matx34d _prevPose; 
+        
+        if (camPoses.empty())
+            composePoseEstimation(cv::Matx33d::eye(), cv::Matx31d::eye(), _prevPose);
+        else
+            _prevPose = camPoses.back();
 
-        /*if (usedMethod == Method::KLT_3D) {
+        if (usedMethod == Method::KLT_3D) {
             if (!findGoodImagePair(cap, optFlow, featDetector, recPose, camera, viewContainer, ofPrevView, ofCurrView, ofMinKPts, bDownSamp, isUsingCUDA)) { break; }           
 
             ofCurrView.viewPtr->imColor.copyTo(imOutUsrInp);
             ofCurrView.viewPtr->imColor.copyTo(imOutRecPose);
 
             recPose.drawRecoveredPose(imOutRecPose, imOutRecPose, ofPrevView.corners, ofCurrView.corners, recPose.mask);
-        } else {
-            if (!findGoodImagePair(cap, featDetector, descMatcher, recPose, camera, viewContainer, featPrevView, featCurrView, _matches, _prevPts, _currPts, _prevIdx, _currIdx, bDownSamp, isUsingCUDA)) { break; }
-
-            featCurrView.viewPtr->imColor.copyTo(imOutUsrInp);
-            featCurrView.viewPtr->imColor.copyTo(imOutRecPose);
-
-            recPose.drawRecoveredPose(imOutRecPose, imOutRecPose, featPrevView.pts, featCurrView.pts, recPose.mask);
-        }*/
-
-        if (usedMethod == Method::KLT_2D) {
-            cv::Mat _imColor, _imGray;
-
-            if (!loadImage(cap, _imColor, _imGray, bDownSamp)) { break; } 
-
-            if (viewContainer.isEmpty()) {
-                viewContainer.addItem(ViewData(_imColor, _imGray));
-
-                continue;
-            }
-
-            ofPrevView.setView(viewContainer.getLastOneItem());
-
-            viewContainer.addItem(ViewData(_imColor, _imGray));
-
-            ofCurrView.setView(viewContainer.getLastOneItem());
-
-            if (!userInput.m_pts2D.empty()) {
-                if (ofPrevView.corners.size() < ofMinKPts) {
-                    featDetector.generateFlowFeatures(ofPrevView.viewPtr->imGray, ofPrevView.corners, optFlow.additionalSettings.maxCorn, optFlow.additionalSettings.qualLvl, optFlow.additionalSettings.minDist);
-                }
-
-                ofPrevView.corners.insert(ofPrevView.corners.end(), userInput.m_pts2D.begin(), userInput.m_pts2D.end());
-
-                optFlow.computeFlow(ofPrevView.viewPtr->imGray, ofCurrView.viewPtr->imGray, ofPrevView.corners, ofCurrView.corners, recPose.mask);
-
-                std::vector<cv::Point> _usrPts2D;
-                _usrPts2D.insert(_usrPts2D.end(), ofCurrView.corners.end() - userInput.m_pts2D.size(), ofCurrView.corners.end());
-
-                userInput.m_pts2D = _usrPts2D;
-            }
         }
 
-        ofPrevView.viewPtr->imColor.copyTo(imOutRecPose);
-        ofPrevView.viewPtr->imColor.copyTo(imOutUsrInp);
+        // t = t + (R * recPose.t);
+        // R = recPose.R * R;
 
-        if (!userInput.m_pts2D.empty()) {
-            userInput.recoverPoints(imOutUsrInp, userInput.m_pts2D);
-        }
-        
-        recPose.drawRecoveredPose(imOutRecPose, imOutRecPose, ofPrevView.corners, ofCurrView.corners, recPose.mask);
-        
-        cv::imshow(recPoseWinName, imOutRecPose); 
+        // drawTrajectory(imOutTraj, t);
+
+        cv::imshow(recPoseWinName, imOutRecPose);
         cv::imshow(usrInpWinName, imOutUsrInp);
+        //cv::imshow(trajWinName, imOutTraj);
 
-        cv::waitKey();
-
-        if (!mouseUsrDataParams.m_clickedPoint.empty()) {
-            userInput.m_pts2D.insert(userInput.m_pts2D.end(), mouseUsrDataParams.m_clickedPoint.begin(), mouseUsrDataParams.m_clickedPoint.end());
-            mouseUsrDataParams.m_clickedPoint.clear();
-        }
-
-       /* t = t + (R * recPose.t);
-        R = recPose.R * R;
-
-        cv::Matx34d camPose; composePoseEstimation(R, t, camPose);
-        camPoses.push_back(camPose);
-        
-        visPCL.updateCameras(camPoses);
-        visPCL.visualize();
-
-        visVTK.updateCameras(camPoses, camera.K33d);
-        visVTK.visualize();
-
-        ofCurrView.viewPtr->imColor.copyTo(imOutUsrInp);
-
-        std::vector<cv::Point> _movePts;
-        userInput.movePoints(ofPrevView.corners, ofCurrView.corners, recPose.mask, mouseUsrDataParams.m_clickedPoint, _movePts);
-        userInput.recoverPoints(imOutUsrInp, _movePts);
-
-        cv::imshow(usrInpWinName, imOutUsrInp);
-
-        cv::waitKey();*/
-        /*if (bUseOptFl) {
+        if (usedMethod == Method::KLT_3D) {
             if (featureViews.empty()) {
-                if (isUsingCUDA) 
-                    featDetector.generateFeatures(ofPrevView.viewPtr->imGray, ofPrevView.viewPtr->d_imGray, featPrevView.keyPts, featPrevView.descriptor);             
-                 else
-                    featDetector.generateFeatures(ofPrevView.viewPtr->imGray, featPrevView.keyPts, featPrevView.descriptor);
+                featDetector.generateFeatures(ofPrevView.viewPtr->imGray, featPrevView.keyPts, featPrevView.descriptor);
 
                 featureViews.push_back(featPrevView);
             }
 
-            if (isUsingCUDA) 
-                featDetector.generateFeatures(ofCurrView.viewPtr->imGray, ofCurrView.viewPtr->d_imGray, featCurrView.keyPts, featCurrView.descriptor); 
-             else
-                featDetector.generateFeatures(ofCurrView.viewPtr->imGray, featCurrView.keyPts, featCurrView.descriptor);
+            featDetector.generateFeatures(ofCurrView.viewPtr->imGray, featCurrView.keyPts, featCurrView.descriptor);
                 
             featureViews.push_back(featCurrView);
 
@@ -825,7 +741,7 @@ int main(int argc, char** argv) {
             continue; 
         }
 
-        if (bUseOptFl) {
+        if (usedMethod == Method::KLT_3D) {
             descMatcher.recipAligMatches(featPrevView.keyPts, featCurrView.keyPts, featPrevView.descriptor, featCurrView.descriptor, _prevPts, _currPts, _matches, _prevIdx, _currIdx);
         }
 
@@ -848,14 +764,7 @@ int main(int argc, char** argv) {
             continue;
         }
 
-        userInput.recoverPoints(cv::Mat(recPose.R), cv::Mat(recPose.t), camera, imOutUsrInp);
-
         cv::imshow(usrInpWinName, imOutUsrInp);
-
-        std::vector<cv::Point> movedPts;
-        userInput.movePoints(_prevPts, _currPts, mouseUsrDataParams.m_clickedPoint, movedPts);
-
-        userInput.attach2DPoints(mouseUsrDataParams.m_clickedPoint, movedPts, _prevPts, _currPts);
 
         cv::Matx34d _currPose; composePoseEstimation(recPose.R, recPose.t, _currPose);
         camPoses.push_back(_currPose);
@@ -863,8 +772,8 @@ int main(int argc, char** argv) {
         cv::Mat _prevPtsN; cv::undistort(_prevPts, _prevPtsN, camera.K33d, cv::Mat());
         cv::Mat _currPtsN; cv::undistort(_currPts, _currPtsN, camera.K33d, cv::Mat());
 
-        cv::Mat _prevPtsMat; pointsToMat(_prevPts, _prevPtsMat);
-        cv::Mat _currPtsMat; pointsToMat(_currPts, _currPtsMat);
+        cv::Mat _prevPtsMat; pointsToMat(_prevPtsN, _prevPtsMat);
+        cv::Mat _currPtsMat; pointsToMat(_currPtsN, _currPtsMat);
 
         cv::Mat _homogPts, _pts3D;
 
@@ -885,17 +794,6 @@ int main(int argc, char** argv) {
         std::vector<cv::Vec3b> _pointsRGB;
         std::vector<bool> _mask; pointsToRGBCloud(featCurrView.viewPtr->imColor, camera, cv::Mat(recPose.R), cv::Mat(recPose.t), _pts3D, _currPtsMat.t(), _points3D, _pointsRGB, tMinDist, tMaxDist, tMaxPErr, _mask);
 
-        std::vector<cv::Vec3d> _usrPts;
-        _usrPts.insert(_usrPts.end(), _points3D.end() - mouseUsrDataParams.m_clickedPoint.size(), _points3D.end());
-        userInput.insert3DPoints(_usrPts);
-
-        userInput.detach2DPoints(mouseUsrDataParams.m_clickedPoint, _currPts);
-        userInput.detach3DPoints(mouseUsrDataParams.m_clickedPoint, _points3D);
-
-        visPCL.addPoints(_usrPts);
-        //visVTK.addPoints(_usrPts);
-        mouseUsrDataParams.m_clickedPoint.clear();
-
         tracking.addTrackView(featCurrView.viewPtr, _mask, _currPts, _points3D, _pointsRGB, featCurrView.keyPts, featCurrView.descriptor, _currIdx);
 
         adjustBundle(tracking.trackViews, camera, camPoses, baMethod, baLossFunc, baLossSc, baNumIter);
@@ -908,7 +806,9 @@ int main(int argc, char** argv) {
         
         visVTK.addPointCloud(tracking.trackViews);
         //visVTK.updateCameras(camPoses, camera.K33d);
-        visVTK.visualize();*/
+        visVTK.visualize();
+
+        std::cout << "Iteration count: " << tracking.trackViews.size() << "\n"; cv::waitKey(1);
 
         std::swap(ofPrevView, ofCurrView);
         std::swap(featPrevView, featCurrView);

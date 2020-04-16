@@ -50,9 +50,9 @@ FeatureDetector::FeatureDetector(std::string method, bool isUsingCUDA) {
 
         case DetectorType::ORB: {
             if (m_isUsingCUDA)
-                detector = extractor = cv::cuda::ORB::create(2000, 1.2, 1);
+                detector = extractor = cv::cuda::ORB::create();
             else 
-                detector = extractor = cv::ORB::create(2000, 1.2, 1);
+                detector = extractor = cv::ORB::create();
 
             break;
         }
@@ -151,8 +151,10 @@ void FeatureDetector::generateFlowFeatures(cv::Mat& imGray, std::vector<cv::Poin
         cv::goodFeaturesToTrack(imGray, _corners, maxCorners, qualityLevel, minDistance);
     }
 
+    //int numAddCorners = std::abs(std::min(0, (int)(corners.size() + _corners.size() - maxCorners)));
+
     corners.insert(corners.end(), _corners.begin(), _corners.end());
-    
+
     std::cout << "[DONE]";
 }
 
@@ -229,7 +231,7 @@ OptFlow::OptFlow(cv::TermCriteria termcrit, int winSize, int maxLevel, float max
     additionalSettings.setMinDistance(minCornersDistance);
 }
 
-void OptFlow::computeFlow(cv::Mat imPrevGray, cv::Mat imCurrGray, std::vector<cv::Point2f>& prevPts, std::vector<cv::Point2f>& currPts, cv::Mat& statusMask, bool useCorrection) {
+void OptFlow::computeFlow(cv::Mat imPrevGray, cv::Mat imCurrGray, std::vector<cv::Point2f>& prevPts, std::vector<cv::Point2f>& currPts, cv::Mat& statusMask, bool useImageCorrection, bool useErrorCorrection) {
     std::vector<uchar> status; std::vector<float> err;
 
     if (m_isUsingCUDA) {
@@ -257,10 +259,11 @@ void OptFlow::computeFlow(cv::Mat imPrevGray, cv::Mat imCurrGray, std::vector<cv
     for (uint i = 0, idxCorrection = 0; i < status.size() && i < err.size(); ++i) {
         cv::Point2f pt = currPts[i - idxCorrection];
 
-        if (status[i] == 0 || err[i] > additionalSettings.maxError ||
-            pt.x < 0 || pt.y < 0 || pt.x > imCurrGray.cols || pt.y > imCurrGray.rows) {
-            
-            if (useCorrection) {
+        bool isErrorCorr = status[i] == 1 && err[i] < additionalSettings.maxError;
+        bool isImgCorr = pt.x > 0 && pt.y > 0 && pt.x < imCurrGray.cols && pt.y < imCurrGray.rows;
+
+        if (!isErrorCorr || !isImgCorr) {
+            if ((useErrorCorrection && !isErrorCorr) || (useImageCorrection && !isImgCorr)) {
                 prevPts.erase(prevPts.begin() + (i - idxCorrection));
                 currPts.erase(currPts.begin() + (i - idxCorrection));
 
