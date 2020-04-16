@@ -26,6 +26,7 @@
 #include <opencv4/opencv2/cudaimgproc.hpp>
 #include <opencv4/opencv2/cudafilters.hpp>
 #include <opencv4/opencv2/cudaoptflow.hpp>
+#include <opencv4/opencv2/tracking.hpp>
 
 #define CERES_FOUND true
 

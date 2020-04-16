@@ -21,8 +21,6 @@ public:
     void generateFeatures(cv::Mat& imGray, cv::cuda::GpuMat& d_imGray, std::vector<cv::KeyPoint>& keyPts, cv::Mat& descriptor);
 
     void generateFlowFeatures(cv::Mat& imGray, std::vector<cv::Point2f>& corners, int maxCorners, double qualityLevel, double minDistance);
-
-    void generateFlowFeatures(cv::cuda::GpuMat& d_imGray, cv::cuda::GpuMat& corners, int maxCorners, double qualityLevel, double minDistance);
 };
 
 class DescriptorMatcher : protected CUDAUsable {
@@ -61,18 +59,14 @@ public:
 
     OptFlow(cv::TermCriteria termcrit, int winSize, int maxLevel, float maxError, uint maxCorners, float qualityLevel, float minCornersDistance, bool isUsingCUDA = false);
 
-    void computeFlow(cv::Mat imPrevGray, cv::Mat imCurrGray, std::vector<cv::Point2f>& prevPts, std::vector<cv::Point2f>& currPts);
-
-    void computeFlow(cv::cuda::GpuMat& d_imPrevGray, cv::cuda::GpuMat& d_imCurrGray, std::vector<cv::Point2f>& prevPts, std::vector<cv::Point2f>& currPts);
+    void computeFlow(cv::Mat imPrevGray, cv::Mat imCurrGray, std::vector<cv::Point2f>& prevPts, std::vector<cv::Point2f>& currPts, cv::Mat& statusMask, bool useCorrection = false);
 };
 
 class FlowView : public View {
 public:
     std::vector<cv::Point2f> corners;
-    cv::cuda::GpuMat d_corners;
 
     void setCorners(const std::vector<cv::Point2f> corners) { this->corners = corners; }
-    void setCorners(const cv::cuda::GpuMat corners) { this->d_corners = corners; }
 };
 
 class FeatureView : public View {

@@ -131,20 +131,28 @@ void FeatureDetector::generateFeatures(cv::Mat& imGray, cv::cuda::GpuMat& d_imGr
 }
 
 void FeatureDetector::generateFlowFeatures(cv::Mat& imGray, std::vector<cv::Point2f>& corners, int maxCorners, double qualityLevel, double minDistance) {
-    std::cout << "Generating flow features..." << std::flush;
+    std::vector<cv::Point2f> _corners;
 
-    cv::goodFeaturesToTrack(imGray, corners, maxCorners, qualityLevel, minDistance);
+    if (m_isUsingCUDA) {
+        std::cout << "Generating CUDA flow features..." << std::flush;
+
+        cv::cuda::GpuMat d_imGray, d_corners;
+        d_imGray.upload(imGray);
+
+        cv::Ptr<cv::cuda::CornersDetector> cudaCornersDetector = cv::cuda::createGoodFeaturesToTrackDetector(d_imGray.type(), maxCorners, qualityLevel, minDistance);
+
+        cudaCornersDetector->detect(d_imGray, d_corners);
+
+        d_corners.download(_corners);
+        d_imGray.download(imGray);
+    } else {
+        std::cout << "Generating flow features..." << std::flush;
+
+        cv::goodFeaturesToTrack(imGray, _corners, maxCorners, qualityLevel, minDistance);
+    }
+
+    corners.insert(corners.end(), _corners.begin(), _corners.end());
     
-    std::cout << "[DONE]";
-}
-
-void FeatureDetector::generateFlowFeatures(cv::cuda::GpuMat& d_imGray, cv::cuda::GpuMat& corners, int maxCorners, double qualityLevel, double minDistance) {
-    std::cout << "Generating CUDA flow features..." << std::flush;
-
-    cv::Ptr<cv::cuda::CornersDetector> cudaCornersDetector = cv::cuda::createGoodFeaturesToTrackDetector(d_imGray.type(), maxCorners, qualityLevel, minDistance);
-
-    cudaCornersDetector->detect(d_imGray, corners);
-
     std::cout << "[DONE]";
 }
 
@@ -221,50 +229,46 @@ OptFlow::OptFlow(cv::TermCriteria termcrit, int winSize, int maxLevel, float max
     additionalSettings.setMinDistance(minCornersDistance);
 }
 
-void OptFlow::computeFlow(cv::Mat imPrevGray, cv::Mat imCurrGray, std::vector<cv::Point2f>& prevPts, std::vector<cv::Point2f>& currPts) {
-    std::vector<uchar> status; std::vector<float> err; 
-        
-    optFlow->calc(imPrevGray, imCurrGray, prevPts, currPts, status, err);
+void OptFlow::computeFlow(cv::Mat imPrevGray, cv::Mat imCurrGray, std::vector<cv::Point2f>& prevPts, std::vector<cv::Point2f>& currPts, cv::Mat& statusMask, bool useCorrection) {
+    std::vector<uchar> status; std::vector<float> err;
+
+    if (m_isUsingCUDA) {
+        cv::cuda::GpuMat d_imPrevGray, d_imCurrGray;
+        cv::cuda::GpuMat d_prevPts, d_currPts;
+        cv::cuda::GpuMat d_statusMask, d_err;
+
+        d_imPrevGray.upload(imPrevGray);
+        d_imCurrGray.upload(imCurrGray);
+
+        d_prevPts.upload(prevPts);
+
+        d_optFlow->calc(d_imPrevGray, d_imCurrGray, d_prevPts, d_currPts, d_statusMask, d_err);
+
+        d_imPrevGray.download(imPrevGray);
+        d_imCurrGray.download(imCurrGray);
+
+        d_prevPts.download(prevPts);
+        d_currPts.download(currPts);
+        d_statusMask.download(status);
+        d_err.download(err);
+    } else 
+        optFlow->calc(imPrevGray, imCurrGray, prevPts, currPts, status, err);
 
     for (uint i = 0, idxCorrection = 0; i < status.size() && i < err.size(); ++i) {
         cv::Point2f pt = currPts[i - idxCorrection];
 
         if (status[i] == 0 || err[i] > additionalSettings.maxError ||
             pt.x < 0 || pt.y < 0 || pt.x > imCurrGray.cols || pt.y > imCurrGray.rows) {
+            
+            if (useCorrection) {
+                prevPts.erase(prevPts.begin() + (i - idxCorrection));
+                currPts.erase(currPts.begin() + (i - idxCorrection));
 
-            prevPts.erase(prevPts.begin() + (i - idxCorrection));
-            currPts.erase(currPts.begin() + (i - idxCorrection));
-
-            idxCorrection++;
+                idxCorrection++;
+            } else
+                status[i] = 0;
         }
     }
-}
 
-void OptFlow::computeFlow(cv::cuda::GpuMat& d_imPrevGray, cv::cuda::GpuMat& d_imCurrGray, std::vector<cv::Point2f>& prevPts, std::vector<cv::Point2f>& currPts) {
-    cv::cuda::GpuMat d_prevPts, d_currPts;
-    cv::cuda::GpuMat d_status, d_err;
-    
-    std::vector<uchar> status; std::vector<float> err; 
-
-    d_prevPts.upload(prevPts);
-
-    d_optFlow->calc(d_imPrevGray, d_imCurrGray, d_prevPts, d_currPts, d_status, d_err);
-
-    d_prevPts.download(prevPts);
-    d_currPts.download(currPts);
-    d_status.download(status);
-    d_err.download(err);
-    
-    for (uint i = 0, idxCorrection = 0; i < status.size() && i < err.size(); ++i) {
-        cv::Point2f pt = currPts[i - idxCorrection];
-
-        if (status[i] == 0 || err[i] > additionalSettings.maxError ||
-            pt.x < 0 || pt.y < 0 || pt.x > d_imCurrGray.cols || pt.y > d_imCurrGray.rows) {
-
-            prevPts.erase(prevPts.begin() + (i - idxCorrection));
-            currPts.erase(currPts.begin() + (i - idxCorrection));
-
-            idxCorrection++;
-        }
-    }
+    statusMask = cv::Mat(status);
 }

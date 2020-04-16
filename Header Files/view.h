@@ -3,7 +3,6 @@
 #pragma once
 
 #include "pch.h"
-
 class ViewData {
 public:
     cv::Mat imColor, imGray;
@@ -51,6 +50,8 @@ public:
     ViewData* getLastOneItem() { return &*m_dataContainer.rbegin(); }
 
     ViewData* getLastButOneItem() { return &*++m_dataContainer.rbegin(); }
+
+    bool isEmpty() { return m_dataContainer.empty(); }
 };
 
 #endif //VIEW_H
