@@ -232,8 +232,8 @@ OptFlow::OptFlow(cv::TermCriteria termcrit, int winSize, int maxLevel, float max
     additionalSettings.setMinFeatures(minFeatures);
 }
 
-void OptFlow::computeFlow(cv::Mat imPrevGray, cv::Mat imCurrGray, std::vector<cv::Point2f>& prevPts, std::vector<cv::Point2f>& currPts, cv::Mat& statusMask, bool useImageCorrection, bool useErrorCorrection) {
-    std::vector<uchar> status; std::vector<float> err;
+void OptFlow::computeFlow(cv::Mat imPrevGray, cv::Mat imCurrGray, std::vector<cv::Point2f>& prevPts, std::vector<cv::Point2f>& currPts, std::vector<uchar>& statusMask, bool useImageCorrection, bool useErrorCorrection) {
+    std::vector<float> err;
 
     if (m_isUsingCUDA) {
         cv::cuda::GpuMat d_imPrevGray, d_imCurrGray;
@@ -252,16 +252,18 @@ void OptFlow::computeFlow(cv::Mat imPrevGray, cv::Mat imCurrGray, std::vector<cv
 
         d_prevPts.download(prevPts);
         d_currPts.download(currPts);
-        d_statusMask.download(status);
+        d_statusMask.download(statusMask);
         d_err.download(err);
     } else 
-        optFlow->calc(imPrevGray, imCurrGray, prevPts, currPts, status, err);
+        optFlow->calc(imPrevGray, imCurrGray, prevPts, currPts, statusMask, err);
+    
+    cv::Rect boundary(cv::Point(), imCurrGray.size());
 
-    for (uint i = 0, idxCorrection = 0; i < status.size() && i < err.size(); ++i) {
+    for (uint i = 0, idxCorrection = 0; i < statusMask.size() && i < err.size(); ++i) {
         cv::Point2f pt = currPts[i - idxCorrection];
 
-        bool isErrorCorr = status[i] == 1 && err[i] < additionalSettings.maxError;
-        bool isImgCorr = pt.x > 0 && pt.y > 0 && pt.x < imCurrGray.cols && pt.y < imCurrGray.rows;
+        bool isErrorCorr = statusMask[i] == 1 && err[i] < additionalSettings.maxError;
+        bool isImgCorr = boundary.contains(pt);
 
         if (!isErrorCorr || !isImgCorr) {
             if ((useErrorCorrection && !isErrorCorr) || (useImageCorrection && !isImgCorr)) {
@@ -270,9 +272,7 @@ void OptFlow::computeFlow(cv::Mat imPrevGray, cv::Mat imCurrGray, std::vector<cv
 
                 idxCorrection++;
             } else
-                status[i] = 0;
+                statusMask[i] = 0;
         }
     }
-
-    statusMask = cv::Mat(status);
 }

@@ -5,7 +5,6 @@
 #include "pch.h"
 #include "cuda_usable.h"
 #include "view.h"
-
 class FeatureDetector : protected CUDAUsable {
 private:
     enum DetectorType { AKAZE = 0, ORB, FAST, STAR, SIFT, SURF, KAZE, BRISK };
@@ -59,9 +58,11 @@ public:
 
     OptFlowAddSettings additionalSettings;
 
+    std::vector<uchar> statusMask;
+
     OptFlow(cv::TermCriteria termcrit, int winSize, int maxLevel, float maxError, uint maxCorners, float qualityLevel, float minCornersDistance, uint minFeatures, bool isUsingCUDA = false);
 
-    void computeFlow(cv::Mat imPrevGray, cv::Mat imCurrGray, std::vector<cv::Point2f>& prevPts, std::vector<cv::Point2f>& currPts, cv::Mat& statusMask, bool useImageCorrection = false, bool useErrorCorrection = false);
+    void computeFlow(cv::Mat imPrevGray, cv::Mat imCurrGray, std::vector<cv::Point2f>& prevPts, std::vector<cv::Point2f>& currPts, std::vector<uchar>& statusMask, bool useImageCorrection = false, bool useErrorCorrection = false);
 };
 
 class FlowView : public View {

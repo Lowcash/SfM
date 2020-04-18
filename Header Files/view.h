@@ -3,6 +3,7 @@
 #pragma once
 
 #include "pch.h"
+
 class ViewData {
 public:
     cv::Mat imColor, imGray;
@@ -43,9 +44,25 @@ public:
 
 class ViewDataContainer {
 private:
+    const uint m_containerBufferSize;
+
     std::list<ViewData> m_dataContainer;
 public:
-    void addItem(ViewData viewData) { m_dataContainer.push_back(viewData); }
+    ViewDataContainer(const uint containerBufferSize = INT32_MAX)
+        : m_containerBufferSize(containerBufferSize) {}
+
+    void addItem(ViewData viewData) { 
+        if (m_dataContainer.size() > m_containerBufferSize - 1) {
+            std::list<ViewData> _dataContainer;
+
+            _dataContainer.push_back(*++m_dataContainer.rbegin());
+            _dataContainer.push_back(*m_dataContainer.rbegin());
+            
+            std::swap(m_dataContainer, _dataContainer);
+        }  
+
+        m_dataContainer.push_back(viewData); 
+    }
 
     ViewData* getLastOneItem() { return &*m_dataContainer.rbegin(); }
 

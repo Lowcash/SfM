@@ -9,31 +9,14 @@
 class UserInput {
 private:
 public:
-    std::vector<cv::Vec3d> m_usrPts;
-    std::vector<cv::Vec3f> m_projUsrPts;
-    std::vector<cv::Point> m_pts2D;
+    std::vector<cv::Vec3d> m_usrPts3D;
+    std::vector<cv::Point> m_usrPts2D;
+    
 
-    void attach2DPoints(std::vector<cv::Point> userPrevPts, std::vector<cv::Point> userCurrPts, std::vector<cv::Point2f>& prevPts, std::vector<cv::Point2f>& currPts) {
-        prevPts.insert(prevPts.end(), userPrevPts.begin(), userPrevPts.end());
-        currPts.insert(currPts.end(), userCurrPts.begin(), userCurrPts.end());
-    }
-
-    void detach2DPoints(std::vector<cv::Point> userPts2D, std::vector<cv::Point2f>& points2D) {
-        points2D.erase(points2D.end() - userPts2D.size(), points2D.end());
-    }
-
-    void detach3DPoints(std::vector<cv::Point> userPts2D, std::vector<cv::Vec3d>& points3D) {
-        points3D.erase(points3D.end() - userPts2D.size(), points3D.end());
-    }
-
-    void insert3DPoints(std::vector<cv::Vec3d> points3D) {
-        m_usrPts.insert(m_usrPts.end(), points3D.begin(), points3D.end());
-        m_projUsrPts.insert(m_projUsrPts.end(), points3D.begin(), points3D.end());
-    }
 
     void recoverPoints(cv::Mat R, cv::Mat t, Camera camera, cv::Mat& imOutUsr) {
-        if (!m_usrPts.empty()) {
-            std::vector<cv::Point2f> pts2D; cv::projectPoints(m_projUsrPts, R, t, camera._K, cv::Mat(), pts2D);
+        if (!m_usrPts3D.empty()) {
+            std::vector<cv::Point2f> pts2D; cv::projectPoints(m_usrPts3D, R, t, camera._K, cv::Mat(), pts2D);
 
             for (const auto p : pts2D) {
                 std::cout << "Point projected to: " << p << "\n";
@@ -346,11 +329,8 @@ void adjustBundle(std::vector<TrackView>& tracks, Camera& camera, std::vector<cv
             p2d.y -= camera.K33d(1, 2);
 
             ceres::CostFunction* costFunc = SimpleReprojectionError::Create(p2d.x, p2d.y);
-            //ceres::CostFunction* costFunc2 = SnavelyReprojectionError::Create(p2d.x, p2d.y);
 
             problem.AddResidualBlock(costFunc, lossType != "NONE" ? lossFunction : NULL, c->val, t->points3D[i].val, &focalLength);
-
-            //problem.AddResidualBlock(costFunc2, lossType != "NONE" ? lossFunction : NULL, c->val, t->points3D[i].val);
         }
     }
     
@@ -369,8 +349,6 @@ void adjustBundle(std::vector<TrackView>& tracks, Camera& camera, std::vector<cv
 
     ceres::Solve(options, &problem, &summary);
 
-    //std::cout << summary.FullReport() << "\n";
-
     cv::Mat K; camera._K.copyTo(K);
 
     K.at<double>(0,0) = focalLength;
@@ -380,7 +358,7 @@ void adjustBundle(std::vector<TrackView>& tracks, Camera& camera, std::vector<cv
 
     std::cout << "Focal length: " << focalLength << "\n";
 
-    /*if (!summary.IsSolutionUsable()) {
+    if (!summary.IsSolutionUsable()) {
 		std::cout << "Bundle Adjustment failed." << std::endl;
 	} else {
 		// Display statistics about the minimization
@@ -392,7 +370,7 @@ void adjustBundle(std::vector<TrackView>& tracks, Camera& camera, std::vector<cv
 			<< " Final RMSE: " << std::sqrt(summary.final_cost / summary.num_residuals) << "\n"
 			<< " Time (s): " << summary.total_time_in_seconds << "\n"
 			<< std::endl;
-	}*/
+	}
     
     for (auto [c, cEnd, c6, c6End, it] = std::tuple{camPoses.begin(), camPoses.end(), camPoses6d.begin(), camPoses6d.end(), 0}; c != cEnd && c6 != c6End && it < maxIter; ++c, ++c6, ++it) {
         cv::Matx34f& cam = (cv::Matx34f&)*c;
@@ -428,7 +406,7 @@ bool loadImage(cv::VideoCapture& cap, cv::Mat& imColor, cv::Mat& imGray, float d
     return true;
 }
 
-bool findGoodImagePair(cv::VideoCapture cap, OptFlow optFlow, FeatureDetector featDetector, RecoveryPose& recPose, Camera camera, ViewDataContainer& viewContainer, FlowView& ofPrevView, FlowView& ofCurrView, float imDownSampling = 1.0f, bool isUsingCUDA = false) {
+bool findGoodImagePair(cv::VideoCapture& cap, ViewDataContainer& viewContainer, FeatureDetector featDetector, OptFlow optFlow, Camera camera, RecoveryPose& recPose, FlowView& ofPrevView, FlowView& ofCurrView, float imDownSampling = 1.0f, bool useCUDA = false) {
     std::cout << "Finding good image pair" << std::flush;
 
     cv::Mat _imColor, _imGray;
@@ -443,28 +421,23 @@ bool findGoodImagePair(cv::VideoCapture cap, OptFlow optFlow, FeatureDetector fe
 
         std::cout << "." << std::flush;
         
-        if (ofPrevView.corners.size() < optFlow.additionalSettings.minFeatures) {
-            featDetector.generateFlowFeatures(_imGray, ofPrevView.corners, optFlow.additionalSettings.maxCorn, optFlow.additionalSettings.qualLvl, optFlow.additionalSettings.minDist);
-
+        if (viewContainer.isEmpty()) {
             viewContainer.addItem(ViewData(_imColor, _imGray));
 
-            continue; 
-        }
+            featDetector.generateFlowFeatures(_imGray, ofPrevView.corners, optFlow.additionalSettings.maxCorn, optFlow.additionalSettings.qualLvl, optFlow.additionalSettings.minDist);
 
-        ofPrevView.setView(viewContainer.getLastOneItem());
+            if (!loadImage(cap, _imColor, _imGray, imDownSampling)) { return false; } 
+        }
 
         _prevCorners = ofPrevView.corners;
         _currCorners = ofCurrView.corners;
 
-        cv::Mat mask;
-        optFlow.computeFlow(ofPrevView.viewPtr->imGray, _imGray, _prevCorners, _currCorners, mask, true, true);
+        optFlow.computeFlow(viewContainer.getLastOneItem()->imGray, _imGray, _prevCorners, _currCorners, optFlow.statusMask, true, true);
 
         numSkippedFrames++;
     } while(!findCameraPose(recPose, _prevCorners, _currCorners, camera._K, recPose.minInliers, numHomInliers));
 
     viewContainer.addItem(ViewData(_imColor, _imGray));
-
-    ofCurrView.setView(viewContainer.getLastOneItem());
 
     ofPrevView.setCorners(_prevCorners);
     ofCurrView.setCorners(_currCorners);
@@ -474,7 +447,7 @@ bool findGoodImagePair(cv::VideoCapture cap, OptFlow optFlow, FeatureDetector fe
     return true;
 }
 
-bool findGoodImagePair(cv::VideoCapture cap, OptFlow optFlow, FeatureDetector featDetector, RecoveryPose& recPose, Camera camera, ViewDataContainer& viewContainer, FlowView& ofPrevView, FlowView& ofCurrView, bool isComputeFlow, float imDownSampling = 1.0f, bool isUsingCUDA = false) {
+bool findGoodImagePair(cv::VideoCapture cap, ViewDataContainer& viewContainer, float imDownSampling = 1.0f) {
     cv::Mat _imColor, _imGray;
 
     if (!loadImage(cap, _imColor, _imGray, imDownSampling)) { return false; } 
@@ -485,19 +458,7 @@ bool findGoodImagePair(cv::VideoCapture cap, OptFlow optFlow, FeatureDetector fe
         if (!loadImage(cap, _imColor, _imGray, imDownSampling)) { return false; }
     }
 
-    ofPrevView.setView(viewContainer.getLastOneItem());
-
     viewContainer.addItem(ViewData(_imColor, _imGray));
-
-    ofCurrView.setView(viewContainer.getLastOneItem());
-
-    if (isComputeFlow) {
-        if (ofPrevView.corners.size() < optFlow.additionalSettings.minFeatures) {
-            featDetector.generateFlowFeatures(ofPrevView.viewPtr->imGray, ofPrevView.corners, optFlow.additionalSettings.maxCorn, optFlow.additionalSettings.qualLvl, optFlow.additionalSettings.minDist);
-        }
-
-        optFlow.computeFlow(ofPrevView.viewPtr->imGray, ofCurrView.viewPtr->imGray, ofPrevView.corners, ofCurrView.corners, recPose.mask, true, false);
-    }
 
     return true;
 }
@@ -518,6 +479,18 @@ void drawTrajectory(cv::Mat& imOutTraj, cv::Matx31d t) {
     cv::rectangle(imOutTraj, cv::Point(10, 30), cv::Point(550, 50), CV_RGB(0, 0, 0), CV_FILLED);
     char text[100]; sprintf(text, "Coordinates: x = %02fm y = %02fm z = %02fm", t(0), t(1), t(2));
     cv::putText(imOutTraj, text, cv::Point(10, 50), cv::FONT_HERSHEY_PLAIN, 1, cv::Scalar::all(255), 1, 8);
+}
+
+void applyBoundaryFilter(std::vector<cv::Point2f>& points, const cv::Rect boundary) {
+    for (int i = 0, idxCorrection = 0; i < points.size(); ++i) {
+        auto point = points[i];
+
+        if (!boundary.contains(point)) { 
+            points.erase(points.begin() + (i - idxCorrection)); 
+
+            idxCorrection++;
+        }
+    }
 }
 
 #pragma endregion METHODS
@@ -626,8 +599,9 @@ int main(int argc, char** argv) {
     const float tMaxDist = parser.get<float>("tMaxDist");
     const float tMaxPErr = parser.get<float>("tMaxPErr");
 
-    bool isUsingCUDA = false;
+    bool useCUDA = false;
 
+#pragma ifdef OPENCV_CORE_CUDA_HPP
     if (bUseCuda) {
         if (cv::cuda::getCudaEnabledDeviceCount() > 0) {
             std::cout << " with CUDA support\n";
@@ -635,12 +609,13 @@ int main(int argc, char** argv) {
             cv::cuda::setDevice(0);
             cv::cuda::printShortCudaDeviceInfo(0);
 
-            isUsingCUDA = true;
+            useCUDA = true;
         }
         else
             std::cout << "\nCannot use nVidia CUDA -> no devices" << "\n"; 
     }
-     
+#pragma endif
+
     const cv::FileStorage fs(bcalib, cv::FileStorage::READ);
     cv::Mat cameraK; fs["camera_matrix"] >> cameraK;
 
@@ -664,11 +639,11 @@ int main(int argc, char** argv) {
     if (bUseMethod == "KLT_3D")
         usedMethod = Method::KLT_3D;
 
-    FeatureDetector featDetector(fDecType, isUsingCUDA);
-    DescriptorMatcher descMatcher(fMatchType, fKnnRatio, isUsingCUDA);
+    FeatureDetector featDetector(fDecType, useCUDA);
+    DescriptorMatcher descMatcher(fMatchType, fKnnRatio, useCUDA);
     
     cv::TermCriteria flowTermCrit(cv::TermCriteria::COUNT + cv::TermCriteria::EPS, ofMaxItCt, ofItEps);
-    OptFlow optFlow(flowTermCrit, ofWinSize, ofMaxLevel, ofMaxError, ofMaxCorn, ofQualLvl, ofMinDist, ofMinKPts, isUsingCUDA);
+    OptFlow optFlow(flowTermCrit, ofWinSize, ofMaxLevel, ofMaxError, ofMaxCorn, ofQualLvl, ofMinDist, ofMinKPts, useCUDA);
 
     RecoveryPose recPose(peMethod, peProb, peThresh, peMinInl, pePMetrod, peExGuess, peNumIteR);
 
@@ -691,12 +666,11 @@ int main(int argc, char** argv) {
 
     cv::setMouseCallback(usrInpWinName, onUsrWinClick, (void*)&mouseUsrDataParams);
 
+    ViewDataContainer viewContainer(usedMethod == Method::KLT_2D ? 100 : INT32_MAX);
+
     FeatureView featPrevView, featCurrView;
     FlowView ofPrevView, ofCurrView; 
-
-    std::vector<FeatureView> featureViews;
-    ViewDataContainer viewContainer;
-
+    
     std::vector<cv::Matx34f> camPoses;
     std::vector<cv::Point3f> usrPts;
 
@@ -718,40 +692,57 @@ int main(int argc, char** argv) {
     cv::Matx31d t = cv::Matx31d::eye();
 
     //imOutTraj = cv::Mat::zeros(cv::Size(bWinWidth, bWinHeight), CV_8UC3);
-
+    
     for ( ; ; ) {
-        if (!mouseUsrDataParams.m_clickedPoint.empty()) {
-            ofPrevView.corners.insert(ofPrevView.corners.begin(), mouseUsrDataParams.m_clickedPoint.begin(), mouseUsrDataParams.m_clickedPoint.end());
-        }
-        if (!userInput.m_pts2D.empty()) {
-            ofPrevView.corners.insert(ofPrevView.corners.begin(), userInput.m_pts2D.begin(), userInput.m_pts2D.end());
-        }
-
-        if (usedMethod == Method::KLT_3D) {
-            if (!findGoodImagePair(cap, optFlow, featDetector, recPose, camera, viewContainer, ofPrevView, ofCurrView, bDownSamp, isUsingCUDA)) { break; }
-        } else if (usedMethod == Method::KLT_2D) {
-            if (!findGoodImagePair(cap, optFlow, featDetector, recPose, camera, viewContainer, ofPrevView, ofCurrView, bDownSamp, true, isUsingCUDA)) { break; }
+        if (!viewContainer.isEmpty() && ofPrevView.corners.size() < optFlow.additionalSettings.minFeatures) {
+            featDetector.generateFlowFeatures(ofPrevView.viewPtr->imGray, ofPrevView.corners, optFlow.additionalSettings.maxCorn, optFlow.additionalSettings.qualLvl, optFlow.additionalSettings.minDist);
         }
 
         if (!mouseUsrDataParams.m_clickedPoint.empty()) {
-            userInput.m_pts2D.insert(userInput.m_pts2D.end(), ofCurrView.corners.begin(), ofCurrView.corners.begin() + mouseUsrDataParams.m_clickedPoint.size());
-            
-            mouseUsrDataParams.m_clickedPoint.clear();
-        }
-        if (!userInput.m_pts2D.empty()) {
-            std::vector<cv::Point> _newPts;
-            _newPts.insert(_newPts.end(), ofCurrView.corners.begin(), ofCurrView.corners.begin() + userInput.m_pts2D.size());
-
-            for (int i = 0; i < userInput.m_pts2D.size(); ++i) { ofCurrView.corners.pop_back(); }
-
-            userInput.m_pts2D = _newPts;
+            ofPrevView.corners.insert(ofPrevView.corners.end(), mouseUsrDataParams.m_clickedPoint.begin(), mouseUsrDataParams.m_clickedPoint.end());
         }
 
+        if (!userInput.m_usrPts2D.empty()) {
+            ofPrevView.corners.insert(ofPrevView.corners.end(), userInput.m_usrPts2D.begin(), userInput.m_usrPts2D.end());
+        }
+
+        if (usedMethod == Method::KLT_3D && !findGoodImagePair(cap, viewContainer, featDetector, optFlow, camera,recPose, ofPrevView, ofCurrView, bDownSamp, useCUDA)) { break; }
+        if (usedMethod == Method::KLT_2D && !findGoodImagePair(cap, viewContainer, bDownSamp)) { break; }
+
+        ofPrevView.setView(viewContainer.getLastButOneItem());
+        ofCurrView.setView(viewContainer.getLastOneItem());
+
+        ofPrevView.viewPtr->imColor.copyTo(imOutRecPose);
         ofCurrView.viewPtr->imColor.copyTo(imOutUsrInp);
-        ofCurrView.viewPtr->imColor.copyTo(imOutRecPose);
 
-        userInput.updatePoints(imOutUsrInp, userInput.m_pts2D);
-        userInput.recoverPoints(imOutUsrInp, userInput.m_pts2D);
+        if (usedMethod == Method::KLT_2D && !ofPrevView.corners.empty()) {           
+            optFlow.computeFlow(ofPrevView.viewPtr->imGray, ofCurrView.viewPtr->imGray, ofPrevView.corners, ofCurrView.corners, optFlow.statusMask, true, false);
+
+            if (!mouseUsrDataParams.m_clickedPoint.empty()) {
+                for (int i = 0; i < userInput.m_usrPts2D.size(); ++i) { ofCurrView.corners.pop_back(); }
+
+                userInput.m_usrPts2D.insert(userInput.m_usrPts2D.end(), ofCurrView.corners.end() - mouseUsrDataParams.m_clickedPoint.size(), ofCurrView.corners.end());
+                
+                for (int i = 0; i < mouseUsrDataParams.m_clickedPoint.size(); ++i) { ofCurrView.corners.pop_back(); }
+
+                mouseUsrDataParams.m_clickedPoint.clear();
+            } else {
+                std::vector<cv::Point> _newPts;
+                _newPts.insert(_newPts.end(), ofCurrView.corners.end() - userInput.m_usrPts2D.size(), ofCurrView.corners.end());
+
+                for (int i = 0; i < userInput.m_usrPts2D.size(); ++i) { ofCurrView.corners.pop_back(); }
+
+                userInput.m_usrPts2D = _newPts;
+            }
+
+            userInput.updatePoints(imOutUsrInp, userInput.m_usrPts2D);
+            userInput.recoverPoints(imOutUsrInp, userInput.m_usrPts2D);
+
+            std::cout << "Click: " << mouseUsrDataParams.m_clickedPoint.size() << "\n";
+            std::cout << "Pts2d: " << userInput.m_usrPts2D.size() << "\n";
+            std::cout << "Prev: " << ofPrevView.corners.size() << "\n";
+            std::cout << "Curr: " << ofCurrView.corners.size() << "\n";
+        }  
 
         recPose.drawRecoveredPose(imOutRecPose, imOutRecPose, ofPrevView.corners, ofCurrView.corners, recPose.mask);
 
@@ -764,9 +755,9 @@ int main(int argc, char** argv) {
         cv::imshow(usrInpWinName, imOutUsrInp);
         //cv::imshow(trajWinName, imOutTraj);
 
-        cv::waitKey();
+        cv::waitKey(29);
 
-        if (usedMethod == Method::KLT_3D) {
+        /*if (usedMethod == Method::KLT_3D) {
             if (featureViews.empty()) {
                 featDetector.generateFeatures(ofPrevView.viewPtr->imGray, featPrevView.keyPts, featPrevView.descriptor);
 
@@ -779,7 +770,7 @@ int main(int argc, char** argv) {
 
             featPrevView.setView(viewContainer.getLastButOneItem());
             featCurrView.setView(viewContainer.getLastOneItem());
-        }
+        }*/
 
         /*if (featPrevView.keyPts.empty() || featCurrView.keyPts.empty()) { 
             std::cerr << "None keypoints to match, skip matching/triangulation!\n";
