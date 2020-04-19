@@ -29,14 +29,14 @@
               //"-ofMinKPts=50", "-ofWinSize=30", "-ofMaxLevel=5", "-ofMaxItCt=100", "-ofItEps=0.01", "-ofMaxError=5.0", "-ofMaxCorn=2000", "-ofQualLvl=0.1", "-ofMinDist=1",
               
               //--------------------------- POSE ESTIMATION ---------------------------//
-              "-peMethod=LMEDS", "-peProb=0.99", "-peThresh=0.1", "-peMinInl=25", "-peMinMatch=0", "-pePMetrod=SOLVEPNP_P3P", "-peExGuess=false", "-peNumIteR=10000",
+              "-peMethod=LMEDS", "-peProb=0.99", "-peThresh=1.0", "-peMinInl=15", "-peMinMatch=0", "-pePMetrod=SOLVEPNP_P3P", "-peExGuess=false", "-peNumIteR=10000",
               //"-peMethod=RANSAC", "-peProb=0.99", "-peThresh=1.0", "-peMinInl=25", "-peMinMatch=50", "-pePMetrod=SOLVEPNP_P3P", "-peExGuess=false", "-peNumIteR=250",
               
               //-------------------------- BUNDLE ADJUSTMENT --------------------------//
               "-baMethod=DENSE_SCHUR", "-baNumIter=999", "-baLossFunc=CAUCHY", "-baLossSc=0.5",
 
               //---------------------------- TRIANGULATION ----------------------------//
-              "-tMethod=DLT", "-tMinDist=0.0001", "-tMaxDist=1500", "-tMaxPErr=5"
+              "-tMethod=DLT", "-tMinDist=0.0001", "-tMaxDist=1500", "-tMaxPErr=25"
             ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",

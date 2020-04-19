@@ -99,15 +99,6 @@ void Tracking::addTrackView(ViewData* view, const std::vector<bool>& mask, const
 
     if (_inliers.rows < recPose.minInliers) { return false; }
 
-    //cv::Mat _measurements = (cv::Mat_<double>(3,3) << _t.at<double>(0), _t.at<double>(1), _t.at<double>(2), _R.at<double>(0), _R.at<double>(1), _R.at<double>(2), 0, 0, 0);
-    //std::cout << _t << "\n";
-    //std::cout << _R << "\n";
-    //fillMeasurements(_measurements, _t, _R);
-
-    //std::cout << _measurements << "\n";
-
-    //updateKalmanFilter(KF, _measurements, _t, _R);
-
     cv::Rodrigues(_R, recPose.R); recPose.t = _t;
 
     std::cout << "[DONE]\n";
