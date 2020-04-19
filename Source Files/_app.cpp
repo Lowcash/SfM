@@ -8,11 +8,34 @@
 
 class UserInput {
 private:
+    const float m_maxRange;
+
+    cv::Point2f m_medianMove;
+
+    void computePointsRangeMove(const std::vector<cv::Point2f> prevPts, const std::vector<cv::Point2f> currPts, std::map<std::pair<float, float>, float>& pointsDist, cv::Point2f& move) {
+        for (int i = 0; i < prevPts.size(); ++i) {
+            float dist = std::pow(
+                std::pow(currPts[i].x - prevPts[i].x, 2) + 
+                std::pow(currPts[i].y - prevPts[i].y, 2)
+            , 0.5);
+
+            if (dist < m_maxRange) {
+                pointsDist[std::pair{currPts[i].x, currPts[i].y}] = dist;
+                move += currPts[i] - prevPts[i];
+            }
+        }
+
+        if (!pointsDist.empty()) {
+            move.x /= pointsDist.size();
+            move.y /= pointsDist.size();
+        }
+    }
 public:
     std::vector<cv::Vec3d> m_usrPts3D;
-    std::vector<cv::Point> m_usrPts2D;
+    std::vector<cv::Point2f> m_usrPts2D;
     
-
+    UserInput(const float maxRange)
+        : m_maxRange(maxRange) {}
 
     void recoverPoints(cv::Mat R, cv::Mat t, Camera camera, cv::Mat& imOutUsr) {
         if (!m_usrPts3D.empty()) {
@@ -26,20 +49,58 @@ public:
         }
     }
 
-    void updatePoints(cv::Mat& imOutUsr, std::vector<cv::Point>& pts2D) {
-        for (int i = 0, idxCorrection = 0; i < pts2D.size(); ++i) {
-            auto p = pts2D[i];
+    void addPoints(const std::vector<cv::Point2f> prevPts, const std::vector<cv::Point2f> currPts) {
+        std::map<std::pair<float, float>, float> pointsDist;
 
-            if (p.x < 0 + 10 || p.y < 0 + 10 || p.x > imOutUsr.cols - 10 || p.y > imOutUsr.rows - 10) {
-                pts2D.erase(pts2D.begin() + (i - idxCorrection));
+        cv::Point2f move; computePointsRangeMove(prevPts, currPts, pointsDist, move);
+
+        for (auto [it, end, idx] = std::tuple{currPts.cbegin(), currPts.cend(), 0}; it != end; ++it, ++idx) {
+            cv::Point2f p = (cv::Point2f)*it;
+            
+            //if (pointsDist.find(std::pair{p.x, p.y}) != pointsDist.end())
+                m_usrPts2D.push_back(p);
+            /*else {
+                m_usrPts2D.push_back(prevPts[idx] + m_medianMove);
+            }*/
+        }
+    }
+
+    void updatePoints(const std::vector<cv::Point2f> currPts, const cv::Rect boundary, const uint offset) {
+        std::map<std::pair<float, float>, float> pointsDist;
+
+        cv::Point2f move; computePointsRangeMove(m_usrPts2D, currPts, pointsDist, move);
+
+        for (auto [it, end, idx] = std::tuple{currPts.cbegin(), currPts.cend(), 0}; it != end; ++it, ++idx) {
+            cv::Point2f p = (cv::Point2f)*it;
+            
+            //if (pointsDist.find(std::pair{p.x, p.y}) != pointsDist.end())
+                m_usrPts2D[idx] = currPts[idx];
+            /*else {
+                m_usrPts2D[idx] = m_usrPts2D[idx] + m_medianMove;
+            }*/
+        }
+
+        for (int i = 0, idxCorrection = 0; i < m_usrPts2D.size(); ++i) {
+            auto p = m_usrPts2D[i];
+
+            if (p.x < boundary.x + offset || p.y < boundary.y + offset || p.x > boundary.width - offset || p.y > boundary.height - offset) {
+                m_usrPts2D.erase(m_usrPts2D.begin() + (i - idxCorrection));
 
                 idxCorrection++;
             } 
         }
     }
+    
+    void updateMedianMove(const std::vector<cv::Point2f> prevPts, const std::vector<cv::Point2f> currPts) {
+        std::map<std::pair<float, float>, float> pointsDist;
 
-    void recoverPoints(cv::Mat& imOutUsr, std::vector<cv::Point>& pts2D) {
-        for (const auto& p : pts2D) {
+        computePointsRangeMove(prevPts, currPts, pointsDist, m_medianMove);
+
+        std::cout << m_medianMove << "\n";
+    }
+
+    void recoverPoints(cv::Mat& imOutUsr) {
+        for (const auto& p : m_usrPts2D) {
             //std::cout << "Point projected to: " << p << "\n";
                 
             cv::circle(imOutUsr, p, 3, CV_RGB(150, 200, 0), cv::FILLED, cv::LINE_AA);
@@ -98,7 +159,7 @@ public:
 
     cv::Mat* m_inputMat;
 
-    std::vector<cv::Point> m_clickedPoint;
+    std::vector<cv::Point2f> m_clickedPoint;
 
     MouseUsrDataParams(const std::string inputWinName, cv::Mat* inputMat)
         : m_inputWinName(inputWinName) {
@@ -674,16 +735,16 @@ int main(int argc, char** argv) {
     std::vector<cv::Matx34f> camPoses;
     std::vector<cv::Point3f> usrPts;
 
-    VisPCL visPCL(ptCloudWinName + " PCL", cv::Size(bWinWidth, bWinHeight));
+    //VisPCL visPCL(ptCloudWinName + " PCL", cv::Size(bWinWidth, bWinHeight));
     //boost::thread visPCLthread(boost::bind(&VisPCL::visualize, &visPCL));
     //std::thread visPCLThread(&VisPCL::visualize, &visPCL);
     //visPCL.visualize();
 
-    VisVTK visVTK(ptCloudWinName + " VTK", cv::Size(bWinWidth, bWinHeight));
+    //VisVTK visVTK(ptCloudWinName + " VTK", cv::Size(bWinWidth, bWinHeight));
     //std::thread visVTKThread(&VisVTK::visualize, &visVTK);
 
     Tracking tracking;
-    UserInput userInput;
+    UserInput userInput(ofMaxError);
 
 #pragma endregion INIT 
     std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
@@ -698,16 +759,19 @@ int main(int argc, char** argv) {
             featDetector.generateFlowFeatures(ofPrevView.viewPtr->imGray, ofPrevView.corners, optFlow.additionalSettings.maxCorn, optFlow.additionalSettings.qualLvl, optFlow.additionalSettings.minDist);
         }
 
+        bool isPtAdded = false;
         if (!mouseUsrDataParams.m_clickedPoint.empty()) {
             ofPrevView.corners.insert(ofPrevView.corners.end(), mouseUsrDataParams.m_clickedPoint.begin(), mouseUsrDataParams.m_clickedPoint.end());
+
+            isPtAdded = true;
         }
 
         if (!userInput.m_usrPts2D.empty()) {
             ofPrevView.corners.insert(ofPrevView.corners.end(), userInput.m_usrPts2D.begin(), userInput.m_usrPts2D.end());
         }
 
-        if (usedMethod == Method::KLT_3D && !findGoodImagePair(cap, viewContainer, featDetector, optFlow, camera,recPose, ofPrevView, ofCurrView, bDownSamp, useCUDA)) { break; }
         if (usedMethod == Method::KLT_2D && !findGoodImagePair(cap, viewContainer, bDownSamp)) { break; }
+        if (usedMethod == Method::KLT_3D && !findGoodImagePair(cap, viewContainer, featDetector, optFlow, camera,recPose, ofPrevView, ofCurrView, bDownSamp, useCUDA)) { break; }
 
         ofPrevView.setView(viewContainer.getLastButOneItem());
         ofCurrView.setView(viewContainer.getLastOneItem());
@@ -715,37 +779,37 @@ int main(int argc, char** argv) {
         ofPrevView.viewPtr->imColor.copyTo(imOutRecPose);
         ofCurrView.viewPtr->imColor.copyTo(imOutUsrInp);
 
-        if (usedMethod == Method::KLT_2D && !ofPrevView.corners.empty()) {           
+        if (usedMethod == Method::KLT_2D && !ofPrevView.corners.empty()) {
             optFlow.computeFlow(ofPrevView.viewPtr->imGray, ofCurrView.viewPtr->imGray, ofPrevView.corners, ofCurrView.corners, optFlow.statusMask, true, false);
 
-            if (!mouseUsrDataParams.m_clickedPoint.empty()) {
-                for (int i = 0; i < userInput.m_usrPts2D.size(); ++i) { ofCurrView.corners.pop_back(); }
+            optFlow.drawOpticalFlow(imOutRecPose, imOutRecPose, ofPrevView.corners, ofCurrView.corners, optFlow.statusMask);
 
-                userInput.m_usrPts2D.insert(userInput.m_usrPts2D.end(), ofCurrView.corners.end() - mouseUsrDataParams.m_clickedPoint.size(), ofCurrView.corners.end());
-                
-                for (int i = 0; i < mouseUsrDataParams.m_clickedPoint.size(); ++i) { ofCurrView.corners.pop_back(); }
+            //userInput.updateMedianMove(ofPrevView.corners, ofCurrView.corners);
 
-                mouseUsrDataParams.m_clickedPoint.clear();
-            } else {
-                std::vector<cv::Point> _newPts;
+            if (!userInput.m_usrPts2D.empty()) {
+                std::vector<cv::Point2f> _newPts;
                 _newPts.insert(_newPts.end(), ofCurrView.corners.end() - userInput.m_usrPts2D.size(), ofCurrView.corners.end());
 
                 for (int i = 0; i < userInput.m_usrPts2D.size(); ++i) { ofCurrView.corners.pop_back(); }
 
-                userInput.m_usrPts2D = _newPts;
+                userInput.updatePoints(_newPts, cv::Rect(cv::Point(), ofCurrView.viewPtr->imColor.size()), 10);
             }
 
-            userInput.updatePoints(imOutUsrInp, userInput.m_usrPts2D);
-            userInput.recoverPoints(imOutUsrInp, userInput.m_usrPts2D);
+            if (!mouseUsrDataParams.m_clickedPoint.empty() && isPtAdded) {
+                std::vector<cv::Point2f> _newPts;
+                _newPts.insert(_newPts.end(), ofCurrView.corners.end() - mouseUsrDataParams.m_clickedPoint.size(), ofCurrView.corners.end());
 
-            std::cout << "Click: " << mouseUsrDataParams.m_clickedPoint.size() << "\n";
-            std::cout << "Pts2d: " << userInput.m_usrPts2D.size() << "\n";
-            std::cout << "Prev: " << ofPrevView.corners.size() << "\n";
-            std::cout << "Curr: " << ofCurrView.corners.size() << "\n";
-        }  
+                userInput.addPoints(mouseUsrDataParams.m_clickedPoint, _newPts);
 
-        recPose.drawRecoveredPose(imOutRecPose, imOutRecPose, ofPrevView.corners, ofCurrView.corners, recPose.mask);
+                for (int i = 0; i < userInput.m_usrPts2D.size(); ++i) { ofCurrView.corners.pop_back(); }
 
+                mouseUsrDataParams.m_clickedPoint.clear();
+            }
+
+            userInput.recoverPoints(imOutUsrInp);
+        }
+        if (usedMethod == Method::KLT_3D)
+            recPose.drawRecoveredPose(imOutRecPose, imOutRecPose, ofPrevView.corners, ofCurrView.corners, recPose.mask);
         // t = t + (R * recPose.t);
         // R = recPose.R * R;
 

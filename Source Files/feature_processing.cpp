@@ -276,3 +276,16 @@ void OptFlow::computeFlow(cv::Mat imPrevGray, cv::Mat imCurrGray, std::vector<cv
         }
     }
 }
+
+void OptFlow::drawOpticalFlow(cv::Mat inputImg, cv::Mat& outputImg, const std::vector<cv::Point2f> prevPts, const std::vector<cv::Point2f> currPts, std::vector<uchar> statusMask) {
+    bool isUsingMask = statusMask.size() == prevPts.size();
+
+    inputImg.copyTo(outputImg);
+
+    for (int i = 0; i < prevPts.size() && i < currPts.size(); ++i) {
+        cv::arrowedLine(outputImg, currPts[i], prevPts[i], CV_RGB(0,200,0), 2);
+
+        if (isUsingMask && statusMask[i] == 0)
+            cv::arrowedLine(outputImg, currPts[i], prevPts[i], CV_RGB(200,0,0), 2);
+    }
+}
