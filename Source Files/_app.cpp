@@ -860,8 +860,6 @@ int main(int argc, char** argv) {
 
         cv::waitKey(29);
 
-        cv::waitKey();
-
         // drawTrajectory(imOutTraj, t);
 
         //cv::imshow(trajWinName, imOutTraj);

@@ -36,7 +36,7 @@
               "-baMethod=DENSE_SCHUR", "-baNumIter=999", "-baLossFunc=CAUCHY", "-baLossSc=0.5",
 
               //---------------------------- TRIANGULATION ----------------------------//
-              "-tMethod=DLT", "-tMinDist=0.0001", "-tMaxDist=1500", "-tMaxPErr=25"
+              "-tMethod=DLT", "-tMinDist=0.0001", "-tMaxDist=1500", "-tMaxPErr=5"
             ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",

@@ -161,7 +161,13 @@ void VisVTK::addPointCloud(const std::vector<TrackView>& trackViews) {
 }
 
 void VisVTK::addPointCloud(const std::vector<cv::Vec3d>& points3D, const std::vector<cv::Vec3b>& pointsRGB) {
+    const cv::viz::WCloud _pCloud(points3D, pointsRGB);
 
+    if (m_numClouds > 0)
+        m_viewer.removeWidget("cloud");
+    m_viewer.showWidget("cloud", _pCloud);
+
+    m_numClouds++;
 }
 
 void VisVTK::addPoints(const std::vector<cv::Vec3d> points3D) {
