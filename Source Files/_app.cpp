@@ -106,51 +106,6 @@ public:
             cv::circle(imOutUsr, p, 3, CV_RGB(150, 200, 0), cv::FILLED, cv::LINE_AA);
         }
     }
-
-    void movePoints(const std::vector<cv::Point2f> prevPts, const std::vector<cv::Point2f> currPts, const std::vector<cv::Point> inputPts, std::vector<cv::Point>& outputPts) {
-        cv::Point2f move; int ptsSize = MIN(prevPts.size(), currPts.size());
-
-        for (int i = 0; i < ptsSize; ++i) 
-            move += prevPts[i] - currPts[i];
-        
-        move.x /= ptsSize;
-        move.y /= ptsSize;
-
-        for (int i = 0; i < inputPts.size(); ++i) {
-            outputPts.push_back(
-                cv::Point2f(
-                    inputPts[i].x + move.x, 
-                    inputPts[i].y + move.y
-                )
-            );
-        }
-    }
-
-    void movePoints(const std::vector<cv::Point2f> prevPts, const std::vector<cv::Point2f> currPts, const cv::Mat mask, const std::vector<cv::Point> inputPts, std::vector<cv::Point>& outputPts) {
-        cv::Point2f move; int ptsSize = MIN(prevPts.size(), currPts.size());
-
-        int usedPts = 0;
-
-        for (int i = 0; i < ptsSize; ++i)  {
-            if (mask.at<uchar>(i) == 1) {
-                move += prevPts[i] - currPts[i];
-
-                usedPts++;
-            }
-        }
-            
-        move.x /= usedPts;
-        move.y /= usedPts;
-
-        for (int i = 0; i < inputPts.size(); ++i) {
-            outputPts.push_back(
-                cv::Point2f(
-                    inputPts[i].x - move.x, 
-                    inputPts[i].y - move.y
-                )
-            );
-        }
-    }
 };
 
 struct MouseUsrDataParams {
@@ -319,6 +274,16 @@ bool findCameraPose(RecoveryPose& recPose, std::vector<cv::Point2f> prevPts, std
     cv::Mat E = cv::findEssentialMat(prevPts, currPts, cameraK, recPose.recPoseMethod, recPose.prob, recPose.threshold, recPose.mask);
 
     if (!(E.cols == 3 && E.rows == 3)) { return false; }
+
+    cv::Mat p0 = cv::Mat( { 3, 1 }, {
+		double( prevPts[0].x ), double( prevPts[0].y ), 1.0
+		} );
+	cv::Mat p1 = cv::Mat( { 3, 1 }, {
+		double( currPts[0].x ), double( currPts[0].y ), 1.0
+		} );
+	const double E_error = cv::norm( p1.t() * cameraK.inv().t() * E * cameraK.inv() * p0, cv::NORM_L2 );
+
+    if (E_error > 1e-03) { return false; }
 
     numInliers = cv::recoverPose(E, prevPts, currPts, cameraK, recPose.R, recPose.t, recPose.mask);
 
@@ -554,6 +519,34 @@ void applyBoundaryFilter(std::vector<cv::Point2f>& points, const cv::Rect bounda
     }
 }
 
+void triangulateCloud(const std::vector<cv::Point2f> prevPts, const std::vector<cv::Point2f> currPts, const cv::Mat colorImage, std::vector<cv::Vec3d>& points3D, std::vector<cv::Vec3b>& pointsRGB, std::vector<bool>& mask, Camera camera, RecoveryPose& recPose, const std::string method, float minDistance, float maxDistance, float maxProjectionError) {
+    cv::Mat _prevPtsN; cv::undistort(prevPts, _prevPtsN, camera.K33d, cv::Mat());
+    cv::Mat _currPtsN; cv::undistort(currPts, _currPtsN, camera.K33d, cv::Mat());
+
+    cv::Mat _prevPtsMat; pointsToMat(_prevPtsN, _prevPtsMat);
+    cv::Mat _currPtsMat; pointsToMat(_currPtsN, _currPtsMat);
+
+    cv::Matx34d _prevPose; composeExtrinsicMat(cv::Matx33d::eye(), cv::Matx31d::eye(), _prevPose);
+    cv::Matx34d _currPose; composeExtrinsicMat(recPose.R, recPose.t, _currPose);
+
+    cv::Mat _homogPts, _pts3D;
+
+    if (method == "DLT") {
+        std::vector<cv::Mat> _pts, _projMats;
+        _pts.push_back(_prevPtsMat);
+        _pts.push_back(_currPtsMat);
+        _projMats.push_back(cv::Mat(camera.K33d * _prevPose));
+        _projMats.push_back(cv::Mat(camera.K33d * _currPose));
+
+        cv::sfm::triangulatePoints(_pts, _projMats, _pts3D); _pts3D = _pts3D.t();
+    } else {
+        cv::triangulatePoints(camera.K33d * _prevPose, camera.K33d * _currPose, _prevPtsMat, _currPtsMat, _homogPts);
+        cv::convertPointsFromHomogeneous(_homogPts.t(), _pts3D);
+    }
+
+    pointsToRGBCloud(colorImage, camera, cv::Mat(recPose.R), cv::Mat(recPose.t), _pts3D, _currPtsMat.t(), points3D, pointsRGB, minDistance, maxDistance, maxProjectionError, mask);
+}
+
 #pragma endregion METHODS
 
 enum Method { KLT_2D, KLT_3D };
@@ -732,25 +725,17 @@ int main(int argc, char** argv) {
     FeatureView featPrevView, featCurrView;
     FlowView ofPrevView, ofCurrView; 
     
-    std::vector<cv::Matx34f> camPoses;
-    std::vector<cv::Point3f> usrPts;
-
-    //VisPCL visPCL(ptCloudWinName + " PCL", cv::Size(bWinWidth, bWinHeight));
-    //boost::thread visPCLthread(boost::bind(&VisPCL::visualize, &visPCL));
-    //std::thread visPCLThread(&VisPCL::visualize, &visPCL);
-    //visPCL.visualize();
-
-    //VisVTK visVTK(ptCloudWinName + " VTK", cv::Size(bWinWidth, bWinHeight));
-    //std::thread visVTKThread(&VisVTK::visualize, &visVTK);
-
     Tracking tracking;
     UserInput userInput(ofMaxError);
 
+    VisPCL visPCL(ptCloudWinName + " PCL", cv::Size(bWinWidth, bWinHeight));
+    //boost::thread visPCLthread(boost::bind(&VisPCL::visualize, &visPCL));
+    //std::thread visPCLThread(&VisPCL::visualize, &visPCL);
+
+    //VisVTK visVTK(ptCloudWinName + " VTK", cv::Size(bWinWidth, bWinHeight));
+    //std::thread visVTKThread(&VisVTK::visualize, &visVTK);
 #pragma endregion INIT 
     std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
-
-    cv::Matx33d R = cv::Matx33d::eye();
-    cv::Matx31d t = cv::Matx31d::eye();
 
     //imOutTraj = cv::Mat::zeros(cv::Size(bWinWidth, bWinHeight), CV_8UC3);
     
@@ -784,8 +769,6 @@ int main(int argc, char** argv) {
 
             optFlow.drawOpticalFlow(imOutRecPose, imOutRecPose, ofPrevView.corners, ofCurrView.corners, optFlow.statusMask);
 
-            //userInput.updateMedianMove(ofPrevView.corners, ofCurrView.corners);
-
             if (!userInput.m_usrPts2D.empty()) {
                 std::vector<cv::Point2f> _newPts;
                 _newPts.insert(_newPts.end(), ofCurrView.corners.end() - userInput.m_usrPts2D.size(), ofCurrView.corners.end());
@@ -808,18 +791,57 @@ int main(int argc, char** argv) {
 
             userInput.recoverPoints(imOutUsrInp);
         }
-        if (usedMethod == Method::KLT_3D)
+        if (usedMethod == Method::KLT_3D) {
             recPose.drawRecoveredPose(imOutRecPose, imOutRecPose, ofPrevView.corners, ofCurrView.corners, recPose.mask);
+        }
+
+        cv::imshow(recPoseWinName, imOutRecPose);
+        cv::imshow(usrInpWinName, imOutUsrInp);
+
+        cv::waitKey(29);
+
+        if (usedMethod == Method::KLT_3D) {
+            std::vector<cv::Vec3d> _points3D;
+            std::vector<cv::Vec3b> _pointsRGB;
+            std::vector<bool> mask;
+
+            triangulateCloud(ofPrevView.corners, ofCurrView.corners, ofCurrView.viewPtr->imColor, _points3D, _pointsRGB, mask, camera, recPose, tMethod, tMinDist, tMaxDist, tMaxPErr);
+
+            tracking.t = tracking.t + (tracking.R * recPose.t);
+            tracking.R = recPose.R * tracking.R;
+
+            cv::Matx34d camPose; composeExtrinsicMat(tracking.R, tracking.t, camPose);
+            tracking.addCamPose(camPose);
+
+            for (int i = 0, idxCorrection = 0; i < mask.size(); ++i) {
+                if (!mask[i]) {
+                    _points3D.erase(_points3D.begin() + (i - idxCorrection));
+                    _pointsRGB.erase(_pointsRGB.begin() + (i - idxCorrection));
+
+                    idxCorrection++;
+                } else {
+                    cv::Matx13d point(_points3D[i][0], _points3D[i][1], _points3D[i][2]);
+                    cv::Matx14d point4d = point * camPose;
+                    _points3D[i] = cv::Vec3d(point4d(0), point4d(1), point4d(2));
+                }
+            }
+
+            visPCL.addPointCloud(_points3D, _pointsRGB);
+            visPCL.updateCameras(tracking.getCamPoses());
+            visPCL.visualize();
+        }
+
+        cv::waitKey();
+
         // t = t + (R * recPose.t);
         // R = recPose.R * R;
 
         // drawTrajectory(imOutTraj, t);
 
-        cv::imshow(recPoseWinName, imOutRecPose);
-        cv::imshow(usrInpWinName, imOutUsrInp);
+        
         //cv::imshow(trajWinName, imOutTraj);
 
-        cv::waitKey(29);
+        
 
         /*if (usedMethod == Method::KLT_3D) {
             if (featureViews.empty()) {

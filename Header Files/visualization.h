@@ -31,6 +31,8 @@ public:
 
     void addPointCloud(const std::vector<TrackView>& trackViews);
 
+    void addPointCloud(const std::vector<cv::Vec3d>& points3D, const std::vector<cv::Vec3b>& pointsRGB);
+
     void addPoints(const std::vector<cv::Vec3d> points3D);
     
     void updateCameras(const std::vector<cv::Matx34f> camPoses);
@@ -69,6 +71,8 @@ public:
 
     void addPointCloud(const std::vector<TrackView>& trackViews);
 
+    void addPointCloud(const std::vector<cv::Vec3d>& points3D, const std::vector<cv::Vec3b>& pointsRGB);
+    
     void addPoints(const std::vector<cv::Vec3d> points3D);
 
     void updateCameras(const std::vector<cv::Matx34f> camPoses, const cv::Matx33d K33d);

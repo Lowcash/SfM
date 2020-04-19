@@ -54,6 +54,27 @@ void VisPCL::addPointCloud(const std::vector<TrackView>& trackViews) {
     // m_isUpdate = true;
 }
 
+void VisPCL::addPointCloud(const std::vector<cv::Vec3d>& points3D, const std::vector<cv::Vec3b>& pointsRGB) {
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr pointCloud(new pcl::PointCloud<pcl::PointXYZRGB>);
+
+    for (auto [p3d, p3dEnd, pClr, pClrEnd] = std::tuple{points3D.cbegin(), points3D.cend(), pointsRGB.cbegin(), pointsRGB.cend()}; p3d != p3dEnd && pClr != pClrEnd; ++p3d, ++pClr) {
+        pcl::PointXYZRGB rgbPoint;
+
+        rgbPoint.x = p3d->val[0];
+        rgbPoint.y = p3d->val[1];
+        rgbPoint.z = p3d->val[2];
+
+        rgbPoint.r = pClr->val[2];
+        rgbPoint.g = pClr->val[1];
+        rgbPoint.b = pClr->val[0];
+
+        pointCloud->push_back(rgbPoint);
+    }
+
+    m_viewer->removePointCloud();
+    m_viewer->addPointCloud(pointCloud);
+}
+
 void VisPCL::addPoints(const std::vector<cv::Vec3d> points3D) {
     for (const auto& p : points3D) {
         pcl::PointXYZ pclPose(p.val[0], p.val[1], p.val[2]);
@@ -137,6 +158,10 @@ void VisVTK::addPointCloud(const std::vector<TrackView>& trackViews) {
     }
 
     m_numClouds++;
+}
+
+void VisVTK::addPointCloud(const std::vector<cv::Vec3d>& points3D, const std::vector<cv::Vec3b>& pointsRGB) {
+
 }
 
 void VisVTK::addPoints(const std::vector<cv::Vec3d> points3D) {

@@ -50,12 +50,23 @@ public:
 };
 
 class Tracking {
+private:
+    std::vector<cv::Matx34f> m_camPoses;
 public:
     std::vector<TrackView> trackViews;
+
+    cv::Matx33d R; cv::Matx31d t;
+
+    Tracking()
+        : R(cv::Matx33d::eye()), t(cv::Matx31d::eye()) {}
 
     void addTrackView(ViewData* view, const std::vector<bool>& mask, const std::vector<cv::Point2f>& points2D, const std::vector<cv::Vec3d> points3D, const std::vector<cv::Vec3b>& pointsRGB, const std::vector<cv::KeyPoint>& keyPoints, const cv::Mat& descriptor, const std::vector<int>& featureIndexer = std::vector<int>());
 
     bool findRecoveredCameraPose(DescriptorMatcher matcher, int minMatches, Camera camParams, FeatureView& featView, RecoveryPose& recPose);
+
+    void addCamPose(const cv::Matx34f camPose) { m_camPoses.push_back(camPose); }
+
+    std::vector<cv::Matx34f> getCamPoses() const { return m_camPoses; }
 };
 
 #endif //TRACKING_H
