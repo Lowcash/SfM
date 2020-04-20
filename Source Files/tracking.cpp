@@ -97,7 +97,7 @@ void Tracking::addTrackView(ViewData* view, const std::vector<bool>& mask, const
 
     std::cout << "Recover pose inliers: " << _inliers.rows << "\n";
 
-    if (_inliers.rows < recPose.minInliers) { return false; }
+    //if (_inliers.rows < recPose.minInliers) { return false; }
 
     cv::Rodrigues(_R, recPose.R); recPose.t = _t;
 

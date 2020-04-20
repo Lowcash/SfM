@@ -66,7 +66,11 @@ public:
 
     void addCamPose(const cv::Matx34f camPose) { m_camPoses.push_back(camPose); }
 
-    std::vector<cv::Matx34f> getCamPoses() const { return m_camPoses; }
+    std::vector<cv::Matx34f>* getCamPoses() { return &m_camPoses; }
+
+    cv::Matx34f getLastCamPose() const { return m_camPoses.back(); }
+
+    bool isCamPosesEmpty() { return m_camPoses.empty(); }
 };
 
 #endif //TRACKING_H
