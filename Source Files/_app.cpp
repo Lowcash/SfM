@@ -335,7 +335,7 @@ void adjustBundle(std::vector<TrackView>& tracks, Camera& camera, std::vector<cv
 
     std::vector<cv::Matx16d> camPoses6d;
 
-    for (auto [c, cEnd, it] = std::tuple{camPoses.cbegin(), camPoses.cend(), 0}; c != cEnd && it < maxIter; ++c, ++it) {
+    for (auto [c, cEnd, it] = std::tuple{camPoses.crbegin(), camPoses.crend(), 0}; c != cEnd && it < maxIter; ++c, ++it) {
         cv::Matx34f cam = (cv::Matx34f)*c;
 
         if (cam(0, 0) == 0 && cam(1, 1) == 0 && cam(2, 2) == 0) { 
@@ -367,7 +367,7 @@ void adjustBundle(std::vector<TrackView>& tracks, Camera& camera, std::vector<cv
 
     double focalLength = camera.focalLength;
 
-    for (auto [t, tEnd, c, cEnd, it] = std::tuple{tracks.begin(), tracks.end(), camPoses6d.begin(), camPoses6d.end(), 0}; t != tEnd && c != cEnd && it < maxIter; ++t, ++c, ++it) {
+    for (auto [t, tEnd, c, cEnd, it] = std::tuple{tracks.rbegin(), tracks.rend(), camPoses6d.begin(), camPoses6d.end(), 0}; t != tEnd && c != cEnd && it < maxIter; ++t, ++c, ++it) {
         for (size_t i = 0; i < t->numTracks; ++i) {
             cv::Point2f p2d = t->points2D[i];
             p2d.x -= camera.K33d(0, 2);
@@ -417,7 +417,7 @@ void adjustBundle(std::vector<TrackView>& tracks, Camera& camera, std::vector<cv
 			<< std::endl;
 	}
     
-    for (auto [c, cEnd, c6, c6End, it] = std::tuple{camPoses.begin(), camPoses.end(), camPoses6d.begin(), camPoses6d.end(), 0}; c != cEnd && c6 != c6End && it < maxIter; ++c, ++c6, ++it) {
+    for (auto [c, cEnd, c6, c6End, it] = std::tuple{camPoses.rbegin(), camPoses.rend(), camPoses6d.begin(), camPoses6d.end(), 0}; c != cEnd && c6 != c6End && it < maxIter; ++c, ++c6, ++it) {
         cv::Matx34f& cam = (cv::Matx34f&)*c;
         cv::Matx16d& cam6 = (cv::Matx16d&)*c6;
 
@@ -461,9 +461,6 @@ bool findGoodImagePair(cv::VideoCapture& cap, ViewDataContainer& viewContainer, 
     int numSkippedFrames = -1, numHomInliers = 0;
     do {
         if (!loadImage(cap, _imColor, _imGray, imDownSampling)) { return false; } 
-        //cv::GaussianBlur(_imGray, _imGray, cv::Size(5, 5), 0);
-        //cv::medianBlur(_imGray, _imGray, 7);
-
         std::cout << "." << std::flush;
         
         if (viewContainer.isEmpty()) {
@@ -755,8 +752,8 @@ int main(int argc, char** argv) {
     //std::thread visVTKThread(&VisVTK::visualize, &visVTK);
 #pragma endregion INIT 
     std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
-    
-    for ( ; ; ) {
+
+    for (uint iteration = 1; ; ++iteration) {
         if (!viewContainer.isEmpty() && ofPrevView.corners.size() < optFlow.additionalSettings.minFeatures) {
             featDetector.generateFlowFeatures(ofPrevView.viewPtr->imGray, ofPrevView.corners, optFlow.additionalSettings.maxCorn, optFlow.additionalSettings.qualLvl, optFlow.additionalSettings.minDist);
         }
@@ -841,8 +838,13 @@ int main(int argc, char** argv) {
 
                     userInput.addPoints(_newPts);
 
-                    for (int i = 0; i < mouseUsrDataParams.m_clickedPoint.size(); ++i) { ofCurrView.corners.pop_back(); }
-
+                    for (int i = 0; i < mouseUsrDataParams.m_clickedPoint.size(); ++i) {
+                        ofCurrView.corners.pop_back(); 
+                        _points3D.pop_back();
+                        _pointsRGB.pop_back();
+                        _mask.pop_back();
+                    }
+                    
                     mouseUsrDataParams.m_clickedPoint.clear();
                     
                     visVTK.addPoints(_newPts);
@@ -853,8 +855,7 @@ int main(int argc, char** argv) {
 
                 visVTK.addPointCloud(_points3D, _pointsRGB);
 
-                visPCL.addPointCloud(_points3D, _pointsRGB);
-                
+                visPCL.addPointCloud(_points3D, _pointsRGB);  
             }
 
             if (usedMethod == Method::KLT_3D_PNP) {
@@ -879,6 +880,8 @@ int main(int argc, char** argv) {
 
                 descMatcher.recipAligMatches(featPrevView.keyPts, featCurrView.keyPts, featPrevView.descriptor, featCurrView.descriptor, _prevPts, _currPts, _matches, _prevIdx, _currIdx);
 
+                std::cout << "Matches count: " << _matches.size() << "\n";
+
                 if (_prevPts.empty() || _currPts.empty()) { 
                     std::cerr << "None points to triangulate, skip triangulation!\n";
 
@@ -902,7 +905,37 @@ int main(int argc, char** argv) {
                 composeExtrinsicMat(recPose.R, recPose.t, _currPose);
                 tracking.addCamPose(_currPose);
 
+                if (!mouseUsrDataParams.m_clickedPoint.empty() && isPtAdded) {
+                    _prevPts.insert(_prevPts.end(), ofPrevView.corners.end() - mouseUsrDataParams.m_clickedPoint.size(), ofPrevView.corners.end());
+                    _currPts.insert(_currPts.end(), ofCurrView.corners.end() - mouseUsrDataParams.m_clickedPoint.size(), ofCurrView.corners.end());
+
+                    for (int i = 0; i < mouseUsrDataParams.m_clickedPoint.size(); ++i) {
+                        ofPrevView.corners.pop_back(); 
+                        ofCurrView.corners.pop_back(); 
+                    }
+                }
+
                 triangulateCloud(_prevPts, _currPts, ofCurrView.viewPtr->imColor, _points3D, _pointsRGB, _mask, camera, _prevPose, _currPose, recPose, tMethod, tMinDist, tMaxDist, tMaxPErr);
+
+                if (!mouseUsrDataParams.m_clickedPoint.empty() && isPtAdded) {
+                    std::vector<cv::Vec3d> _newPts;
+                    _newPts.insert(_newPts.end(), _points3D.end() - mouseUsrDataParams.m_clickedPoint.size(), _points3D.end());
+
+                    userInput.addPoints(_newPts);
+
+                    for (int i = 0; i < mouseUsrDataParams.m_clickedPoint.size(); ++i) {
+                        _points3D.pop_back();
+                        _pointsRGB.pop_back();
+                        _mask.pop_back();
+                    }
+                    
+                    mouseUsrDataParams.m_clickedPoint.clear();
+                    
+                    visVTK.addPoints(_newPts);
+                    visPCL.addPoints(_newPts);
+                }
+
+                userInput.recoverPoints(imOutUsrInp, camera._K, cv::Mat(tracking.R), cv::Mat(tracking.t));
 
                 tracking.addTrackView(featCurrView.viewPtr, _mask, _currPts, _points3D, _pointsRGB, featCurrView.keyPts, featCurrView.descriptor, _currIdx);
 
@@ -925,7 +958,7 @@ int main(int argc, char** argv) {
         cv::imshow(trajWinName, imOutTraj);
         cv::imshow(usrInpWinName, imOutUsrInp);
 
-        std::cout << "Iteration count: " << tracking.trackViews.size() << "\n"; cv::waitKey(29);
+        std::cout << "Iteration: " << iteration << "\n"; cv::waitKey(0);
 
         std::swap(ofPrevView, ofCurrView);
         std::swap(featPrevView, featCurrView);

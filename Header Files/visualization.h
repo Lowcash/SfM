@@ -13,7 +13,7 @@ protected:
     }
 
     void cvPoseToInversePCLPose(cv::Matx34d cvPose, pcl::PointXYZ& pclPose) {
-        pclPose = pcl::PointXYZ(-cvPose(0, 3), -cvPose(1, 3), -cvPose(2, 3));
+        pclPose = pcl::PointXYZ(cvPose(0, 3), cvPose(1, 3), -cvPose(2, 3));
     }
 };
 
@@ -59,7 +59,9 @@ protected:
     void cvPoseToInverseVTKPose(cv::Matx34f cvPose, cv::Affine3d& vtkPose) {
         cv::Matx33f R; cv::Vec3f t; decomposeCvPose(cvPose, R, t);
 
-        vtkPose = cv::Affine3d(-R, -t);
+        cv::Vec3f _t = cv::Vec3f(-t[0], -t[1], -t[2]);
+
+        vtkPose = cv::Affine3d(-R, _t);
     }
 };
 

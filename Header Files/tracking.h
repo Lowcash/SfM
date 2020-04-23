@@ -64,7 +64,12 @@ public:
 
     bool findRecoveredCameraPose(DescriptorMatcher matcher, int minMatches, Camera camParams, FeatureView& featView, RecoveryPose& recPose);
 
-    void addCamPose(const cv::Matx34f camPose) { m_camPoses.push_back(camPose); }
+    void addCamPose(const cv::Matx34f camPose) { 
+        m_camPoses.push_back(camPose);
+
+        R = camPose.get_minor<3, 3>(0, 0);
+        t = cv::Matx31d(camPose(0,3), camPose(1,3), camPose(2,3));
+    }
 
     std::vector<cv::Matx34f>* getCamPoses() { return &m_camPoses; }
 
