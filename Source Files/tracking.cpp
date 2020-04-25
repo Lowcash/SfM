@@ -55,7 +55,28 @@ void Tracking::addTrackView(ViewData* view, const std::vector<bool>& mask, const
     trackViews.push_back(_trackView);
 }
 
- bool Tracking::findRecoveredCameraPose(DescriptorMatcher matcher, int minMatches, Camera camera, FeatureView& featView, RecoveryPose& recPose) {
+void Tracking::clusterTracks() {
+    if (trackViews.size() > 1) {
+        auto prevTracks = &(trackViews.rbegin()[1]);
+        auto currTracks = &(trackViews.rbegin()[0]);
+
+        std::vector<cv::Point2f> _prevPts, _currPts;
+        std::vector<int> _prevIdx, _currIdx;
+        std::vector<cv::DMatch> _matches;
+
+        m_matcher.findRobustMatches(prevTracks->keyPoints, currTracks->keyPoints, prevTracks->descriptor, currTracks->descriptor, _prevPts, _currPts, _matches, _prevIdx, _currIdx);
+
+        for (const auto& m : _matches) {
+            std::cout << prevTracks->points3D[m.queryIdx] << " " << currTracks->points3D[m.trainIdx] << "\n";
+
+            currTracks->points3D[m.trainIdx] = prevTracks->points3D[m.queryIdx];
+            
+            std::cout << prevTracks->points3D[m.queryIdx] << " " << currTracks->points3D[m.trainIdx] << "\n";
+        }
+    }
+}
+
+bool Tracking::findRecoveredCameraPose(DescriptorMatcher matcher, int minMatches, Camera camera, FeatureView& featView, RecoveryPose& recPose) {
     if (trackViews.empty()) { return true; }
         
     std::cout << "Recovering pose..." << std::flush;
@@ -70,7 +91,7 @@ void Tracking::addTrackView(ViewData* view, const std::vector<bool>& mask, const
         std::vector<cv::Point2f> _prevPts, _currPts;
         std::vector<cv::DMatch> _matches;
         std::vector<int> _prevIdx, _currIdx;
-        matcher.recipAligMatches(t->keyPoints, featView.keyPts, t->descriptor, featView.descriptor, _prevPts, _currPts, _matches, _prevIdx, _currIdx);
+        matcher.findRobustMatches(t->keyPoints, featView.keyPts, t->descriptor, featView.descriptor, _prevPts, _currPts, _matches, _prevIdx, _currIdx);
 
         std::cout << "Recover pose matches: " << _matches.size() << "\n";
 

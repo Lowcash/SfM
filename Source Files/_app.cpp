@@ -3,129 +3,10 @@
 #include "feature_processing.h"
 #include "visualization.h"
 #include "camera.h"
+#include "usr_input_manager.h"
+#include "common.h"
 
 #pragma region CLASSES
-
-class UserInput {
-private:
-    const float m_maxRange;
-
-    cv::Point2f m_medianMove;
-
-    void computePointsRangeMove(const std::vector<cv::Point2f> prevPts, const std::vector<cv::Point2f> currPts, std::map<std::pair<float, float>, float>& pointsDist, cv::Point2f& move) {
-        for (int i = 0; i < prevPts.size(); ++i) {
-            float dist = std::pow(
-                std::pow(currPts[i].x - prevPts[i].x, 2) + 
-                std::pow(currPts[i].y - prevPts[i].y, 2)
-            , 0.5);
-
-            if (dist < m_maxRange) {
-                pointsDist[std::pair{currPts[i].x, currPts[i].y}] = dist;
-                move += currPts[i] - prevPts[i];
-            }
-        }
-
-        if (!pointsDist.empty()) {
-            move.x /= pointsDist.size();
-            move.y /= pointsDist.size();
-        }
-    }
-public:
-    std::vector<cv::Vec3d> m_usrPts3D;
-    std::vector<cv::Point2f> m_usrPts2D;
-    
-    UserInput(const float maxRange)
-        : m_maxRange(maxRange) {}
-
-    void recoverPoints(cv::Mat R, cv::Mat t, Camera camera, cv::Mat& imOutUsr) {
-        if (!m_usrPts3D.empty()) {
-            std::vector<cv::Point2f> pts2D; cv::projectPoints(m_usrPts3D, R, t, camera._K, cv::Mat(), pts2D);
-
-            for (const auto p : pts2D) {
-                std::cout << "Point projected to: " << p << "\n";
-
-                cv::circle(imOutUsr, p, 3, CV_RGB(150, 200, 0), cv::FILLED, cv::LINE_AA);
-            }
-        }
-    }
-
-    void addPoints(const std::vector<cv::Vec3d> pts3D) {
-        m_usrPts3D.insert(m_usrPts3D.end(), pts3D.begin(), pts3D.end());
-    }
-
-    void addPoints(const std::vector<cv::Point2f> prevPts2D, const std::vector<cv::Point2f> currPts2D) {
-        std::map<std::pair<float, float>, float> pointsDist;
-
-        cv::Point2f move; computePointsRangeMove(prevPts2D, currPts2D, pointsDist, move);
-
-        for (auto [it, end, idx] = std::tuple{currPts2D.cbegin(), currPts2D.cend(), 0}; it != end; ++it, ++idx) {
-            cv::Point2f p = (cv::Point2f)*it;
-            
-            //if (pointsDist.find(std::pair{p.x, p.y}) != pointsDist.end())
-                m_usrPts2D.push_back(p);
-            /*else {
-                m_usrPts2D.push_back(prevPts[idx] + m_medianMove);
-            }*/
-        }
-    }
-
-    void updatePoints(const std::vector<cv::Point2f> currPts2D, const cv::Rect boundary, const uint offset) {
-        std::map<std::pair<float, float>, float> pointsDist;
-
-        cv::Point2f move; computePointsRangeMove(m_usrPts2D, currPts2D, pointsDist, move);
-
-        for (auto [it, end, idx] = std::tuple{currPts2D.cbegin(), currPts2D.cend(), 0}; it != end; ++it, ++idx) {
-            cv::Point2f p = (cv::Point2f)*it;
-            
-            //if (pointsDist.find(std::pair{p.x, p.y}) != pointsDist.end())
-                m_usrPts2D[idx] = currPts2D[idx];
-            /*else {
-                m_usrPts2D[idx] = m_usrPts2D[idx] + m_medianMove;
-            }*/
-        }
-
-        for (int i = 0, idxCorrection = 0; i < m_usrPts2D.size(); ++i) {
-            auto p = m_usrPts2D[i];
-
-            if (p.x < boundary.x + offset || p.y < boundary.y + offset || p.x > boundary.width - offset || p.y > boundary.height - offset) {
-                m_usrPts2D.erase(m_usrPts2D.begin() + (i - idxCorrection));
-
-                idxCorrection++;
-            } 
-        }
-    }
-    
-    void updateMedianMove(const std::vector<cv::Point2f> prevPts, const std::vector<cv::Point2f> currPts) {
-        std::map<std::pair<float, float>, float> pointsDist;
-
-        computePointsRangeMove(prevPts, currPts, pointsDist, m_medianMove);
-
-        std::cout << m_medianMove << "\n";
-    }
-
-    void recoverPoints(cv::Mat& imOutUsr) {
-        for (const auto& p : m_usrPts2D) {
-            //std::cout << "Point projected to: " << p << "\n";
-                
-            cv::circle(imOutUsr, p, 3, CV_RGB(150, 200, 0), cv::FILLED, cv::LINE_AA);
-        }
-    }
-
-    void recoverPoints(cv::Mat& imOutUsr, cv::Mat cameraK, cv::Mat R, cv::Mat t) {
-        if (!m_usrPts3D.empty()) {
-            cv::Mat recoveredPts;
-
-            cv::projectPoints(m_usrPts3D, R, t, cameraK, cv::Mat(), recoveredPts);
-
-            for (int i = 0; i < recoveredPts.rows; ++i) {
-                auto p = recoveredPts.at<cv::Point2d>(i);
-                //std::cout << "Point projected to: " << p << "\n";
-                    
-                cv::circle(imOutUsr, p, 3, CV_RGB(150, 200, 0), cv::FILLED, cv::LINE_AA);
-            }
-        } 
-    }
-};
 
 struct MouseUsrDataParams {
 public:
@@ -261,32 +142,6 @@ static void onUsrWinClick (int event, int x, int y, int flags, void* params) {
     cv::imshow(mouseParams->m_inputWinName, *mouseParams->m_inputMat);
 }
 
-void pointsToMat(std::vector<cv::Point2f>& points, cv::Mat& pointsMat) {
-    pointsMat = (cv::Mat_<double>(2,1) << 1, 1);;
-
-    for (const auto& p : points) {
-        cv::Mat _pointMat = (cv::Mat_<double>(2,1) << p.x, p.y);
-
-        cv::hconcat(pointsMat, _pointMat, pointsMat);
-    } 
-
-    pointsMat = pointsMat.colRange(1, pointsMat.cols);
-}
-
-void pointsToMat(cv::Mat& points, cv::Mat& pointsMat) {
-    pointsMat = (cv::Mat_<double>(2,1) << 1, 1);;
-
-    for (size_t i = 0; i < points.cols; ++i) {
-        cv::Point2f _point = points.at<cv::Point2f>(i);
-
-        cv::Mat _pointMat = (cv::Mat_<double>(2,1) << _point.x, _point.y);
-
-        cv::hconcat(pointsMat, _pointMat, pointsMat);
-    } 
-
-    pointsMat = pointsMat.colRange(1, pointsMat.cols);
-}
-
 bool findCameraPose(RecoveryPose& recPose, std::vector<cv::Point2f> prevPts, std::vector<cv::Point2f> currPts, cv::Mat cameraK, int minInliers, int& numInliers) {
     if (prevPts.size() <= 5 || currPts.size() <= 5) { return false; }
 
@@ -335,7 +190,7 @@ void adjustBundle(std::vector<TrackView>& tracks, Camera& camera, std::vector<cv
 
     std::vector<cv::Matx16d> camPoses6d;
 
-    for (auto [c, cEnd, it] = std::tuple{camPoses.crbegin(), camPoses.crend(), 0}; c != cEnd && it < maxIter; ++c, ++it) {
+    for (auto [c, cEnd, it] = std::tuple{camPoses.cbegin(), camPoses.cend(), 0}; c != cEnd && it < maxIter; ++c, ++it) {
         cv::Matx34f cam = (cv::Matx34f)*c;
 
         if (cam(0, 0) == 0 && cam(1, 1) == 0 && cam(2, 2) == 0) { 
@@ -367,7 +222,7 @@ void adjustBundle(std::vector<TrackView>& tracks, Camera& camera, std::vector<cv
 
     double focalLength = camera.focalLength;
 
-    for (auto [t, tEnd, c, cEnd, it] = std::tuple{tracks.rbegin(), tracks.rend(), camPoses6d.begin(), camPoses6d.end(), 0}; t != tEnd && c != cEnd && it < maxIter; ++t, ++c, ++it) {
+    for (auto [t, tEnd, c, cEnd, it] = std::tuple{tracks.begin(), tracks.end(), camPoses6d.begin(), camPoses6d.end(), 0}; t != tEnd && c != cEnd && it < maxIter; ++t, ++c, ++it) {
         for (size_t i = 0; i < t->numTracks; ++i) {
             cv::Point2f p2d = t->points2D[i];
             p2d.x -= camera.K33d(0, 2);
@@ -388,7 +243,7 @@ void adjustBundle(std::vector<TrackView>& tracks, Camera& camera, std::vector<cv
     options.minimizer_progress_to_stdout = true;
     options.eta = 1e-2;
     options.num_threads = std::thread::hardware_concurrency();
-    options.minimizer_type = ceres::MinimizerType::LINE_SEARCH;
+    //options.minimizer_type = ceres::MinimizerType::LINE_SEARCH;
 
     ceres::Solver::Summary summary;
 
@@ -417,7 +272,7 @@ void adjustBundle(std::vector<TrackView>& tracks, Camera& camera, std::vector<cv
 			<< std::endl;
 	}
     
-    for (auto [c, cEnd, c6, c6End, it] = std::tuple{camPoses.rbegin(), camPoses.rend(), camPoses6d.begin(), camPoses6d.end(), 0}; c != cEnd && c6 != c6End && it < maxIter; ++c, ++c6, ++it) {
+    for (auto [c, cEnd, c6, c6End, it] = std::tuple{camPoses.begin(), camPoses.end(), camPoses6d.begin(), camPoses6d.end(), 0}; c != cEnd && c6 != c6End && it < maxIter; ++c, ++c6, ++it) {
         cv::Matx34f& cam = (cv::Matx34f&)*c;
         cv::Matx16d& cam6 = (cv::Matx16d&)*c6;
 
@@ -505,14 +360,6 @@ bool findGoodImagePair(cv::VideoCapture cap, ViewDataContainer& viewContainer, f
     return true;
 }
 
-void composeExtrinsicMat(cv::Matx33d R, cv::Matx31d t, cv::Matx34d& pose) {
-    pose = cv::Matx34d(
-        R(0,0), R(0,1), R(0,2), t(0),
-        R(1,0), R(1,1), R(1,2), t(1),
-        R(2,0), R(2,1), R(2,2), t(2)
-    );
-}
-
 void drawTrajectory(cv::Mat& imOutTraj, cv::Matx31d t) {
     const int x = int(t(0) + (imOutTraj.cols / 2));
     const int y = int(t(2) + (imOutTraj.rows / 2));
@@ -521,18 +368,6 @@ void drawTrajectory(cv::Mat& imOutTraj, cv::Matx31d t) {
     cv::rectangle(imOutTraj, cv::Point(10, 30), cv::Point(550, 50), CV_RGB(0, 0, 0), CV_FILLED);
     char text[100]; sprintf(text, "Coordinates: x = %02fm y = %02fm z = %02fm", t(0), t(1), t(2));
     cv::putText(imOutTraj, text, cv::Point(10, 50), cv::FONT_HERSHEY_PLAIN, 1, cv::Scalar::all(255), 1, 8);
-}
-
-void applyBoundaryFilter(std::vector<cv::Point2f>& points, const cv::Rect boundary) {
-    for (int i = 0, idxCorrection = 0; i < points.size(); ++i) {
-        auto point = points[i];
-
-        if (!boundary.contains(point)) { 
-            points.erase(points.begin() + (i - idxCorrection)); 
-
-            idxCorrection++;
-        }
-    }
 }
 
 void triangulateCloud(const std::vector<cv::Point2f> prevPts, const std::vector<cv::Point2f> currPts, const cv::Mat colorImage, std::vector<cv::Vec3d>& points3D, std::vector<cv::Vec3b>& pointsRGB, std::vector<bool>& mask, Camera camera, const cv::Matx34d prevPose, const cv::Matx34d currPose, RecoveryPose& recPose, const std::string method, float minDistance, float maxDistance, float maxProjectionError) {
@@ -741,7 +576,7 @@ int main(int argc, char** argv) {
     FeatureView featPrevView, featCurrView;
     FlowView ofPrevView, ofCurrView; 
     
-    Tracking tracking;
+    Tracking tracking(descMatcher);
     UserInput userInput(ofMaxError);
 
     VisPCL visPCL(ptCloudWinName + " PCL", cv::Size(bWinWidth, bWinHeight));
@@ -878,7 +713,7 @@ int main(int argc, char** argv) {
                 std::vector<cv::DMatch> _matches;
                 std::vector<int> _prevIdx, _currIdx;
 
-                descMatcher.recipAligMatches(featPrevView.keyPts, featCurrView.keyPts, featPrevView.descriptor, featCurrView.descriptor, _prevPts, _currPts, _matches, _prevIdx, _currIdx);
+                descMatcher.findRobustMatches(featPrevView.keyPts, featCurrView.keyPts, featPrevView.descriptor, featCurrView.descriptor, _prevPts, _currPts, _matches, _prevIdx, _currIdx);
 
                 std::cout << "Matches count: " << _matches.size() << "\n";
 
@@ -941,6 +776,8 @@ int main(int argc, char** argv) {
 
                 adjustBundle(tracking.trackViews, camera, *tracking.getCamPoses(), baMethod, baLossFunc, baLossSc, baNumIter);
 
+                tracking.clusterTracks();
+
                 visVTK.addPointCloud(tracking.trackViews);
 
                 visPCL.addPointCloud(tracking.trackViews);
@@ -958,7 +795,7 @@ int main(int argc, char** argv) {
         cv::imshow(trajWinName, imOutTraj);
         cv::imshow(usrInpWinName, imOutUsrInp);
 
-        std::cout << "Iteration: " << iteration << "\n"; cv::waitKey(0);
+        std::cout << "Iteration: " << iteration << "\n"; cv::waitKey(29);
 
         std::swap(ofPrevView, ofCurrView);
         std::swap(featPrevView, featCurrView);

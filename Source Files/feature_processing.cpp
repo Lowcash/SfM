@@ -188,7 +188,7 @@ void DescriptorMatcher::ratioMaches(const cv::Mat lDesc, const cv::Mat rDesc, st
     }
 }
 
-void DescriptorMatcher::recipAligMatches(std::vector<cv::KeyPoint> prevKeyPts, std::vector<cv::KeyPoint> currKeyPts, cv::Mat prevDesc, cv::Mat currDesc, std::vector<cv::Point2f>& prevPts, std::vector<cv::Point2f>& currPts, std::vector<cv::DMatch>& matches, std::vector<int>& prevIdx, std::vector<int>& currIdx) {
+void DescriptorMatcher::findRobustMatches(std::vector<cv::KeyPoint> prevKeyPts, std::vector<cv::KeyPoint> currKeyPts, cv::Mat prevDesc, cv::Mat currDesc, std::vector<cv::Point2f>& prevPts, std::vector<cv::Point2f>& currPts, std::vector<cv::DMatch>& matches, std::vector<int>& prevIdx, std::vector<int>& currIdx) {
     std::vector<cv::DMatch> fMatches, bMatches;
 
     ratioMaches(prevDesc, currDesc, fMatches);
@@ -202,9 +202,6 @@ void DescriptorMatcher::recipAligMatches(std::vector<cv::KeyPoint> prevKeyPts, s
                 prevPts.push_back(prevKeyPts[fM.queryIdx].pt);
                 currPts.push_back(currKeyPts[fM.trainIdx].pt);
 
-                prevIdx.push_back(fM.queryIdx);
-                currIdx.push_back(fM.trainIdx);
-
                 matches.push_back(fM);
 
                 isFound = true;
@@ -215,6 +212,30 @@ void DescriptorMatcher::recipAligMatches(std::vector<cv::KeyPoint> prevKeyPts, s
 
         if (isFound) { continue; }
     }
+
+    if (prevPts.empty() || currPts.empty()) { return; }
+
+    std::vector<uint8_t> inliersMask(matches.size()); 
+    cv::findFundamentalMat(prevPts, currPts, inliersMask);
+    
+    std::vector<cv::DMatch> _epipolarMatch;
+    std::vector<cv::Point2f> _epipolarPrevPts, _epipolarCurrPts;
+
+    for (size_t m = 0; m < matches.size(); ++m) {
+        if (inliersMask[m]) {
+            _epipolarPrevPts.push_back(prevKeyPts[matches[m].queryIdx].pt);
+            _epipolarCurrPts.push_back(currKeyPts[matches[m].trainIdx].pt);
+
+            prevIdx.push_back(matches[m].queryIdx);
+            currIdx.push_back(matches[m].trainIdx);
+
+            _epipolarMatch.push_back(matches[m]);
+        }
+    }
+
+    std::swap(matches, _epipolarMatch);
+    std::swap(prevPts, _epipolarPrevPts);
+    std::swap(currPts, _epipolarCurrPts);
 }
 
 OptFlow::OptFlow(cv::TermCriteria termcrit, int winSize, int maxLevel, float maxError, uint maxCorners, float qualityLevel, float minCornersDistance, uint minFeatures, bool isUsingCUDA) {
