@@ -50,12 +50,17 @@ void Tracking::addTrackView(ViewData* view, const std::vector<bool>& mask, const
             _trackView.addTrack(points2D[idx], points3D[idx], pointsRGB[idx], _keypoint, _descriptor);
     }
 
-    _trackView.setView(view);
+    if (!_trackView.points3D.empty()) {
+        _trackView.setView(view);
 
-    trackViews.push_back(_trackView);
+        trackViews.push_back(_trackView);
+    }
 }
 
 void Tracking::clusterTracks() {
+    /*for (int i = 0; i < trackViews.size() - 1; ++i) {
+        auto prevTracks = &(trackViews[i]);
+        auto currTracks = &(trackViews[i + 1]);*/
     if (trackViews.size() > 1) {
         auto prevTracks = &(trackViews.rbegin()[1]);
         auto currTracks = &(trackViews.rbegin()[0]);
@@ -67,11 +72,11 @@ void Tracking::clusterTracks() {
         m_matcher.findRobustMatches(prevTracks->keyPoints, currTracks->keyPoints, prevTracks->descriptor, currTracks->descriptor, _prevPts, _currPts, _matches, _prevIdx, _currIdx);
 
         for (const auto& m : _matches) {
-            std::cout << prevTracks->points3D[m.queryIdx] << " " << currTracks->points3D[m.trainIdx] << "\n";
+            //std::cout << prevTracks->points3D[m.queryIdx] << " " << currTracks->points3D[m.trainIdx] << "\n";
 
-            currTracks->points3D[m.trainIdx] = prevTracks->points3D[m.queryIdx];
-            
-            std::cout << prevTracks->points3D[m.queryIdx] << " " << currTracks->points3D[m.trainIdx] << "\n";
+            //currTracks->points3D[m.trainIdx] = prevTracks->points3D[m.queryIdx];
+
+            //std::cout << prevTracks->points3D[m.queryIdx] << " " << currTracks->points3D[m.trainIdx] << "\n";
         }
     }
 }

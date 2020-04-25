@@ -90,19 +90,13 @@ struct SnavelyReprojectionError {
         // Compute the center of distortion. The sign change comes from
         // the camera model that Noah Snavely's Bundler assumes, whereby
         // the camera coordinate system has a negative z axis.
-        T xp = - p[0] / p[2];
-        T yp = - p[1] / p[2];
-
-        // Apply second and fourth order radial distortion.
-        const T& l1 = camera[7];
-        const T& l2 = camera[8];
-        T r2 = xp*xp + yp*yp;
-        T distortion = T(1.0) + r2  * (l1 + l2  * r2);
+        T xp = p[0] / p[2];
+        T yp = p[1] / p[2];
 
         // Compute final projected point position.
         const T& focal = camera[6];
-        T predicted_x = focal * distortion * xp;
-        T predicted_y = focal * distortion * yp;
+        T predicted_x = focal * xp;
+        T predicted_y = focal * yp;
 
         // The error is the difference between the predicted and observed position.
         residuals[0] = predicted_x - T(observed_x);
@@ -114,7 +108,7 @@ struct SnavelyReprojectionError {
     // the client code.
     static ceres::CostFunction* Create(const double observed_x,
                                         const double observed_y) {
-        return (new ceres::AutoDiffCostFunction<SnavelyReprojectionError, 2, 9, 3>(
+        return (new ceres::AutoDiffCostFunction<SnavelyReprojectionError, 2, 6, 3>(
                     new SnavelyReprojectionError(observed_x, observed_y)));
     }
 
@@ -190,7 +184,7 @@ void adjustBundle(std::vector<TrackView>& tracks, Camera& camera, std::vector<cv
 
     std::vector<cv::Matx16d> camPoses6d;
 
-    for (auto [c, cEnd, it] = std::tuple{camPoses.cbegin(), camPoses.cend(), 0}; c != cEnd && it < maxIter; ++c, ++it) {
+    for (auto [c, cEnd, it] = std::tuple{camPoses.crbegin(), camPoses.crend(), 0}; c != cEnd && it < maxIter; ++c, ++it) {
         cv::Matx34f cam = (cv::Matx34f)*c;
 
         if (cam(0, 0) == 0 && cam(1, 1) == 0 && cam(2, 2) == 0) { 
@@ -222,15 +216,19 @@ void adjustBundle(std::vector<TrackView>& tracks, Camera& camera, std::vector<cv
 
     double focalLength = camera.focalLength;
 
-    for (auto [t, tEnd, c, cEnd, it] = std::tuple{tracks.begin(), tracks.end(), camPoses6d.begin(), camPoses6d.end(), 0}; t != tEnd && c != cEnd && it < maxIter; ++t, ++c, ++it) {
+    for (auto [t, tEnd, c, cEnd, it] = std::tuple{tracks.rbegin(), tracks.rend(), camPoses6d.begin(), camPoses6d.end(), 0}; t != tEnd && c != cEnd && it < maxIter; ++t, ++c, ++it) {
         for (size_t i = 0; i < t->numTracks; ++i) {
             cv::Point2f p2d = t->points2D[i];
-            p2d.x -= camera.K33d(0, 2);
-            p2d.y -= camera.K33d(1, 2);
+            //p2d.x -= camera.K33d(0, 2);
+            //p2d.y -= camera.K33d(1, 2);
 
             ceres::CostFunction* costFunc = SimpleReprojectionError::Create(p2d.x, p2d.y);
 
-            problem.AddResidualBlock(costFunc, lossType != "NONE" ? lossFunction : NULL, c->val, t->points3D[i].val, &focalLength);
+            ceres::CostFunction* costFunc2 = SnavelyReprojectionError::Create(p2d.x, p2d.y);
+
+            //problem.AddResidualBlock(costFunc, lossType != "NONE" ? lossFunction : NULL, c->val, t->points3D[i].val, &focalLength);
+
+            problem.AddResidualBlock(costFunc2, NULL, c->val, t->points3D[i].val);
         }
     }
     
@@ -243,6 +241,7 @@ void adjustBundle(std::vector<TrackView>& tracks, Camera& camera, std::vector<cv
     options.minimizer_progress_to_stdout = true;
     options.eta = 1e-2;
     options.num_threads = std::thread::hardware_concurrency();
+    //options.linear_solver_type = ceres::ITERATIVE_SCHUR;
     //options.minimizer_type = ceres::MinimizerType::LINE_SEARCH;
 
     ceres::Solver::Summary summary;
@@ -254,7 +253,7 @@ void adjustBundle(std::vector<TrackView>& tracks, Camera& camera, std::vector<cv
     K.at<double>(0,0) = focalLength;
     K.at<double>(1,1) = focalLength;
 
-    camera.updateCameraParameters(K, camera.distCoeffs);
+    //camera.updateCameraParameters(K, camera.distCoeffs);
 
     std::cout << "Focal length: " << focalLength << "\n";
 
@@ -272,7 +271,7 @@ void adjustBundle(std::vector<TrackView>& tracks, Camera& camera, std::vector<cv
 			<< std::endl;
 	}
     
-    for (auto [c, cEnd, c6, c6End, it] = std::tuple{camPoses.begin(), camPoses.end(), camPoses6d.begin(), camPoses6d.end(), 0}; c != cEnd && c6 != c6End && it < maxIter; ++c, ++c6, ++it) {
+    for (auto [c, cEnd, c6, c6End, it] = std::tuple{camPoses.rbegin(), camPoses.rend(), camPoses6d.begin(), camPoses6d.end(), 0}; c != cEnd && c6 != c6End && it < maxIter; ++c, ++c6, ++it) {
         cv::Matx34f& cam = (cv::Matx34f&)*c;
         cv::Matx16d& cam6 = (cv::Matx16d&)*c6;
 
@@ -776,7 +775,8 @@ int main(int argc, char** argv) {
 
                 adjustBundle(tracking.trackViews, camera, *tracking.getCamPoses(), baMethod, baLossFunc, baLossSc, baNumIter);
 
-                tracking.clusterTracks();
+                //if (iteration % 6 == 0)
+                    //tracking.clusterTracks();
 
                 visVTK.addPointCloud(tracking.trackViews);
 
