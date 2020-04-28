@@ -13,7 +13,7 @@ protected:
     }
 
     void cvPoseToInversePCLPose(cv::Matx34d cvPose, pcl::PointXYZ& pclPose) {
-        pclPose = pcl::PointXYZ(cvPose(0, 3), cvPose(1, 3), -cvPose(2, 3));
+        pclPose = pcl::PointXYZ(-cvPose(0, 3), -cvPose(1, 3), -cvPose(2, 3));
     }
 };
 

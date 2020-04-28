@@ -3,104 +3,39 @@
 #include "feature_processing.h"
 #include "visualization.h"
 #include "camera.h"
-#include "usr_input_manager.h"
+#include "user_input_manager.h"
 #include "common.h"
 
-#pragma region CLASSES
-
-struct MouseUsrDataParams {
-public:
-    const std::string m_inputWinName;
-
-    cv::Mat* m_inputMat;
-
-    std::vector<cv::Point2f> m_clickedPoint;
-
-    MouseUsrDataParams(const std::string inputWinName, cv::Mat* inputMat)
-        : m_inputWinName(inputWinName) {
-        m_inputMat = inputMat;
-    }
-};
-
-#pragma endregion CLASSES
-
 #pragma region STRUCTS
-
-// Templated pinhole camera model for used with Ceres.  The camera is
-// parameterized using 7 parameters: 3 for rotation, 3 for translation, 1 for
-// focal length. The principal point is not modeled (assumed be located at the
-// image center, and already subtracted from 'observed'), and focal_x = focal_y.
-struct SimpleReprojectionError {
-    SimpleReprojectionError(double observed_x, double observed_y) :
-            observed_x(observed_x), observed_y(observed_y) {
-    }
-    template<typename T>
-    bool operator()(const T* const camera,
-    				const T* const point,
-					const T* const focal,
-						  T* residuals) const {
-        T p[3];
-        // Rotate: camera[0,1,2] are the angle-axis rotation.
-        ceres::AngleAxisRotatePoint(camera, point, p);
-
-        // Translate: camera[3,4,5] are the translation.
-        p[0] += camera[3];
-        p[1] += camera[4];
-        p[2] += camera[5];
-
-        // Perspective divide
-        const T xp = p[0] / p[2];
-        const T yp = p[1] / p[2];
-
-        // Compute final projected point position.
-        const T predicted_x = *focal * xp;
-        const T predicted_y = *focal * yp;
-
-        // The error is the difference between the predicted and observed position.
-        residuals[0] = predicted_x - T(observed_x);
-        residuals[1] = predicted_y - T(observed_y);
-        return true;
-    }
-    // Factory to hide the construction of the CostFunction object from
-    // the client code.
-    static ceres::CostFunction* Create(const double observed_x, const double observed_y) {
-        return (new ceres::AutoDiffCostFunction<SimpleReprojectionError, 2, 6, 3, 1>(
-                new SimpleReprojectionError(observed_x, observed_y)));
-    }
-    double observed_x;
-    double observed_y;
-};
-
 struct SnavelyReprojectionError {
     SnavelyReprojectionError(double observed_x, double observed_y)
         : observed_x(observed_x), observed_y(observed_y) {}
 
     template <typename T>
-    bool operator()(const T* const camera,
+    bool operator()(const T* const extrinsics,
                     const T* const point,
+                    const T* const focal,
                     T* residuals) const {
         // camera[0,1,2] are the angle-axis rotation.
-        T p[3];
-        ceres::AngleAxisRotatePoint(camera, point, p);
-        // camera[3,4,5] are the translation.
-        p[0] += camera[3]; 
-        p[1] += camera[4]; 
-        p[2] += camera[5];
+        T x[3];
+        ceres::AngleAxisRotatePoint(extrinsics, point, x);
+        x[0] += extrinsics[3];
+        x[1] += extrinsics[4];
+        x[2] += extrinsics[5];
 
         // Compute the center of distortion. The sign change comes from
         // the camera model that Noah Snavely's Bundler assumes, whereby
         // the camera coordinate system has a negative z axis.
-        T xp = p[0] / p[2];
-        T yp = p[1] / p[2];
+        T xn = x[0] / x[2];
+        T yn = x[1] / x[2];
 
         // Compute final projected point position.
-        const T& focal = camera[6];
-        T predicted_x = focal * xp;
-        T predicted_y = focal * yp;
+        T predicted_x = *focal * xn;
+        T predicted_y = *focal * yn;
 
         // The error is the difference between the predicted and observed position.
-        residuals[0] = predicted_x - T(observed_x);
-        residuals[1] = predicted_y - T(observed_y);
+        residuals[0] = predicted_x - observed_x;
+        residuals[1] = predicted_y - observed_y;
         return true;
     }
 
@@ -108,7 +43,7 @@ struct SnavelyReprojectionError {
     // the client code.
     static ceres::CostFunction* Create(const double observed_x,
                                         const double observed_y) {
-        return (new ceres::AutoDiffCostFunction<SnavelyReprojectionError, 2, 6, 3>(
+        return (new ceres::AutoDiffCostFunction<SnavelyReprojectionError, 2, 6, 3, 1>(
                     new SnavelyReprojectionError(observed_x, observed_y)));
     }
 
@@ -123,17 +58,17 @@ struct SnavelyReprojectionError {
 static void onUsrWinClick (int event, int x, int y, int flags, void* params) {
     if (event != cv::EVENT_LBUTTONDOWN) { return; }
 
-    MouseUsrDataParams* mouseParams = (MouseUsrDataParams*)params;
+    UserInputDataParams* inputDataParams = (UserInputDataParams*)params;
 
     const cv::Point clickedPoint(x, y);
 
-    mouseParams->m_clickedPoint.push_back(clickedPoint);
+    inputDataParams->userInput->m_usrClickedPts2D.push_back(clickedPoint);
 
     std::cout << "Clicked to: " << clickedPoint << "\n";
     
-    cv::circle(*mouseParams->m_inputMat, clickedPoint, 3, CV_RGB(200, 0, 0), cv::FILLED, cv::LINE_AA);
+    cv::circle(*inputDataParams->getImage(), clickedPoint, 3, CV_RGB(200, 0, 0), cv::FILLED, cv::LINE_AA);
 
-    cv::imshow(mouseParams->m_inputWinName, *mouseParams->m_inputMat);
+    cv::imshow(inputDataParams->getWinName(), *inputDataParams->getImage());
 }
 
 bool findCameraPose(RecoveryPose& recPose, std::vector<cv::Point2f> prevPts, std::vector<cv::Point2f> currPts, cv::Mat cameraK, int minInliers, int& numInliers) {
@@ -159,15 +94,15 @@ bool findCameraPose(RecoveryPose& recPose, std::vector<cv::Point2f> prevPts, std
 }
 
 void pointsToRGBCloud(cv::Mat imgColor, Camera camera, cv::Mat R, cv::Mat t, cv::Mat points3D, cv::Mat inputPts2D, std::vector<cv::Vec3d>& cloud3D, std::vector<cv::Vec3b>& cloudRGB, float minDist, float maxDist, float maxProjErr, std::vector<bool>& mask) {
-    cv::Mat _pts2D; cv::projectPoints(points3D, R, t, camera._K, cv::Mat(), _pts2D);
+    cv::Mat _pts2D; cv::projectPoints(points3D, R, t, camera.K, cv::Mat(), _pts2D);
 
     cloud3D.clear();
     cloudRGB.clear();
     
     for(size_t i = 0; i < points3D.rows; ++i) {
-        const cv::Vec3d point3D = points3D.at<cv::Vec3d>(i);
+        const cv::Vec3d point3D = points3D.at<cv::Vec3f>(i);
         const cv::Vec2d point2D = inputPts2D.at<cv::Vec2d>(i);
-        const cv::Vec2d _point2D = _pts2D.at<cv::Vec2d>(i);
+        const cv::Vec2d _point2D = _pts2D.at<cv::Vec2f>(i);
         const cv::Vec3b imPoint2D = imgColor.at<cv::Vec3b>(cv::Point(point2D));
 
         const double err = cv::norm(_point2D - point2D);
@@ -183,8 +118,8 @@ void adjustBundle(std::vector<TrackView>& tracks, Camera& camera, std::vector<cv
     std::cout << "Bundle adjustment...\n" << std::flush;
 
     std::vector<cv::Matx16d> camPoses6d;
-
-    for (auto [c, cEnd, it] = std::tuple{camPoses.crbegin(), camPoses.crend(), 0}; c != cEnd && it < maxIter; ++c, ++it) {
+    
+    for (auto [c, cEnd, it] = std::tuple{camPoses.cbegin(), camPoses.cend(), 0}; c != cEnd && it < maxIter; ++c, ++it) {
         cv::Matx34f cam = (cv::Matx34f)*c;
 
         if (cam(0, 0) == 0 && cam(1, 1) == 0 && cam(2, 2) == 0) { 
@@ -216,22 +151,25 @@ void adjustBundle(std::vector<TrackView>& tracks, Camera& camera, std::vector<cv
 
     double focalLength = camera.focalLength;
 
-    for (auto [t, tEnd, c, cEnd, it] = std::tuple{tracks.rbegin(), tracks.rend(), camPoses6d.begin(), camPoses6d.end(), 0}; t != tEnd && c != cEnd && it < maxIter; ++t, ++c, ++it) {
+    bool isCameraLocked = false;
+    for (auto [t, tEnd, c, cEnd, it] = std::tuple{tracks.begin(), tracks.end(), camPoses6d.begin(), camPoses6d.end(), 0}; t != tEnd && c != cEnd && it < maxIter; ++t, ++c, ++it) {
         for (size_t i = 0; i < t->numTracks; ++i) {
             cv::Point2f p2d = t->points2D[i];
-            //p2d.x -= camera.K33d(0, 2);
-            //p2d.y -= camera.K33d(1, 2);
+            p2d.x -= camera.K33d(0, 2);
+            p2d.y -= camera.K33d(1, 2);
+            
+            ceres::CostFunction* costFunc = SnavelyReprojectionError::Create(p2d.x, p2d.y);
 
-            ceres::CostFunction* costFunc = SimpleReprojectionError::Create(p2d.x, p2d.y);
+            problem.AddResidualBlock(costFunc, NULL, c->val, t->points3D[i].val, &focalLength);
 
-            ceres::CostFunction* costFunc2 = SnavelyReprojectionError::Create(p2d.x, p2d.y);
+            if (!isCameraLocked) {
+                //problem.SetParameterBlockConstant(&camPoses6d[0](0));
 
-            //problem.AddResidualBlock(costFunc, lossType != "NONE" ? lossFunction : NULL, c->val, t->points3D[i].val, &focalLength);
-
-            problem.AddResidualBlock(costFunc2, NULL, c->val, t->points3D[i].val);
+                isCameraLocked = true;
+            }
         }
     }
-    
+
     ceres::Solver::Options options;
     if (solverType == "DENSE_SCHUR")
         options.linear_solver_type = ceres::LinearSolverType::DENSE_SCHUR;
@@ -241,23 +179,27 @@ void adjustBundle(std::vector<TrackView>& tracks, Camera& camera, std::vector<cv
     options.minimizer_progress_to_stdout = true;
     options.eta = 1e-2;
     options.num_threads = std::thread::hardware_concurrency();
-    //options.linear_solver_type = ceres::ITERATIVE_SCHUR;
-    //options.minimizer_type = ceres::MinimizerType::LINE_SEARCH;
+    options.max_num_iterations = 100;
+
+    /*options.use_nonmonotonic_steps = true;
+    options.preconditioner_type = ceres::SCHUR_JACOBI;
+    options.linear_solver_type = ceres::ITERATIVE_SCHUR;
+    options.use_inner_iterations = true;
+    options.max_num_iterations = 100;
+    options.minimizer_progress_to_stdout = true;*/
 
     ceres::Solver::Summary summary;
-
     ceres::Solve(options, &problem, &summary);
+    std::cout << summary.FullReport() << std::endl;
 
-    cv::Mat K; camera._K.copyTo(K);
+    cv::Mat K; camera.K.copyTo(K);
 
     K.at<double>(0,0) = focalLength;
     K.at<double>(1,1) = focalLength;
 
-    //camera.updateCameraParameters(K, camera.distCoeffs);
+    camera.updateCameraParameters(K, camera.distCoeffs);
 
-    std::cout << "Focal length: " << focalLength << "\n";
-
-    if (!summary.IsSolutionUsable()) {
+    /*if (!summary.IsSolutionUsable()) {
 		std::cout << "Bundle Adjustment failed." << std::endl;
 	} else {
 		// Display statistics about the minimization
@@ -269,9 +211,9 @@ void adjustBundle(std::vector<TrackView>& tracks, Camera& camera, std::vector<cv
 			<< " Final RMSE: " << std::sqrt(summary.final_cost / summary.num_residuals) << "\n"
 			<< " Time (s): " << summary.total_time_in_seconds << "\n"
 			<< std::endl;
-	}
-    
-    for (auto [c, cEnd, c6, c6End, it] = std::tuple{camPoses.rbegin(), camPoses.rend(), camPoses6d.begin(), camPoses6d.end(), 0}; c != cEnd && c6 != c6End && it < maxIter; ++c, ++c6, ++it) {
+	}*/
+
+    for (auto [c, cEnd, c6, c6End, it] = std::tuple{camPoses.begin(), camPoses.end(), camPoses6d.begin(), camPoses6d.end(), 0}; c != cEnd && c6 != c6End && it < maxIter; ++c, ++c6, ++it) {
         cv::Matx34f& cam = (cv::Matx34f&)*c;
         cv::Matx16d& cam6 = (cv::Matx16d&)*c6;
 
@@ -331,7 +273,7 @@ bool findGoodImagePair(cv::VideoCapture& cap, ViewDataContainer& viewContainer, 
         optFlow.computeFlow(viewContainer.getLastOneItem()->imGray, _imGray, _prevCorners, _currCorners, optFlow.statusMask, true, true);
 
         numSkippedFrames++;
-    } while(!findCameraPose(recPose, _prevCorners, _currCorners, camera._K, recPose.minInliers, numHomInliers));
+    } while(!findCameraPose(recPose, _prevCorners, _currCorners, camera.K, recPose.minInliers, numHomInliers));
 
     viewContainer.addItem(ViewData(_imColor, _imGray));
 
@@ -387,7 +329,7 @@ void triangulateCloud(const std::vector<cv::Point2f> prevPts, const std::vector<
 
         cv::sfm::triangulatePoints(_pts, _projMats, _pts3D); _pts3D = _pts3D.t();
     } else {
-        cv::triangulatePoints(camera.K33d * prevPose, camera.K33d * currPose, _prevPtsMat, _currPtsMat, _homogPts);
+        cv::triangulatePoints(camera.K33d * prevPose, camera.K33d * currPose, prevPts, currPts, _homogPts);
         cv::convertPointsFromHomogeneous(_homogPts.t(), _pts3D);
     }
 
@@ -516,7 +458,6 @@ int main(int argc, char** argv) {
             std::cout << "\nCannot use nVidia CUDA -> no devices" << "\n"; 
     }
 #pragma endif
-
     const cv::FileStorage fs(bcalib, cv::FileStorage::READ);
     cv::Mat cameraK; fs["camera_matrix"] >> cameraK;
 
@@ -566,7 +507,8 @@ int main(int argc, char** argv) {
     cv::resizeWindow(trajWinName, cv::Size(bWinWidth, bWinHeight));
     cv::resizeWindow(matchesWinName, cv::Size(bWinWidth, bWinHeight));
 
-    MouseUsrDataParams mouseUsrDataParams(usrInpWinName, &imOutUsrInp);
+    UserInput userInput(ofMaxError);
+    UserInputDataParams mouseUsrDataParams(usrInpWinName, &imOutUsrInp, &userInput);
 
     cv::setMouseCallback(usrInpWinName, onUsrWinClick, (void*)&mouseUsrDataParams);
 
@@ -575,8 +517,7 @@ int main(int argc, char** argv) {
     FeatureView featPrevView, featCurrView;
     FlowView ofPrevView, ofCurrView; 
     
-    Tracking tracking(descMatcher);
-    UserInput userInput(ofMaxError);
+    Tracking tracking;
 
     VisPCL visPCL(ptCloudWinName + " PCL", cv::Size(bWinWidth, bWinHeight));
     //boost::thread visPCLthread(boost::bind(&VisPCL::visualize, &visPCL));
@@ -593,15 +534,15 @@ int main(int argc, char** argv) {
         }
 
         bool isPtAdded = false;
-        if (!mouseUsrDataParams.m_clickedPoint.empty()) {
-            ofPrevView.corners.insert(ofPrevView.corners.end(), mouseUsrDataParams.m_clickedPoint.begin(), mouseUsrDataParams.m_clickedPoint.end());
+        if (!userInput.m_usrClickedPts2D.empty()) {
+            userInput.attachPointsToMove(userInput.m_usrClickedPts2D, ofPrevView.corners);
 
             isPtAdded = true;
         }
 
         if (usedMethod == Method::KLT_2D) {
-            if (!userInput.m_usrPts2D.empty()) {
-                ofPrevView.corners.insert(ofPrevView.corners.end(), userInput.m_usrPts2D.begin(), userInput.m_usrPts2D.end());
+            if (userInput.m_usrPts2D.empty()) {
+                userInput.attachPointsToMove(userInput.m_usrPts2D, ofPrevView.corners);
             }
 
             if (!findGoodImagePair(cap, viewContainer, bDownSamp)) { break; }
@@ -621,23 +562,19 @@ int main(int argc, char** argv) {
             optFlow.drawOpticalFlow(imOutRecPose, imOutRecPose, ofPrevView.corners, ofCurrView.corners, optFlow.statusMask);
 
             if (!userInput.m_usrPts2D.empty()) {
-                std::vector<cv::Point2f> _newPts;
-                _newPts.insert(_newPts.end(), ofCurrView.corners.end() - userInput.m_usrPts2D.size(), ofCurrView.corners.end());
+                std::vector<cv::Point2f> _newPts2D;
+                userInput.detachPointsFromMove(ofPrevView.corners, _newPts2D, userInput.m_usrPts2D.size());
 
-                for (int i = 0; i < userInput.m_usrPts2D.size(); ++i) { ofCurrView.corners.pop_back(); }
-
-                userInput.updatePoints(_newPts, cv::Rect(cv::Point(), ofCurrView.viewPtr->imColor.size()), 10);
+                userInput.updatePoints(_newPts2D, cv::Rect(cv::Point(), ofCurrView.viewPtr->imColor.size()), 10);
             }
 
-            if (!mouseUsrDataParams.m_clickedPoint.empty() && isPtAdded) {
-                std::vector<cv::Point2f> _newPts;
-                _newPts.insert(_newPts.end(), ofCurrView.corners.end() - mouseUsrDataParams.m_clickedPoint.size(), ofCurrView.corners.end());
+            if (!userInput.m_usrClickedPts2D.empty() && isPtAdded) {
+                std::vector<cv::Point2f> _newPts2D;
+                userInput.detachPointsFromMove(ofCurrView.corners, _newPts2D, userInput.m_usrClickedPts2D.size());
 
-                userInput.addPoints(mouseUsrDataParams.m_clickedPoint, _newPts);
+                userInput.addPoints(userInput.m_usrClickedPts2D, _newPts2D);
 
-                for (int i = 0; i < mouseUsrDataParams.m_clickedPoint.size(); ++i) { ofCurrView.corners.pop_back(); }
-
-                mouseUsrDataParams.m_clickedPoint.clear();
+                userInput.m_usrClickedPts2D.clear();
             }
 
             userInput.recoverPoints(imOutUsrInp);
@@ -666,30 +603,22 @@ int main(int argc, char** argv) {
 
                 triangulateCloud(ofPrevView.corners, ofCurrView.corners, ofCurrView.viewPtr->imColor, _points3D, _pointsRGB, _mask, camera, _prevPose, _currPose, recPose, tMethod, tMinDist, tMaxDist, tMaxPErr);
 
-                if (!mouseUsrDataParams.m_clickedPoint.empty() && isPtAdded) {
-                    std::vector<cv::Vec3d> _newPts;
-                    _newPts.insert(_newPts.end(), _points3D.end() - mouseUsrDataParams.m_clickedPoint.size(), _points3D.end());
-
-                    userInput.addPoints(_newPts);
-
-                    for (int i = 0; i < mouseUsrDataParams.m_clickedPoint.size(); ++i) {
-                        ofCurrView.corners.pop_back(); 
-                        _points3D.pop_back();
-                        _pointsRGB.pop_back();
-                        _mask.pop_back();
-                    }
+                if (!userInput.m_usrClickedPts2D.empty() && isPtAdded) {
+                    std::vector<cv::Point2f> _newPts2D;
+                    std::vector<cv::Vec3d> _newPts3D;
                     
-                    mouseUsrDataParams.m_clickedPoint.clear();
+                    userInput.detachPointsFromMove(_newPts2D, ofCurrView.corners, userInput.m_usrClickedPts2D.size());
+                    userInput.detachPointsFromReconstruction(_newPts3D, _points3D, _pointsRGB, _mask, userInput.m_usrClickedPts2D.size());
+
+                    userInput.addPoints(_newPts3D);
                     
-                    visVTK.addPoints(_newPts);
-                    visPCL.addPoints(_newPts);
+                    userInput.m_usrClickedPts2D.clear();
+                    
+                    visVTK.addPoints(_newPts3D);
+                    visPCL.addPoints(_newPts3D);
                 }
 
-                userInput.recoverPoints(imOutUsrInp, camera._K, cv::Mat(tracking.R), cv::Mat(tracking.t));
-
-                visVTK.addPointCloud(_points3D, _pointsRGB);
-
-                visPCL.addPointCloud(_points3D, _pointsRGB);  
+                userInput.recoverPoints(imOutUsrInp, camera.K, cv::Mat(tracking.R), cv::Mat(tracking.t));
             }
 
             if (usedMethod == Method::KLT_3D_PNP) {
@@ -739,51 +668,37 @@ int main(int argc, char** argv) {
                 composeExtrinsicMat(recPose.R, recPose.t, _currPose);
                 tracking.addCamPose(_currPose);
 
-                if (!mouseUsrDataParams.m_clickedPoint.empty() && isPtAdded) {
-                    _prevPts.insert(_prevPts.end(), ofPrevView.corners.end() - mouseUsrDataParams.m_clickedPoint.size(), ofPrevView.corners.end());
-                    _currPts.insert(_currPts.end(), ofCurrView.corners.end() - mouseUsrDataParams.m_clickedPoint.size(), ofCurrView.corners.end());
-
-                    for (int i = 0; i < mouseUsrDataParams.m_clickedPoint.size(); ++i) {
-                        ofPrevView.corners.pop_back(); 
-                        ofCurrView.corners.pop_back(); 
-                    }
+                if (!userInput.m_usrClickedPts2D.empty() && isPtAdded) {
+                    userInput.detachPointsFromMove(_prevPts, ofPrevView.corners, userInput.m_usrClickedPts2D.size());
+                    userInput.detachPointsFromMove(_currPts, ofCurrView.corners, userInput.m_usrClickedPts2D.size());
                 }
 
                 triangulateCloud(_prevPts, _currPts, ofCurrView.viewPtr->imColor, _points3D, _pointsRGB, _mask, camera, _prevPose, _currPose, recPose, tMethod, tMinDist, tMaxDist, tMaxPErr);
 
-                if (!mouseUsrDataParams.m_clickedPoint.empty() && isPtAdded) {
-                    std::vector<cv::Vec3d> _newPts;
-                    _newPts.insert(_newPts.end(), _points3D.end() - mouseUsrDataParams.m_clickedPoint.size(), _points3D.end());
+                if (!userInput.m_usrClickedPts2D.empty() && isPtAdded) {
+                    std::vector<cv::Vec3d> _newPts3D;
+                    userInput.detachPointsFromReconstruction(_newPts3D, _points3D, _pointsRGB, _mask, userInput.m_usrClickedPts2D.size());
 
-                    userInput.addPoints(_newPts);
-
-                    for (int i = 0; i < mouseUsrDataParams.m_clickedPoint.size(); ++i) {
-                        _points3D.pop_back();
-                        _pointsRGB.pop_back();
-                        _mask.pop_back();
-                    }
+                    userInput.addPoints(_newPts3D);
                     
-                    mouseUsrDataParams.m_clickedPoint.clear();
+                    userInput.m_usrClickedPts2D.clear();
                     
-                    visVTK.addPoints(_newPts);
-                    visPCL.addPoints(_newPts);
+                    visVTK.addPoints(_newPts3D);
+                    visPCL.addPoints(_newPts3D);
                 }
 
-                userInput.recoverPoints(imOutUsrInp, camera._K, cv::Mat(tracking.R), cv::Mat(tracking.t));
+                userInput.recoverPoints(imOutUsrInp, camera.K, cv::Mat(tracking.R), cv::Mat(tracking.t));
 
                 tracking.addTrackView(featCurrView.viewPtr, _mask, _currPts, _points3D, _pointsRGB, featCurrView.keyPts, featCurrView.descriptor, _currIdx);
 
                 adjustBundle(tracking.trackViews, camera, *tracking.getCamPoses(), baMethod, baLossFunc, baLossSc, baNumIter);
-
-                //if (iteration % 6 == 0)
-                    //tracking.clusterTracks();
 
                 visVTK.addPointCloud(tracking.trackViews);
 
                 visPCL.addPointCloud(tracking.trackViews);
             }
 
-            visVTK.updateCameras(*tracking.getCamPoses(), camera._K);
+            visVTK.updateCameras(*tracking.getCamPoses(), camera.K);
             visVTK.visualize();
 
             visPCL.updateCameras(*tracking.getCamPoses());

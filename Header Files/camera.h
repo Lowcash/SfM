@@ -6,7 +6,7 @@
 
 class Camera {
 public:
-    cv::Mat _K, distCoeffs;
+    cv::Mat K, distCoeffs;
 
     cv::Matx33d K33d;
 
@@ -19,22 +19,22 @@ public:
     }
 
     void updateCameraParameters(const cv::Mat K, const cv::Mat distCoeffs, const double downSample = 1.0f) {
-        _K = K * downSample;
+        this->K = K * downSample;
 
-        _K.at<double>(2,2) = 1.0;
+        this->K.at<double>(2,2) = 1.0;
     
-        std::cout << "\nCamera intrices: " << _K << "\n";
+        std::cout << "\nCamera intrices: " << this->K << "\n";
 
         this->distCoeffs = distCoeffs;
 
         K33d = cv::Matx33d(
-            _K.at<double>(0,0), _K.at<double>(0,1), _K.at<double>(0,2),
-            _K.at<double>(1,0), _K.at<double>(1,1), _K.at<double>(1,2), 
-            _K.at<double>(2,0), _K.at<double>(2,1), _K.at<double>(2,2)
+            K.at<double>(0,0), K.at<double>(0,1), K.at<double>(0,2),
+            K.at<double>(1,0), K.at<double>(1,1), K.at<double>(1,2), 
+            K.at<double>(2,0), K.at<double>(2,1), K.at<double>(2,2)
         );
 
-        pp = cv::Point2d(_K.at<double>(0, 2), _K.at<double>(1, 2));
-        focalLength = ((_K.at<double>(0, 0) + _K.at<double>(1, 1)) / 2.0);
+        pp = cv::Point2d(K.at<double>(0, 2), K.at<double>(1, 2));
+        focalLength = ((K.at<double>(0, 0) + K.at<double>(1, 1)) / 2.0);
     }
 };
 

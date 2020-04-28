@@ -57,30 +57,6 @@ void Tracking::addTrackView(ViewData* view, const std::vector<bool>& mask, const
     }
 }
 
-void Tracking::clusterTracks() {
-    /*for (int i = 0; i < trackViews.size() - 1; ++i) {
-        auto prevTracks = &(trackViews[i]);
-        auto currTracks = &(trackViews[i + 1]);*/
-    if (trackViews.size() > 1) {
-        auto prevTracks = &(trackViews.rbegin()[1]);
-        auto currTracks = &(trackViews.rbegin()[0]);
-
-        std::vector<cv::Point2f> _prevPts, _currPts;
-        std::vector<int> _prevIdx, _currIdx;
-        std::vector<cv::DMatch> _matches;
-
-        m_matcher.findRobustMatches(prevTracks->keyPoints, currTracks->keyPoints, prevTracks->descriptor, currTracks->descriptor, _prevPts, _currPts, _matches, _prevIdx, _currIdx);
-
-        for (const auto& m : _matches) {
-            //std::cout << prevTracks->points3D[m.queryIdx] << " " << currTracks->points3D[m.trainIdx] << "\n";
-
-            //currTracks->points3D[m.trainIdx] = prevTracks->points3D[m.queryIdx];
-
-            //std::cout << prevTracks->points3D[m.queryIdx] << " " << currTracks->points3D[m.trainIdx] << "\n";
-        }
-    }
-}
-
 bool Tracking::findRecoveredCameraPose(DescriptorMatcher matcher, int minMatches, Camera camera, FeatureView& featView, RecoveryPose& recPose) {
     if (trackViews.empty()) { return true; }
         
@@ -116,10 +92,10 @@ bool Tracking::findRecoveredCameraPose(DescriptorMatcher matcher, int minMatches
         cv::imshow("Matches", _imOutMatch); cv::waitKey(1);
     }
 
-    if (_posePoints2D.size() < 4 || _posePoints3D.size() < 4) { return false; }
+    if (_posePoints2D.size() < 7 || _posePoints3D.size() < 7) { return false; }
 
-    if (!cv::solvePnPRansac(_posePoints3D, _posePoints2D, camera._K, cv::Mat(), _R, _t, recPose.useExtrinsicGuess, recPose.numIter, recPose.threshold, recPose.prob, _inliers, recPose.poseEstMethod)) { return false; }
-    //if (!cv::solvePnP(_posePoints3D, _posePoints2D, camera._K, cv::Mat(), _R, _t, false, cv::SolvePnPMethod::SOLVEPNP_EPNP)) { return false; }
+    if (!cv::solvePnPRansac(_posePoints3D, _posePoints2D, camera.K, cv::Mat(), _R, _t, recPose.useExtrinsicGuess, recPose.numIter, recPose.threshold, recPose.prob, _inliers, recPose.poseEstMethod)) { return false; }
+    //if (!cv::solvePnP(_posePoints3D, _posePoints2D, camera._K, cv::Mat(), _R, _t, recPose.useExtrinsicGuess, recPose.poseEstMethod)) { return false; }
 
     std::cout << "Recover pose inliers: " << _inliers.rows << "\n";
 

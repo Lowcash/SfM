@@ -188,13 +188,13 @@ void VisVTK::updateCameras(const std::vector<cv::Matx34f> camPoses, const cv::Ma
         cv::Affine3d vtkPose; cvPoseToInverseVTKPose(c, vtkPose);
 
         if (idx != m_numCams) {
-            const cv::viz::WCameraPosition _cam(K33d, -1, cv::viz::Color::orange());
+            const cv::viz::WCameraPosition _cam(K33d, 1, cv::viz::Color::orange());
 
             //m_viewer.removeWidget("cam_" + std::to_string(idx));
 
             m_viewer.showWidget("cam_" + std::to_string(idx), _cam, vtkPose);
         } else {
-            const cv::viz::WCameraPosition _cam(K33d, -5, cv::viz::Color::red());
+            const cv::viz::WCameraPosition _cam(K33d, 5, cv::viz::Color::red());
 
             m_viewer.showWidget("cam_" + std::to_string(idx), _cam, vtkPose);
         }
