@@ -62,7 +62,7 @@ void Reconstruction::triangulateCloud(const std::vector<cv::Point2f> prevPts, co
 void Reconstruction::adjustBundle(std::vector<TrackView>& tracks, Camera& camera, std::vector<cv::Matx34f>& camPoses, std::string solverType, std::string lossType, double lossFunctionScale, uint maxIter) {
     std::cout << "Bundle adjustment...\n" << std::flush;
 
-    std::vector<cv::Matx16d> camPoses6d;
+    /*std::vector<cv::Matx16d> camPoses6d;
     
     for (auto [c, cEnd, it] = std::tuple{camPoses.cbegin(), camPoses.cend(), 0}; c != cEnd && it < maxIter; ++c, ++it) {
         cv::Matx34f cam = (cv::Matx34f)*c;
@@ -126,12 +126,12 @@ void Reconstruction::adjustBundle(std::vector<TrackView>& tracks, Camera& camera
     options.num_threads = std::thread::hardware_concurrency();
     options.max_num_iterations = 100;
 
-    /*options.use_nonmonotonic_steps = true;
-    options.preconditioner_type = ceres::SCHUR_JACOBI;
-    options.linear_solver_type = ceres::ITERATIVE_SCHUR;
-    options.use_inner_iterations = true;
-    options.max_num_iterations = 100;
-    options.minimizer_progress_to_stdout = true;*/
+    // options.use_nonmonotonic_steps = true;
+    // options.preconditioner_type = ceres::SCHUR_JACOBI;
+    // options.linear_solver_type = ceres::ITERATIVE_SCHUR;
+    // options.use_inner_iterations = true;
+    // options.max_num_iterations = 100;
+    // options.minimizer_progress_to_stdout = true;
 
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
@@ -144,19 +144,19 @@ void Reconstruction::adjustBundle(std::vector<TrackView>& tracks, Camera& camera
 
     camera.updateCameraParameters(K, camera.distCoeffs);
 
-    /*if (!summary.IsSolutionUsable()) {
-        std::cout << "Bundle Adjustment failed." << std::endl;
-    } else {
-        // Display statistics about the minimization
-        std::cout << std::endl
-            << "Bundle Adjustment statistics (approximated RMSE):\n"
-            << " #views: " << camPoses.size() << "\n"
-            << " #num_residuals: " << summary.num_residuals << "\n"
-            << " Initial RMSE: " << std::sqrt(summary.initial_cost / summary.num_residuals) << "\n"
-            << " Final RMSE: " << std::sqrt(summary.final_cost / summary.num_residuals) << "\n"
-            << " Time (s): " << summary.total_time_in_seconds << "\n"
-            << std::endl;
-    }*/
+    // if (!summary.IsSolutionUsable()) {
+    //     std::cout << "Bundle Adjustment failed." << std::endl;
+    // } else {
+    //     // Display statistics about the minimization
+    //     std::cout << std::endl
+    //         << "Bundle Adjustment statistics (approximated RMSE):\n"
+    //         << " #views: " << camPoses.size() << "\n"
+    //         << " #num_residuals: " << summary.num_residuals << "\n"
+    //         << " Initial RMSE: " << std::sqrt(summary.initial_cost / summary.num_residuals) << "\n"
+    //         << " Final RMSE: " << std::sqrt(summary.final_cost / summary.num_residuals) << "\n"
+    //         << " Time (s): " << summary.total_time_in_seconds << "\n"
+    //         << std::endl;
+    // }
 
     for (auto [c, cEnd, c6, c6End, it] = std::tuple{camPoses.begin(), camPoses.end(), camPoses6d.begin(), camPoses6d.end(), 0}; c != cEnd && c6 != c6End && it < maxIter; ++c, ++c6, ++it) {
         cv::Matx34f& cam = (cv::Matx34f&)*c;
@@ -176,7 +176,73 @@ void Reconstruction::adjustBundle(std::vector<TrackView>& tracks, Camera& camera
         cam(0, 3) = cam6(3); 
         cam(1, 3) = cam6(4); 
         cam(2, 3) = cam6(5);
+    }*/
+
+    gtsam::Cal3_S2 K(camera.focalLength, camera.focalLength, 0 /*skew*/, camera.pp.x, camera.pp.y);
+    gtsam::noiseModel::Isotropic::shared_ptr measurementNoise = gtsam::noiseModel::Isotropic::Sigma(2, 2.0);
+
+    gtsam::NonlinearFactorGraph graph;
+    gtsam::Values initial;
+    
+    int iterOffset = MAX((int)(tracks.size() - maxIter), 0);
+
+    for (int i = iterOffset; i < camPoses.size(); ++i) {
+        cv::Matx34f &c = camPoses[i];
+
+        gtsam::Rot3 R (
+            c(0,0), c(0,1), c(0,2),
+            c(1,0), c(1,1), c(1,2),
+            c(2,0), c(2,1), c(2,2)  
+        );
+
+        gtsam::Point3 t(
+            c(0,3), c(1,3), c(2,3)
+        );
+        
+        gtsam::Pose3 pose(R, t);
+
+        if (i == 0) {
+            gtsam::noiseModel::Diagonal::shared_ptr pose_noise = gtsam::noiseModel::Diagonal::Sigmas((gtsam::Vector(6) << gtsam::Vector3::Constant(0.1), gtsam::Vector3::Constant(0.1)).finished());
+            graph.emplace_shared<gtsam::PriorFactor<gtsam::Pose3> >(gtsam::Symbol('x', 0), pose, pose_noise); // add directly to graph
+        }
+
+        initial.insert(gtsam::Symbol('x', i), pose);
     }
+
+    initial.insert(gtsam::Symbol('K', 0), K);
+
+    gtsam::noiseModel::Diagonal::shared_ptr cal_noise = gtsam::noiseModel::Diagonal::Sigmas((gtsam::Vector(5) << 100, 100, 0.01 /*skew*/, 100, 100).finished());
+    graph.emplace_shared<gtsam::PriorFactor<gtsam::Cal3_S2>>(gtsam::Symbol('K', 0), K, cal_noise);
+
+    bool init_prior = false; size_t ptIdx = 0;
+    for (int i = iterOffset; i < tracks.size(); ++i) {
+        for (int j = 0; j < tracks[i].numTracks; ++j) {
+            cv::Point2f p2d = tracks[i].points2D[j];
+            gtsam::Point2 gP2d(p2d.x, p2d.y);
+
+            graph.emplace_shared<gtsam::GeneralSFMFactor2<gtsam::Cal3_S2>>(gP2d, measurementNoise, gtsam::Symbol('x', i), gtsam::Symbol('l', ptIdx), gtsam::Symbol('K', 0));
+
+            cv::Vec3d &p3d = tracks[i].points3D[j];
+
+            initial.insert<gtsam::Point3>(gtsam::Symbol('l', ptIdx), gtsam::Point3(p3d[0], p3d[1], p3d[2]));
+
+            if (!init_prior) {
+                init_prior = true;
+
+                gtsam::noiseModel::Isotropic::shared_ptr point_noise = gtsam::noiseModel::Isotropic::Sigma(3, 0.1);
+                gtsam::Point3 p(p3d[0], p3d[1], p3d[2]);
+                graph.emplace_shared<gtsam::PriorFactor<gtsam::Point3>>(gtsam::Symbol('l', ptIdx), p, point_noise);
+            }
+
+            ptIdx++;
+        }
+    }
+
+    gtsam::Values result = gtsam::LevenbergMarquardtOptimizer(graph, initial).optimize();
+
+    std::cout << "\n";
+    std::cout << "initial graph error = " << graph.error(initial) << "\n";
+    std::cout << "final graph error = " << graph.error(result) << "\n";
 
     std::cout << "[DONE]\n";
 }

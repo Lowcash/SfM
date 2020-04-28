@@ -286,11 +286,13 @@ int main(int argc, char** argv) {
 
     cv::setMouseCallback(usrInpWinName, onUsrWinClick, (void*)&mouseUsrDataParams);
 
-    ViewDataContainer viewContainer(usedMethod == Method::KLT_2D ? 100 : INT32_MAX);
+    ViewDataContainer viewContainer(
+        usedMethod == Method::KLT_2D || usedMethod == Method::KLT_3D ? 100 : INT32_MAX
+    );
 
     FeatureView featPrevView, featCurrView;
     FlowView ofPrevView, ofCurrView; 
-    
+
     Tracking tracking;
     Reconstruction reconstruction(tMethod, tMinDist, tMaxDist, tMaxPErr, true);
 
