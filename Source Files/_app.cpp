@@ -541,7 +541,7 @@ int main(int argc, char** argv) {
         }
 
         if (usedMethod == Method::KLT_2D) {
-            if (userInput.m_usrPts2D.empty()) {
+            if (!userInput.m_usrPts2D.empty()) {
                 userInput.attachPointsToMove(userInput.m_usrPts2D, ofPrevView.corners);
             }
 
@@ -563,14 +563,14 @@ int main(int argc, char** argv) {
 
             if (!userInput.m_usrPts2D.empty()) {
                 std::vector<cv::Point2f> _newPts2D;
-                userInput.detachPointsFromMove(ofPrevView.corners, _newPts2D, userInput.m_usrPts2D.size());
+                userInput.detachPointsFromMove(_newPts2D, ofCurrView.corners, userInput.m_usrPts2D.size());
 
                 userInput.updatePoints(_newPts2D, cv::Rect(cv::Point(), ofCurrView.viewPtr->imColor.size()), 10);
             }
 
             if (!userInput.m_usrClickedPts2D.empty() && isPtAdded) {
                 std::vector<cv::Point2f> _newPts2D;
-                userInput.detachPointsFromMove(ofCurrView.corners, _newPts2D, userInput.m_usrClickedPts2D.size());
+                userInput.detachPointsFromMove(_newPts2D, ofCurrView.corners, userInput.m_usrClickedPts2D.size());
 
                 userInput.addPoints(userInput.m_usrClickedPts2D, _newPts2D);
 

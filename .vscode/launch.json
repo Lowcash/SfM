@@ -15,7 +15,7 @@
               //"-bSource=https://192.168.1.101:8080/video", 
               "-bcalib=/home/lowcash/Documents/SfM_Resources/Calibration/mobile_cam_calib_1_test.yml", 
               //"-bcalib=/home/lowcash/Documents/SfM_Resources/Calibration/KITTI_cam_calib_0.yml", 
-              "-bDownSamp=1.0", "-bWinWidth=960", "-bWinHeight=540", "-bUseCuda=false", "-bUseMethod=KLT_3D",
+              "-bDownSamp=1.0", "-bWinWidth=960", "-bWinHeight=540", "-bUseCuda=false", "-bUseMethod=KLT_2D",
             
               //------------------------------- FEATURES ------------------------------//
               //"-fDecType=ORB", "-fMatchType=BRUTEFORCE_HAMMING", "-fKnnRatio=0.75",

@@ -113,10 +113,11 @@ struct UserInputDataParams {
 private:
     const std::string m_inputWinName;
 
-    cv::Mat* m_inputImage;
+    
 public:
     UserInput* userInput;
-
+    cv::Mat* m_inputImage;
+    
     UserInputDataParams(const std::string inputWinName, cv::Mat* inputImage, UserInput* userInput)
         : m_inputWinName(inputWinName) {
         m_inputImage = inputImage;
