@@ -11,6 +11,8 @@
                 "-g", "Source Files/visualization.cpp",
                 "-g", "Source Files/tracking.cpp",
                 "-g", "Source Files/feature_processing.cpp",
+                "-g", "Source Files/reconstruction.cpp",
+                "-g", "Source Files/user_input_manager.cpp",
                 "-o", "${workspaceFolder}/SfM_App.out",
                 "-I", "/usr/local/include/opencv4",
                 "-I", "/usr/local/include/ceres",
