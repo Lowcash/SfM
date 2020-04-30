@@ -85,7 +85,7 @@ void VisPCL::addPoints(const std::vector<cv::Vec3d> points3D) {
     }
 }
 
-void VisPCL::addCamera(const cv::Matx34f camPose) {       
+void VisPCL::addCamera(const cv::Matx34d camPose) {       
     pcl::PointXYZ pclPose; cvPoseToPCLPose(camPose, pclPose);
 
     m_viewer->addSphere(pclPose, 0.25, "cam_pose_" + std::to_string(m_numCams));
@@ -93,7 +93,7 @@ void VisPCL::addCamera(const cv::Matx34f camPose) {
     m_numCams++;
 }
 
-void VisPCL::updateCameras(const std::vector<cv::Matx34f> camPoses) { 
+void VisPCL::updateCameras(const std::vector<cv::Matx34d> camPoses) { 
     for (auto [it, end, idx] = std::tuple{camPoses.cbegin(), camPoses.cend(), 0}; it != end; ++it, ++idx) {
         auto c = (cv::Matx34d)*it;
 
@@ -181,7 +181,7 @@ void VisVTK::addPoints(const std::vector<cv::Vec3d> points3D) {
     }
 }
 
-void VisVTK::updateCameras(const std::vector<cv::Matx34f> camPoses, const cv::Matx33d K33d) {
+void VisVTK::updateCameras(const std::vector<cv::Matx34d> camPoses, const cv::Matx33d K33d) {
     for (auto [it, end, idx] = std::tuple{camPoses.cbegin(), camPoses.cend(), 0}; it != end; ++it, ++idx) {
         auto c = (cv::Matx34d)*it;
 
@@ -203,7 +203,7 @@ void VisVTK::updateCameras(const std::vector<cv::Matx34f> camPoses, const cv::Ma
     m_numCams++;
 }
 
-void VisVTK::addCamera(const cv::Matx34f camPose) {}
+void VisVTK::addCamera(const cv::Matx34d camPose) {}
 
 void VisVTK::visualize() {
     //while(!m_viewer->wasStopped())

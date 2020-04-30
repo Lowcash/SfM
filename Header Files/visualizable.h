@@ -13,7 +13,7 @@ public:
 
     virtual void addPoints(const std::vector<cv::Vec3d> points3D) = 0;
 
-    virtual void addCamera(const cv::Matx34f  camPose) = 0;
+    virtual void addCamera(const cv::Matx34d  camPose) = 0;
 };
 
 #endif //IVISUALIZABLE_H

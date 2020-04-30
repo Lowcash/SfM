@@ -8,6 +8,7 @@
             "args": [
                 "-g", "-std=gnu++1z",
                 "-g", "Source Files/_app.cpp",
+                "-g", "Source Files/app_solver.cpp",
                 "-g", "Source Files/visualization.cpp",
                 "-g", "Source Files/tracking.cpp",
                 "-g", "Source Files/feature_processing.cpp",

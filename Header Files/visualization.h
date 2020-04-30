@@ -35,31 +35,31 @@ public:
 
     void addPoints(const std::vector<cv::Vec3d> points3D);
     
-    void updateCameras(const std::vector<cv::Matx34f> camPoses);
+    void updateCameras(const std::vector<cv::Matx34d> camPoses);
 
-    void addCamera(const cv::Matx34f camPose);
+    void addCamera(const cv::Matx34d camPose);
 
     void visualize();
 };
 
 class VisVTKUtils {
 private:
-    void decomposeCvPose(cv::Matx34f cvPose, cv::Matx33f& R, cv::Vec3f& t) {
+    void decomposeCvPose(cv::Matx34d cvPose, cv::Matx33d& R, cv::Vec3d& t) {
         R = cvPose.get_minor<3, 3>(0, 0);
-        t = cv::Vec3f(cvPose(0, 3), cvPose(1, 3), cvPose(2, 3));
+        t = cv::Vec3d(cvPose(0, 3), cvPose(1, 3), cvPose(2, 3));
     }
 
 protected:
-    void cvPoseToVTKPose(cv::Matx34f cvPose, cv::Affine3d& vtkPose) {
-        cv::Matx33f R; cv::Vec3f t; decomposeCvPose(cvPose, R, t);
+    void cvPoseToVTKPose(cv::Matx34d cvPose, cv::Affine3d& vtkPose) {
+        cv::Matx33d R; cv::Vec3d t; decomposeCvPose(cvPose, R, t);
 
         vtkPose = cv::Affine3d(R, t);
     }
 
-    void cvPoseToInverseVTKPose(cv::Matx34f cvPose, cv::Affine3d& vtkPose) {
-        cv::Matx33f R; cv::Vec3f t; decomposeCvPose(cvPose, R, t);
+    void cvPoseToInverseVTKPose(cv::Matx34d cvPose, cv::Affine3d& vtkPose) {
+        cv::Matx33d R; cv::Vec3d t; decomposeCvPose(cvPose, R, t);
 
-        cv::Vec3f _t = cv::Vec3f(-t[0], -t[1], -t[2]);
+        cv::Vec3d _t = cv::Vec3d(-t[0], -t[1], -t[2]);
 
         vtkPose = cv::Affine3d(-R, _t);
     }
@@ -77,9 +77,9 @@ public:
     
     void addPoints(const std::vector<cv::Vec3d> points3D);
 
-    void updateCameras(const std::vector<cv::Matx34f> camPoses, const cv::Matx33d K33d);
+    void updateCameras(const std::vector<cv::Matx34d> camPoses, const cv::Matx33d K33d);
 
-    void addCamera(const cv::Matx34f camPose);
+    void addCamera(const cv::Matx34d camPose);
 
     void visualize();
 };

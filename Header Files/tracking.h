@@ -48,12 +48,13 @@ public:
         numTracks++;
     }
 };
-
 class Tracking {
 private:
-    std::vector<cv::Matx34f> m_camPoses;
+    
 public:
-    std::vector<TrackView> trackViews;
+    std::vector<cv::Matx34d> m_camPoses;
+
+    std::vector<TrackView> m_trackViews;
 
     cv::Matx33d R; cv::Matx31d t;
 
@@ -62,20 +63,26 @@ public:
 
     void addTrackView(ViewData* view, const std::vector<bool>& mask, const std::vector<cv::Point2f>& points2D, const std::vector<cv::Vec3d> points3D, const std::vector<cv::Vec3b>& pointsRGB, const std::vector<cv::KeyPoint>& keyPoints, const cv::Mat& descriptor, const std::vector<int>& featureIndexer = std::vector<int>());
 
+    bool findCameraPose(RecoveryPose& recPose, std::vector<cv::Point2f> prevPts, std::vector<cv::Point2f> currPts, cv::Mat cameraK, int minInliers, int& numInliers);
+
     bool findRecoveredCameraPose(DescriptorMatcher matcher, int minMatches, Camera camParams, FeatureView& featView, RecoveryPose& recPose);
 
-    void addCamPose(const cv::Matx34f camPose) { 
+    void addCamPose(const cv::Matx34d camPose) { 
         m_camPoses.push_back(camPose);
 
         R = camPose.get_minor<3, 3>(0, 0);
         t = cv::Matx31d(camPose(0,3), camPose(1,3), camPose(2,3));
     }
 
-    std::vector<cv::Matx34f>* getCamPoses() { return &m_camPoses; }
+    /*std::list<cv::Matx34f>* getCamPoses() { return &m_camPoses; }
 
-    cv::Matx34f getLastCamPose() const { return m_camPoses.back(); }
+    cv::Matx34f* getLastCamPose() { return &*m_camPoses.rbegin(); }
 
     bool isCamPosesEmpty() { return m_camPoses.empty(); }
+
+    std::list<TrackView>* getTrackViews() { return &m_trackViews; }
+
+    TrackView* getLastTrackView() { return &*m_trackViews.rbegin(); }*/
 };
 
 #endif //TRACKING_H

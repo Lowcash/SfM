@@ -53,12 +53,34 @@ void Tracking::addTrackView(ViewData* view, const std::vector<bool>& mask, const
     if (!_trackView.points3D.empty()) {
         _trackView.setView(view);
 
-        trackViews.push_back(_trackView);
+        m_trackViews.push_back(_trackView);
     }
 }
 
+bool Tracking::findCameraPose(RecoveryPose& recPose, std::vector<cv::Point2f> prevPts, std::vector<cv::Point2f> currPts, cv::Mat cameraK, int minInliers, int& numInliers) {
+    if (prevPts.size() <= 5 || currPts.size() <= 5) { return false; }
+
+    cv::Mat E = cv::findEssentialMat(prevPts, currPts, cameraK, recPose.recPoseMethod, recPose.prob, recPose.threshold, recPose.mask);
+
+    if (!(E.cols == 3 && E.rows == 3)) { return false; }
+
+    cv::Mat p0 = cv::Mat( { 3, 1 }, {
+		double( prevPts[0].x ), double( prevPts[0].y ), 1.0
+		} );
+	cv::Mat p1 = cv::Mat( { 3, 1 }, {
+		double( currPts[0].x ), double( currPts[0].y ), 1.0
+		} );
+	const double E_error = cv::norm( p1.t() * cameraK.inv().t() * E * cameraK.inv() * p0, cv::NORM_L2 );
+
+    if (E_error > 1e-03) { return false; }
+
+    numInliers = cv::recoverPose(E, prevPts, currPts, cameraK, recPose.R, recPose.t, recPose.mask);
+
+    return numInliers > minInliers;
+}
+
 bool Tracking::findRecoveredCameraPose(DescriptorMatcher matcher, int minMatches, Camera camera, FeatureView& featView, RecoveryPose& recPose) {
-    if (trackViews.empty()) { return true; }
+    if (m_trackViews.empty()) { return true; }
         
     std::cout << "Recovering pose..." << std::flush;
     
@@ -66,7 +88,7 @@ bool Tracking::findRecoveredCameraPose(DescriptorMatcher matcher, int minMatches
     std::vector<cv::Point3f> _posePoints3D;
     cv::Mat _R, _t, _inliers;
 
-    for (auto t = trackViews.rbegin(); t != trackViews.rend(); ++t) {
+    for (auto t = m_trackViews.rbegin(); t != m_trackViews.rend(); ++t) {
         if (t->points2D.empty() || featView.keyPts.empty()) { continue; }
 
         std::vector<cv::Point2f> _prevPts, _currPts;
