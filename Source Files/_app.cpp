@@ -39,7 +39,7 @@ int main(int argc, char** argv) {
         "{ peExGuess | false       | pose estimation use extrinsic guess }"
         "{ peNumIteR | 250         | pose estimation max iteration }"
 
-        "{ baMinMeth | CERES       | bundle adjustment minizer CERES/GTSAM }"
+        "{ baLibrary | CERES       | bundle adjustment minizer CERES/GTSAM }"
         "{ baCMethod | DENSE_SCHUR | bundle adjustment CERES solver type DENSE_SCHUR/SPARSE_NORMAL_CHOLESKY }"
         
         "{ baNumIter | 50          | bundle adjustment max iteration }"
@@ -92,7 +92,7 @@ int main(int argc, char** argv) {
     const int peNumIteR = parser.get<int>("peNumIteR");
 
     //-------------------------- BUNDLE ADJUSTMENT --------------------------//
-    const std::string baMinMeth = parser.get<std::string>("baMinMeth");
+    const std::string baLibrary = parser.get<std::string>("baLibrary");
     const std::string baCMethod = parser.get<std::string>("baCMethod");
     const int baNumIter = parser.get<int>("baNumIter");
 
@@ -128,7 +128,7 @@ int main(int argc, char** argv) {
     const std::string recPoseWinName = "Recovery pose";
     const std::string matchesWinName = "Matches";
 
-    AppSolver solver(AppSolverDataParams(bUseMethod, ptCloudWinName, usrInpWinName, recPoseWinName, matchesWinName, bSource, bDownSamp, cv::Size(bWinWidth, bWinHeight), useCUDA, fDecType, fMatchType, fKnnRatio, ofMinKPts, ofWinSize, ofMaxLevel, ofMaxItCt, ofItEps, ofMaxError, ofMaxCorn, ofQualLvl, ofMinDist, peMethod, peProb, peThresh, peMinInl, peMinMatch, pePMetrod, peExGuess, peNumIteR, baMinMeth, baCMethod, baNumIter, tMethod, tMinDist, tMaxDist, tMaxPErr, cameraK, distCoeffs));
+    AppSolver solver(AppSolverDataParams(bUseMethod, ptCloudWinName, usrInpWinName, recPoseWinName, matchesWinName, bSource, bDownSamp, cv::Size(bWinWidth, bWinHeight), useCUDA, fDecType, fMatchType, fKnnRatio, ofMinKPts, ofWinSize, ofMaxLevel, ofMaxItCt, ofItEps, ofMaxError, ofMaxCorn, ofQualLvl, ofMinDist, peMethod, peProb, peThresh, peMinInl, peMinMatch, pePMetrod, peExGuess, peNumIteR, baLibrary, baCMethod, baNumIter, tMethod, tMinDist, tMaxDist, tMaxPErr, cameraK, distCoeffs));
 
 #pragma endregion INIT 
     std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();

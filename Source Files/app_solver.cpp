@@ -103,7 +103,7 @@ void AppSolver::run() {
     FeatureView featPrevView, featCurrView;
     FlowView ofPrevView, ofCurrView; 
 
-    Reconstruction reconstruction(params.tMethod, params.tMinDist, params.tMaxDist, params.tMaxPErr, true);
+    Reconstruction reconstruction(params.tMethod, params.baLibrary, params.baCMethod, params.tMinDist, params.tMaxDist, params.tMaxPErr, true);
 
     VisPCL visPCL(params.ptCloudWinName + " PCL", params.winSize);
     //boost::thread visPCLthread(boost::bind(&VisPCL::visualize, &visPCL));
