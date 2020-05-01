@@ -79,13 +79,11 @@ bool Tracking::findCameraPose(RecoveryPose& recPose, std::vector<cv::Point2f> pr
     return numInliers > minInliers;
 }
 
-bool Tracking::findRecoveredCameraPose(DescriptorMatcher matcher, int minMatches, Camera camera, FeatureView& featView, RecoveryPose& recPose) {
+bool Tracking::findRecoveredCameraPose(DescriptorMatcher matcher, int minMatches, Camera camera, FeatureView& featView, std::vector<cv::Point2f>& posePoints2D, std::vector<cv::Vec3d>& posePoints3D, RecoveryPose& recPose) {
     if (m_trackViews.empty()) { return true; }
-        
+    
     std::cout << "Recovering pose..." << std::flush;
     
-    std::vector<cv::Point2f> _posePoints2D;
-    std::vector<cv::Point3f> _posePoints3D;
     cv::Mat _R, _t, _inliers;
 
     for (auto t = m_trackViews.rbegin(); t != m_trackViews.rend(); ++t) {
@@ -104,19 +102,19 @@ bool Tracking::findRecoveredCameraPose(DescriptorMatcher matcher, int minMatches
         cv::Mat _imOutMatch; cv::drawMatches(t->viewPtr->imColor, t->keyPoints, featView.viewPtr->imColor, featView.keyPts, _matches, _imOutMatch);
 
         for (const auto& m : _matches) {
-            cv::Point3f _point3D = (cv::Point3f)t->points3D[m.queryIdx];
+            cv::Vec3d _point3D = (cv::Vec3d)t->points3D[m.queryIdx];
             cv::Point2f _point2D = (cv::Point2f)featView.keyPts[m.trainIdx].pt;
 
-            _posePoints2D.push_back(_point2D);
-            _posePoints3D.push_back(_point3D);
+            posePoints2D.push_back(_point2D);
+            posePoints3D.push_back(_point3D);
         }
 
         cv::imshow("Matches", _imOutMatch); cv::waitKey(1);
     }
 
-    if (_posePoints2D.size() < 7 || _posePoints3D.size() < 7) { return false; }
+    if (posePoints2D.size() < 7 || posePoints3D.size() < 7) { return false; }
 
-    if (!cv::solvePnPRansac(_posePoints3D, _posePoints2D, camera.K, cv::Mat(), _R, _t, recPose.useExtrinsicGuess, recPose.numIter, recPose.threshold, recPose.prob, _inliers, recPose.poseEstMethod)) { return false; }
+    if (!cv::solvePnPRansac(posePoints3D, posePoints2D, camera.K, cv::Mat(), _R, _t, recPose.useExtrinsicGuess, recPose.numIter, recPose.threshold, recPose.prob, _inliers, recPose.poseEstMethod)) { return false; }
     //if (!cv::solvePnP(_posePoints3D, _posePoints2D, camera._K, cv::Mat(), _R, _t, recPose.useExtrinsicGuess, recPose.poseEstMethod)) { return false; }
 
     std::cout << "Recover pose inliers: " << _inliers.rows << "\n";

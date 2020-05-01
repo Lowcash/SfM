@@ -11,10 +11,15 @@ struct SnavelyReprojectionError {
         : observed_x(observed_x), observed_y(observed_y) {}
 
     template <typename T>
-    bool operator()(const T* const extrinsics,
+    bool operator()(const T* const intrinsics,
+                    const T* const extrinsics,
                     const T* const point,
-                    const T* const focal,
                     T* residuals) const {
+        const T& focalX = intrinsics[0];
+        const T& focalY = intrinsics[1];
+        const T& ppX = intrinsics[2];
+        const T& ppY = intrinsics[3];
+
         // camera[0,1,2] are the angle-axis rotation.
         T x[3];
         ceres::AngleAxisRotatePoint(extrinsics, point, x);
@@ -29,8 +34,8 @@ struct SnavelyReprojectionError {
         T yn = x[1] / x[2];
 
         // Compute final projected point position.
-        T predicted_x = *focal * xn;
-        T predicted_y = *focal * yn;
+        T predicted_x = (*focalX * xn) + ppX;
+        T predicted_y = (*focalY * yn) + ppY;
 
         // The error is the difference between the predicted and observed position.
         residuals[0] = predicted_x - observed_x;

@@ -11,7 +11,7 @@
             "program": "${workspaceFolder}/SfM_App.out",
             "args": [
             //--------------------------------- BASE --------------------------------//
-              "-bSource=/home/lowcash/Documents/SfM_Resources/Video/vid_7.mp4", 
+              "-bSource=/home/lowcash/Documents/SfM_Resources/Video/vid_12.mp4", 
               //"-bSource=https://192.168.1.101:8080/video", 
               "-bcalib=/home/lowcash/Documents/SfM_Resources/Calibration/mobile_cam_calib_1.yml", 
               //"-bcalib=/home/lowcash/Documents/SfM_Resources/Calibration/KITTI_cam_calib_0.yml", 
@@ -19,11 +19,11 @@
             
               //------------------------------- FEATURES ------------------------------//
               //"-fDecType=ORB", "-fMatchType=BRUTEFORCE_HAMMING", "-fKnnRatio=0.75",
-              //"-fDecType=AKAZE", "-fMatchType=BRUTEFORCE_HAMMING", "-fKnnRatio=0.5",
+              "-fDecType=AKAZE", "-fMatchType=BRUTEFORCE_HAMMING", "-fKnnRatio=0.5",
               //"-fDecType=KAZE", "-fMatchType=FLANNBASED", "-fKnnRatio=0.5",
               //"-fDecType=FAST", "-fMatchType=BRUTEFORCE_HAMMING", "-fKnnRatio=0.5",
               //"-fDecType=SIFT", "-fMatchType=FLANNBASED", "-fKnnRatio=0.5",
-              "-fDecType=SURF", "-fMatchType=FLANNBASED", "-fKnnRatio=0.5",
+              //"-fDecType=SURF", "-fMatchType=FLANNBASED", "-fKnnRatio=0.5",
               //"-fDecType=STAR", "-fMatchType=BRUTEFORCE_HAMMING", "-fKnnRatio=0.5",
 
               //----------------------------- OPTICAL FLOW ----------------------------//
@@ -35,7 +35,7 @@
               //"-peMethod=RANSAC", "-peProb=0.99", "-peThresh=1.0", "-peMinInl=25", "-peMinMatch=50", "-pePMetrod=SOLVEPNP_P3P", "-peExGuess=false", "-peNumIteR=250",
               
               //-------------------------- BUNDLE ADJUSTMENT --------------------------//
-              "-baLibrary=CERES", "-baCMethod=DENSE_SCHUR", "-baNumIter=3", 
+              "-baLibrary=CERES", "-baCMethod=DENSE_SCHUR", "-baNumIter=9", 
 
               //---------------------------- TRIANGULATION ----------------------------//
               "-tMethod=DLT", "-tMinDist=0.0001", "-tMaxDist=250", "-tMaxPErr=1"

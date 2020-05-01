@@ -45,9 +45,9 @@ int main(int argc, char** argv) {
         "{ baNumIter | 50          | bundle adjustment max iteration }"
 
         "{ tMethod   | ITERATIVE   | triangulation method ITERATIVE/DLT }"
-        "{ tMinDist  | 1.0         | triangulation points min distance }"
-        "{ tMaxDist  | 100.0       | triangulation points max distance }"
-        "{ tMaxPErr  | 100.0       | triangulation points max reprojection error }"
+        "{ tMinDist  | 0.0001      | triangulation points min distance }"
+        "{ tMaxDist  | 250.0       | triangulation points max distance }"
+        "{ tMaxPErr  | 5.0         | triangulation points max reprojection error }"
     );
 
     if (parser.has("help")) {

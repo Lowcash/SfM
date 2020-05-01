@@ -88,6 +88,20 @@ private:
         );
     }
 
+    void decomposeExtrinsicMat(cv::Matx34d pose, cv::Matx33d& R, cv::Matx31d& t) {
+        R = cv::Matx33d(
+            pose(0,0), pose(0,1), pose(0,2),
+            pose(1,0), pose(1,1), pose(1,2),
+            pose(2,0), pose(2,1), pose(2,2)
+        );
+
+        t = cv::Matx31d(
+            pose(0,3),
+            pose(1,3),
+            pose(2,3)
+        );
+    }
+
     bool loadImage(cv::VideoCapture& cap, cv::Mat& imColor, cv::Mat& imGray, float downSample = 1.0f);
 
     static void onUsrWinClick (int event, int x, int y, int flags, void* params) {

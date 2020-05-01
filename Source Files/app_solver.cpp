@@ -234,8 +234,10 @@ void AppSolver::run() {
 
                     continue; 
                 }
-
-                if(!m_tracking.findRecoveredCameraPose(descMatcher, params.peMinMatch, camera, featCurrView, recPose)) {
+                
+                TrackView _trackView;
+                
+                if(!m_tracking.findRecoveredCameraPose(descMatcher, params.peMinMatch, camera, featCurrView, _trackView.points2D, _trackView.points3D, recPose)) {
                     std::cout << "Recovering camera fail, skip current reconstruction iteration!\n";
         
                     std::swap(ofPrevView, ofCurrView);
@@ -243,7 +245,23 @@ void AppSolver::run() {
 
                     continue;
                 }
-            
+
+                if (!m_tracking.m_camPoses.empty()) {
+                    cv::Matx34d _pose; composeExtrinsicMat(recPose.R, recPose.t, _pose);
+
+                    m_tracking.m_trackViews.push_back(_trackView);
+                    m_tracking.m_camPoses.push_back(_pose);
+
+                    reconstruction.adjustBundle(camera, m_tracking.m_trackViews, m_tracking.m_camPoses);
+
+                    cv::Matx34d _lastPose = m_tracking.m_camPoses.back();
+
+                    decomposeExtrinsicMat(_lastPose, recPose.R, recPose.t);
+
+                    m_tracking.m_trackViews.pop_back();
+                    m_tracking.m_camPoses.pop_back();
+                }
+
                 if (m_tracking.m_camPoses.empty())
                     composeExtrinsicMat(cv::Matx33d::eye(), cv::Matx31d::eye(), _prevPose);
                 else
@@ -274,8 +292,6 @@ void AppSolver::run() {
                 userInput.recoverPoints(imOutUsrInp, camera.K, cv::Mat(m_tracking.R), cv::Mat(m_tracking.t));
 
                 m_tracking.addTrackView(featCurrView.viewPtr, _mask, _currPts, _points3D, _pointsRGB, featCurrView.keyPts, featCurrView.descriptor, _currIdx);
-
-                reconstruction.adjustBundle(camera, m_tracking.m_trackViews, m_tracking.m_camPoses);
 
                 visVTK.addPointCloud(m_tracking.m_trackViews);
 
