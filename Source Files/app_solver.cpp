@@ -69,6 +69,8 @@ int AppSolver::findGoodImages(cv::VideoCapture& cap, ViewDataContainer& viewCont
         numSkippedFrames++;
 
         if (numSkippedFrames > params.bMaxSkFram) {
+            viewContainer.addItem(ViewData(_imColor, _imGray));
+
             return ImageFindState::NOT_FOUND;
         }
     } while(!m_tracking.findCameraPose(recPose, _prevCorners, _currCorners, camera.K, recPose.minInliers, numHomInliers));
@@ -138,6 +140,8 @@ void AppSolver::run() {
             m_usedMethod == Method::PNP) {
 
             if (iteration != 1 && ofPrevView.corners.size() < optFlow.additionalSettings.minFeatures) {
+                ofPrevView.setView(viewContainer.getLastOneItem());
+
                 featDetector.generateFlowFeatures(ofPrevView.viewPtr->imGray, ofPrevView.corners, optFlow.additionalSettings.maxCorn, optFlow.additionalSettings.qualLvl, optFlow.additionalSettings.minDist);
             }
             
@@ -240,8 +244,7 @@ void AppSolver::run() {
                     
                     userInput.m_usrClickedPts2D.clear();
                     
-                    //visVTK.addPoints(_newPts3D);
-                    //visPCL.addPoints(_newPts3D);
+                    visVTK.addPoints(_newPts3D);
                 }
 
                 userInput.recoverPoints(imOutUsrInp, camera.K, cv::Mat(m_tracking.R), cv::Mat(m_tracking.t));
