@@ -180,7 +180,7 @@ void AppSolver::run() {
         ofPrevView.setView(viewContainer.getLastButOneItem());
         ofCurrView.setView(viewContainer.getLastOneItem());
 
-        ofPrevView.viewPtr->imColor.copyTo(imOutRecPose);
+        ofCurrView.viewPtr->imColor.copyTo(imOutRecPose);
         ofCurrView.viewPtr->imColor.copyTo(imOutUsrInp);
 
         if (m_usedMethod == Method::KLT) {
