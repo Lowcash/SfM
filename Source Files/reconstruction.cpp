@@ -100,15 +100,13 @@ void Reconstruction::adjustBundle(Camera& camera, std::vector<TrackView>& tracks
         for (auto [t, tEnd, c, cEnd, it] = std::tuple{tracks.begin(), tracks.end(), extrinsics6d.begin(), extrinsics6d.end(), 0}; t != tEnd && c != cEnd && it < maxIter; ++t, ++c, ++it) {
             for (size_t i = 0; i < t->numTracks; ++i) {
                 cv::Point2f p2d = t->points2D[i];
-                p2d.x -= camera.K33d(0, 2);
-                p2d.y -= camera.K33d(1, 2);
                 
                 ceres::CostFunction* costFunc = SnavelyReprojectionError::Create(p2d.x, p2d.y);
 
-                problem.AddResidualBlock(costFunc, NULL, c->val, &intrinsics4d, t->points3D[i].val);
+                problem.AddResidualBlock(costFunc, NULL, &intrinsics4d(0), c->val, &t->points3D[i](0));
 
                 if (!isCameraLocked) {
-                    problem.SetParameterBlockConstant(&extrinsics6d[0](0));
+                    problem.SetParameterBlockConstant(c->val);
 
                     isCameraLocked = true;
                 }
@@ -116,9 +114,6 @@ void Reconstruction::adjustBundle(Camera& camera, std::vector<TrackView>& tracks
         }
 
         problem.SetParameterBlockConstant(&intrinsics4d(0));
-        problem.SetParameterBlockConstant(&intrinsics4d(1));
-        problem.SetParameterBlockConstant(&intrinsics4d(2));
-        problem.SetParameterBlockConstant(&intrinsics4d(3));
 
         ceres::Solver::Options options;
 

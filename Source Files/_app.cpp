@@ -8,11 +8,13 @@ int main(int argc, char** argv) {
     cv::CommandLineParser parser(argc, argv,
 		"{ help h ?  |             | help }"
         "{ bSource   | .           | source video file [.mp4, .avi ...] }"
-		"{ bcalib    | .           | camera intric parameters file path }"
+		"{ bcalib    | .           | camera intrics parameters file path }"
         "{ bDownSamp | 1           | downsampling of input source images }"
         "{ bWinWidth | 1024        | debug windows width }"
         "{ bWinHeight| 768         | debug windows height }"
         "{ bUseMethod| KLT         | method to use KLT/VO/PNP }"
+        "{ bMaxSkFram| 10          | max number of skipped frames to swap }"
+        "{ bVisEnable| true        | is visualization by VTK, PCL enabled }"
         "{ bUseCuda  | false       | is nVidia CUDA used }"
 
         "{ fDecType  | AKAZE       | used detector type }"
@@ -62,6 +64,8 @@ int main(int argc, char** argv) {
     const int bWinWidth = parser.get<int>("bWinWidth");
     const int bWinHeight = parser.get<int>("bWinHeight");
     const std::string bUseMethod = parser.get<std::string>("bUseMethod");
+    const int bMaxSkFram = parser.get<int>("bMaxSkFram");
+    const bool bVisEnable = parser.get<bool>("bVisEnable");
     const bool bUseCuda = parser.get<bool>("bUseCuda");
 
     //------------------------------- FEATURES ------------------------------//
@@ -128,7 +132,7 @@ int main(int argc, char** argv) {
     const std::string recPoseWinName = "Recovery pose";
     const std::string matchesWinName = "Matches";
 
-    AppSolver solver(AppSolverDataParams(bUseMethod, ptCloudWinName, usrInpWinName, recPoseWinName, matchesWinName, bSource, bDownSamp, cv::Size(bWinWidth, bWinHeight), useCUDA, fDecType, fMatchType, fKnnRatio, ofMinKPts, ofWinSize, ofMaxLevel, ofMaxItCt, ofItEps, ofMaxError, ofMaxCorn, ofQualLvl, ofMinDist, peMethod, peProb, peThresh, peMinInl, peMinMatch, pePMetrod, peExGuess, peNumIteR, baLibrary, baCMethod, baNumIter, tMethod, tMinDist, tMaxDist, tMaxPErr, cameraK, distCoeffs));
+    AppSolver solver(AppSolverDataParams(bUseMethod, ptCloudWinName, usrInpWinName, recPoseWinName, matchesWinName, bSource, bDownSamp, bMaxSkFram, cv::Size(bWinWidth, bWinHeight), bVisEnable, useCUDA, fDecType, fMatchType, fKnnRatio, ofMinKPts, ofWinSize, ofMaxLevel, ofMaxItCt, ofItEps, ofMaxError, ofMaxCorn, ofQualLvl, ofMinDist, peMethod, peProb, peThresh, peMinInl, peMinMatch, pePMetrod, peExGuess, peNumIteR, baLibrary, baCMethod, baNumIter, tMethod, tMinDist, tMaxDist, tMaxPErr, cameraK, distCoeffs));
 
 #pragma endregion INIT 
     std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();

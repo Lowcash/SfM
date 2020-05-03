@@ -39,7 +39,7 @@ public:
 
     void addCamera(const cv::Matx34d camPose);
 
-    void visualize();
+    void visualize(const bool isEnabled);
 };
 
 class VisVTKUtils {
@@ -77,11 +77,11 @@ public:
     
     void addPoints(const std::vector<cv::Vec3d> points3D);
 
-    void updateCameras(const std::vector<cv::Matx34d> camPoses, const cv::Matx33d K33d);
+    void updateCameras(const std::vector<cv::Matx34d> camPoses, const cv::Matx33d K33d, const bool redraw = false);
 
     void addCamera(const cv::Matx34d camPose);
 
-    void visualize();
+    void visualize(const bool isEnabled);
 };
 
 #endif //VISUALIZATION_H

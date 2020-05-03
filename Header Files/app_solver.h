@@ -14,8 +14,8 @@ struct AppSolverDataParams {
     const std::string bUseMethod, ptCloudWinName, usrInpWinName, recPoseWinName, matchesWinName, bSource, fDecType, fMatchType, peMethod, pePMetrod, baLibrary, baCMethod, tMethod;
     const float bDownSamp, fKnnRatio, ofMaxItCt, ofItEps, ofMaxError, ofQualLvl, ofMinDist, peProb, peThresh, tMinDist, tMaxDist, tMaxPErr;
     const cv::Size winSize;
-    const bool useCUDA, peExGuess;
-    const int ofMinKPts, ofWinSize, ofMaxLevel, ofMaxCorn, peMinInl, peMinMatch, peNumIteR, baNumIter; 
+    const bool useCUDA, peExGuess, bVisEnable;
+    const int ofMinKPts, ofWinSize, ofMaxLevel, ofMaxCorn, peMinInl, peMinMatch, peNumIteR, baNumIter, bMaxSkFram;
     const cv::Mat cameraK, distCoeffs;
 
     /** AppSolverDataParams constructor
@@ -29,7 +29,9 @@ struct AppSolverDataParams {
     @param recPoseWinName recovery pose window name
     @param matchesWinName matches window name
     @param bSource source video file [.mp4, .avi ...] 
-    @param bDownSamp downsampling of input source images 
+    @param bDownSamp downsampling of input source images
+    @param bMaxSkFram max number of skipped frames to swap
+    @param bVisEnable is visualization by VTK, PCL enabled
     @param winSize debug windows size
     @param useCUDA is nVidia CUDA used 
     @param fDecType used detector type
@@ -62,23 +64,35 @@ struct AppSolverDataParams {
     @param cameraK camera intrics parameters
     @param distCoeffs camera distortion parameters
     */
-    AppSolverDataParams(const std::string bUseMethod, const std::string ptCloudWinName, const std::string usrInpWinName, std::string recPoseWinName, const std::string matchesWinName, const std::string bSource, const float bDownSamp, const cv::Size winSize, const bool useCUDA, const std::string fDecType, const std::string fMatchType, const float fKnnRatio, const int ofMinKPts, const int ofWinSize, const int ofMaxLevel, const float ofMaxItCt, const float ofItEps, const float ofMaxError, const int ofMaxCorn, const float ofQualLvl, const float ofMinDist, const std::string peMethod, const float peProb, const float peThresh, const int peMinInl, const int peMinMatch, const std::string pePMetrod, const bool peExGuess, const int peNumIteR, const std::string baLibrary, const std::string baCMethod, const int baNumIter, const std::string tMethod, const float tMinDist, const float tMaxDist, const float tMaxPErr, const cv::Mat cameraK, const cv::Mat distCoeffs) 
-        : bUseMethod(bUseMethod), ptCloudWinName(ptCloudWinName), usrInpWinName(usrInpWinName), recPoseWinName(recPoseWinName), matchesWinName(matchesWinName), bSource(bSource), bDownSamp(bDownSamp), winSize(winSize), useCUDA(useCUDA), fDecType(fDecType), fMatchType(fMatchType), fKnnRatio(fKnnRatio), ofMinKPts(ofMinKPts), ofWinSize(ofWinSize), ofMaxLevel(ofMaxLevel), ofMaxItCt(ofMaxItCt), ofItEps(ofItEps), ofMaxError(ofMaxError), ofMaxCorn(ofMaxCorn), ofQualLvl(ofQualLvl), ofMinDist(ofMinDist), peMethod(peMethod), peProb(peProb), peThresh(peThresh), peMinInl(peMinInl), peMinMatch(peMinMatch), pePMetrod(pePMetrod), peExGuess(peExGuess), peNumIteR(peNumIteR), baLibrary(baLibrary), baCMethod(baCMethod), baNumIter(baNumIter), tMethod(tMethod), tMinDist(tMinDist), tMaxDist(tMaxDist), tMaxPErr(tMaxPErr), cameraK(cameraK), distCoeffs(distCoeffs) {}
+    AppSolverDataParams(const std::string bUseMethod, const std::string ptCloudWinName, const std::string usrInpWinName, std::string recPoseWinName, const std::string matchesWinName, const std::string bSource, const float bDownSamp, const int bMaxSkFram, const cv::Size winSize, const bool bVisEnable, const bool useCUDA, const std::string fDecType, const std::string fMatchType, const float fKnnRatio, const int ofMinKPts, const int ofWinSize, const int ofMaxLevel, const float ofMaxItCt, const float ofItEps, const float ofMaxError, const int ofMaxCorn, const float ofQualLvl, const float ofMinDist, const std::string peMethod, const float peProb, const float peThresh, const int peMinInl, const int peMinMatch, const std::string pePMetrod, const bool peExGuess, const int peNumIteR, const std::string baLibrary, const std::string baCMethod, const int baNumIter, const std::string tMethod, const float tMinDist, const float tMaxDist, const float tMaxPErr, const cv::Mat cameraK, const cv::Mat distCoeffs) 
+        : bUseMethod(bUseMethod), ptCloudWinName(ptCloudWinName), usrInpWinName(usrInpWinName), recPoseWinName(recPoseWinName), matchesWinName(matchesWinName), bSource(bSource), bDownSamp(bDownSamp), bMaxSkFram(bMaxSkFram), winSize(winSize), bVisEnable(bVisEnable), useCUDA(useCUDA), fDecType(fDecType), fMatchType(fMatchType), fKnnRatio(fKnnRatio), ofMinKPts(ofMinKPts), ofWinSize(ofWinSize), ofMaxLevel(ofMaxLevel), ofMaxItCt(ofMaxItCt), ofItEps(ofItEps), ofMaxError(ofMaxError), ofMaxCorn(ofMaxCorn), ofQualLvl(ofQualLvl), ofMinDist(ofMinDist), peMethod(peMethod), peProb(peProb), peThresh(peThresh), peMinInl(peMinInl), peMinMatch(peMinMatch), pePMetrod(pePMetrod), peExGuess(peExGuess), peNumIteR(peNumIteR), baLibrary(baLibrary), baCMethod(baCMethod), baNumIter(baNumIter), tMethod(tMethod), tMinDist(tMinDist), tMaxDist(tMaxDist), tMaxPErr(tMaxPErr), cameraK(cameraK), distCoeffs(distCoeffs) {}
 };
 
 class AppSolver {
 private:
-    enum Method { KLT = 0, VO, PNP };
+    enum ImageFindState { SOURCE_LOST = -1, NOT_FOUND = 0, FOUND = 1};
 
-    Method m_usedMethod;
+    enum Method { KLT = 0, VO, PNP };
 
     const AppSolverDataParams params;
 
+    Method m_usedMethod;
+
     Tracking m_tracking;
 
-    bool findGoodImagePair(cv::VideoCapture cap, ViewDataContainer& viewContainer, float imDownSampling = 1.0f);
+    /** Find good images
+        The result will be added to the ViewDataContainer
+     * */
+    int findGoodImages(cv::VideoCapture cap, ViewDataContainer& viewContainer);
 
-    bool findGoodImagePair(cv::VideoCapture& cap, ViewDataContainer& viewContainer, FeatureDetector featDetector, OptFlow optFlow, Camera camera, RecoveryPose& recPose, FlowView& ofPrevView, FlowView& ofCurrView, float imDownSampling = 1.0f, bool useCUDA = false);
+    /** Find good images by optical flow
+        The result will be added to the ViewDataContainer
+     * */
+    int findGoodImages(cv::VideoCapture& cap, ViewDataContainer& viewContainer, FeatureDetector featDetector, OptFlow optFlow, Camera camera, RecoveryPose& recPose, FlowView& ofPrevView, FlowView& ofCurrView);
+
+    /** Load a convert image to grayscale
+    */
+    int prepareImage(cv::VideoCapture& cap, cv::Mat& imColor, cv::Mat& imGray);
 
     void composeExtrinsicMat(cv::Matx33d R, cv::Matx31d t, cv::Matx34d& pose) {
         pose = cv::Matx34d(
@@ -101,8 +115,6 @@ private:
             pose(2,3)
         );
     }
-
-    bool loadImage(cv::VideoCapture& cap, cv::Mat& imColor, cv::Mat& imGray, float downSample = 1.0f);
 
     static void onUsrWinClick (int event, int x, int y, int flags, void* params) {
         if (event != cv::EVENT_LBUTTONDOWN) { return; }

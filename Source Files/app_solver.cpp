@@ -1,42 +1,55 @@
 #include "app_solver.h"
 
-bool AppSolver::loadImage(cv::VideoCapture& cap, cv::Mat& imColor, cv::Mat& imGray, float downSample) {
-    cap >> imColor; if (imColor.empty()) { return false; }
+int AppSolver::prepareImage(cv::VideoCapture& cap, cv::Mat& imColor, cv::Mat& imGray) {
+    cap >> imColor; 
+    
+    if (imColor.empty()) 
+        return ImageFindState::SOURCE_LOST;
 
-    if (downSample != 1.0f)
-        cv::resize(imColor, imColor, cv::Size(imColor.cols*downSample, imColor.rows*downSample));
+    if (params.bDownSamp != 1.0f)
+        cv::resize(imColor, imColor, cv::Size(imColor.cols*params.bDownSamp, imColor.rows*params.bDownSamp));
 
     cv::cvtColor(imColor, imGray, cv::COLOR_BGR2GRAY);
 
-    return true;
+    return ImageFindState::FOUND;
 }
 
-bool AppSolver::findGoodImagePair(cv::VideoCapture cap, ViewDataContainer& viewContainer, float imDownSampling) {
+int AppSolver::findGoodImages(cv::VideoCapture cap, ViewDataContainer& viewContainer) {
     cv::Mat _imColor, _imGray;
 
-    if (!loadImage(cap, _imColor, _imGray, imDownSampling)) { return false; } 
+    ImageFindState state;
 
     if (viewContainer.isEmpty()) {
-        viewContainer.addItem(ViewData(_imColor, _imGray));
+        if ((state = (ImageFindState)prepareImage(cap, _imColor, _imGray)) 
+        != ImageFindState::FOUND) 
+            return state;
 
-        if (!loadImage(cap, _imColor, _imGray, imDownSampling)) { return false; }
+        viewContainer.addItem(ViewData(_imColor, _imGray));
     }
+
+    if ((state = (ImageFindState)prepareImage(cap, _imColor, _imGray)) 
+        != ImageFindState::FOUND) 
+        return state; 
 
     viewContainer.addItem(ViewData(_imColor, _imGray));
 
-    return true;
+    return state;
 }
 
-bool AppSolver::findGoodImagePair(cv::VideoCapture& cap, ViewDataContainer& viewContainer, FeatureDetector featDetector, OptFlow optFlow, Camera camera, RecoveryPose& recPose, FlowView& ofPrevView, FlowView& ofCurrView, float imDownSampling, bool useCUDA) {
-    std::cout << "Finding good image pair" << std::flush;
+int AppSolver::findGoodImages(cv::VideoCapture& cap, ViewDataContainer& viewContainer, FeatureDetector featDetector, OptFlow optFlow, Camera camera, RecoveryPose& recPose, FlowView& ofPrevView, FlowView& ofCurrView) {
+    std::cout << "Finding good images" << std::flush;
 
     cv::Mat _imColor, _imGray;
 
     std::vector<cv::Point2f> _prevCorners, _currCorners;
 
-    int numSkippedFrames = -1, numHomInliers = 0;
+    ImageFindState state;
+
+    int numHomInliers = 0, numSkippedFrames = -1;
     do {
-        if (!loadImage(cap, _imColor, _imGray, imDownSampling)) { return false; } 
+        if ((state = (ImageFindState)prepareImage(cap, _imColor, _imGray)) != ImageFindState::FOUND)
+            return state;
+
         std::cout << "." << std::flush;
         
         if (viewContainer.isEmpty()) {
@@ -44,7 +57,8 @@ bool AppSolver::findGoodImagePair(cv::VideoCapture& cap, ViewDataContainer& view
 
             featDetector.generateFlowFeatures(_imGray, ofPrevView.corners, optFlow.additionalSettings.maxCorn, optFlow.additionalSettings.qualLvl, optFlow.additionalSettings.minDist);
 
-            if (!loadImage(cap, _imColor, _imGray, imDownSampling)) { return false; } 
+            if ((state = (ImageFindState)prepareImage(cap, _imColor, _imGray)) != ImageFindState::FOUND)
+                return state;
         }
 
         _prevCorners = ofPrevView.corners;
@@ -53,6 +67,10 @@ bool AppSolver::findGoodImagePair(cv::VideoCapture& cap, ViewDataContainer& view
         optFlow.computeFlow(viewContainer.getLastOneItem()->imGray, _imGray, _prevCorners, _currCorners, optFlow.statusMask, true, true);
 
         numSkippedFrames++;
+
+        if (numSkippedFrames > params.bMaxSkFram) {
+            return ImageFindState::NOT_FOUND;
+        }
     } while(!m_tracking.findCameraPose(recPose, _prevCorners, _currCorners, camera.K, recPose.minInliers, numHomInliers));
 
     viewContainer.addItem(ViewData(_imColor, _imGray));
@@ -62,7 +80,7 @@ bool AppSolver::findGoodImagePair(cv::VideoCapture& cap, ViewDataContainer& view
 
     std::cout << "[DONE]" << " - Inliers count: " << numHomInliers << "; Skipped frames: " << numSkippedFrames << "\t" << std::flush;
 
-    return true;
+    return state;
 }
 
 void AppSolver::run() {
@@ -113,15 +131,21 @@ void AppSolver::run() {
     //std::thread visVTKThread(&VisVTK::visualize, &visVTK);
 
     for (uint iteration = 1; ; ++iteration) {
-        if (!viewContainer.isEmpty() && ofPrevView.corners.size() < optFlow.additionalSettings.minFeatures) {
-            featDetector.generateFlowFeatures(ofPrevView.viewPtr->imGray, ofPrevView.corners, optFlow.additionalSettings.maxCorn, optFlow.additionalSettings.qualLvl, optFlow.additionalSettings.minDist);
-        }
-
         bool isPtAdded = false;
-        if (!userInput.m_usrClickedPts2D.empty()) {
-            userInput.attachPointsToMove(userInput.m_usrClickedPts2D, ofPrevView.corners);
 
-            isPtAdded = true;
+        if (m_usedMethod == Method::KLT || 
+            m_usedMethod == Method::VO  ||
+            m_usedMethod == Method::PNP) {
+
+            if (iteration != 1 && ofPrevView.corners.size() < optFlow.additionalSettings.minFeatures) {
+                featDetector.generateFlowFeatures(ofPrevView.viewPtr->imGray, ofPrevView.corners, optFlow.additionalSettings.maxCorn, optFlow.additionalSettings.qualLvl, optFlow.additionalSettings.minDist);
+            }
+            
+            if (!userInput.m_usrClickedPts2D.empty()) {
+                userInput.attachPointsToMove(userInput.m_usrClickedPts2D, ofPrevView.corners);
+
+                isPtAdded = true;
+            }
         }
 
         if (m_usedMethod == Method::KLT) {
@@ -129,10 +153,25 @@ void AppSolver::run() {
                 userInput.attachPointsToMove(userInput.m_usrPts2D, ofPrevView.corners);
             }
 
-            if (!findGoodImagePair(cap, viewContainer, params.bDownSamp)) { break; }
+            if (findGoodImages(cap, viewContainer) == ImageFindState::SOURCE_LOST) 
+                break;
         }
             
-        if ((m_usedMethod == Method::VO || m_usedMethod == Method::PNP) && !findGoodImagePair(cap, viewContainer, featDetector, optFlow, camera,recPose, ofPrevView, ofCurrView, params.bDownSamp, params.useCUDA)) { break; }
+        if (m_usedMethod == Method::VO || m_usedMethod == Method::PNP) {
+            ImageFindState state = (ImageFindState)findGoodImages(cap, viewContainer, featDetector, optFlow, camera,recPose, ofPrevView, ofCurrView);
+            
+            if (state == ImageFindState::SOURCE_LOST) { break; }
+            if (state == ImageFindState::NOT_FOUND) {
+                ofPrevView.corners.clear();
+                ofCurrView.corners.clear();
+
+                std::swap(featPrevView, featCurrView);
+
+                std::cout << "Good images pair not found -> skipping current iteration!" << "\n";
+
+                continue;
+            }
+        }
 
         ofPrevView.setView(viewContainer.getLastButOneItem());
         ofCurrView.setView(viewContainer.getLastOneItem());
@@ -140,29 +179,32 @@ void AppSolver::run() {
         ofPrevView.viewPtr->imColor.copyTo(imOutRecPose);
         ofCurrView.viewPtr->imColor.copyTo(imOutUsrInp);
 
-        if (m_usedMethod == Method::KLT && !ofPrevView.corners.empty()) {
-            optFlow.computeFlow(ofPrevView.viewPtr->imGray, ofCurrView.viewPtr->imGray, ofPrevView.corners, ofCurrView.corners, optFlow.statusMask, true, false);
+        if (m_usedMethod == Method::KLT) {
+            if (!ofPrevView.corners.empty()) {
+                optFlow.computeFlow(ofPrevView.viewPtr->imGray, ofCurrView.viewPtr->imGray, ofPrevView.corners, ofCurrView.corners, optFlow.statusMask, true, false);
 
-            optFlow.drawOpticalFlow(imOutRecPose, imOutRecPose, ofPrevView.corners, ofCurrView.corners, optFlow.statusMask);
+                optFlow.drawOpticalFlow(imOutRecPose, imOutRecPose, ofPrevView.corners, ofCurrView.corners, optFlow.statusMask);
 
-            if (!userInput.m_usrPts2D.empty()) {
-                std::vector<cv::Point2f> _newPts2D;
-                userInput.detachPointsFromMove(_newPts2D, ofCurrView.corners, userInput.m_usrPts2D.size());
+                if (!userInput.m_usrPts2D.empty()) {
+                    std::vector<cv::Point2f> _newPts2D;
+                    userInput.detachPointsFromMove(_newPts2D, ofCurrView.corners, userInput.m_usrPts2D.size());
 
-                userInput.updatePoints(_newPts2D, cv::Rect(cv::Point(), ofCurrView.viewPtr->imColor.size()), 10);
+                    userInput.updatePoints(_newPts2D, cv::Rect(cv::Point(), ofCurrView.viewPtr->imColor.size()), 10);
+                }
+
+                if (!userInput.m_usrClickedPts2D.empty() && isPtAdded) {
+                    std::vector<cv::Point2f> _newPts2D;
+                    userInput.detachPointsFromMove(_newPts2D, ofCurrView.corners, userInput.m_usrClickedPts2D.size());
+
+                    userInput.addPoints(userInput.m_usrClickedPts2D, _newPts2D);
+
+                    userInput.m_usrClickedPts2D.clear();
+                }
+
+                userInput.recoverPoints(imOutUsrInp);
             }
-
-            if (!userInput.m_usrClickedPts2D.empty() && isPtAdded) {
-                std::vector<cv::Point2f> _newPts2D;
-                userInput.detachPointsFromMove(_newPts2D, ofCurrView.corners, userInput.m_usrClickedPts2D.size());
-
-                userInput.addPoints(userInput.m_usrClickedPts2D, _newPts2D);
-
-                userInput.m_usrClickedPts2D.clear();
-            }
-
-            userInput.recoverPoints(imOutUsrInp);
         }
+
         if ((m_usedMethod == Method::VO || m_usedMethod == Method::PNP)) {
             recPose.drawRecoveredPose(imOutRecPose, imOutRecPose, ofPrevView.corners, ofCurrView.corners, recPose.mask);
         }
@@ -198,8 +240,8 @@ void AppSolver::run() {
                     
                     userInput.m_usrClickedPts2D.clear();
                     
-                    visVTK.addPoints(_newPts3D);
-                    visPCL.addPoints(_newPts3D);
+                    //visVTK.addPoints(_newPts3D);
+                    //visPCL.addPoints(_newPts3D);
                 }
 
                 userInput.recoverPoints(imOutUsrInp, camera.K, cv::Mat(m_tracking.R), cv::Mat(m_tracking.t));
@@ -252,7 +294,7 @@ void AppSolver::run() {
                     m_tracking.m_trackViews.push_back(_trackView);
                     m_tracking.m_camPoses.push_back(_pose);
 
-                    reconstruction.adjustBundle(camera, m_tracking.m_trackViews, m_tracking.m_camPoses);
+                    //reconstruction.adjustBundle(camera, m_tracking.m_trackViews, m_tracking.m_camPoses);
 
                     cv::Matx34d _lastPose = m_tracking.m_camPoses.back();
 
@@ -289,20 +331,20 @@ void AppSolver::run() {
                     visPCL.addPoints(_newPts3D);
                 }
 
-                userInput.recoverPoints(imOutUsrInp, camera.K, cv::Mat(m_tracking.R), cv::Mat(m_tracking.t));
+                //userInput.recoverPoints(imOutUsrInp, camera.K, cv::Mat(m_tracking.R), cv::Mat(m_tracking.t));
 
                 m_tracking.addTrackView(featCurrView.viewPtr, _mask, _currPts, _points3D, _pointsRGB, featCurrView.keyPts, featCurrView.descriptor, _currIdx);
 
                 visVTK.addPointCloud(m_tracking.m_trackViews);
 
                 visPCL.addPointCloud(m_tracking.m_trackViews);
+
+                visPCL.updateCameras(m_tracking.m_camPoses);
+                visPCL.visualize(params.bVisEnable);
             }
 
-            visVTK.updateCameras(m_tracking.m_camPoses, camera.K);
-            visVTK.visualize();
-
-            visPCL.updateCameras(m_tracking.m_camPoses);
-            visPCL.visualize();
+            visVTK.updateCameras(m_tracking.m_camPoses, camera.K, m_usedMethod != Method::VO);
+            visVTK.visualize(params.bVisEnable);
         }
 
         cv::imshow(params.usrInpWinName, imOutUsrInp);
