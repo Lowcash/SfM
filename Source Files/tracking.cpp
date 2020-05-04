@@ -49,6 +49,7 @@ void Tracking::addTrackView(ViewData* view, const std::vector<bool>& mask, const
         if (mask[idx]) {
             m_pCloud.push_back(points3D[idx]);
             m_pClRGB.push_back(pointsRGB[idx]);
+            //m_graph.push_back();
 
             _trackView.addTrack(&m_pCloud.back(), _keypoint, _descriptor);
         }

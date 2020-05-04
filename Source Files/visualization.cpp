@@ -63,7 +63,7 @@ void VisPCL::addCamera(const cv::Matx34d camPose) {
     m_numCams++;
 }
 
-void VisPCL::updateCameras(const std::vector<cv::Matx34d> camPoses) { 
+void VisPCL::updateCameras(const std::list<cv::Matx34d> camPoses) { 
     for (auto [it, end, idx] = std::tuple{camPoses.cbegin(), camPoses.cend(), 0}; it != end; ++it, ++idx) {
         auto c = (cv::Matx34d)*it;
 
@@ -118,8 +118,8 @@ VisVTK::VisVTK(const std::string windowName, const cv::Size windowSize, const cv
 }
 
 void VisVTK::addPointCloud(const std::list<cv::Vec3d>& points3D, const std::list<cv::Vec3b>& pointsRGB) {
-    std::vector<cv::Vec3d> _points3D(points3D.begin(), points3D.end());
-    std::vector<cv::Vec3b> _pointsRGB(pointsRGB.begin(), pointsRGB.end());
+    const std::vector<cv::Vec3d> _points3D(points3D.begin(), points3D.end());
+    const std::vector<cv::Vec3b> _pointsRGB(pointsRGB.begin(), pointsRGB.end());
 
     const cv::viz::WCloud _pCloud(_points3D, _pointsRGB);
 
@@ -140,7 +140,7 @@ void VisVTK::addPoints(const std::vector<cv::Vec3d> points3D) {
     }
 }
 
-void VisVTK::updateCameras(const std::vector<cv::Matx34d> camPoses, const cv::Matx33d K33d, bool redraw) {
+void VisVTK::updateCameras(const std::list<cv::Matx34d> camPoses, const cv::Matx33d K33d, bool redraw) {
     if (redraw) {
         for (auto [it, end, idx] = std::tuple{camPoses.cbegin(), camPoses.cend(), 0}; it != end; ++it, ++idx) {
             auto c = (cv::Matx34d)*it;

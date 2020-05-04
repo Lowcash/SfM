@@ -33,7 +33,7 @@ public:
 
     void addPoints(const std::vector<cv::Vec3d> points3D);
     
-    void updateCameras(const std::vector<cv::Matx34d> camPoses);
+    void updateCameras(const std::list<cv::Matx34d> camPoses);
 
     void addCamera(const cv::Matx34d camPose);
 
@@ -73,7 +73,7 @@ public:
     
     void addPoints(const std::vector<cv::Vec3d> points3D);
 
-    void updateCameras(const std::vector<cv::Matx34d> camPoses, const cv::Matx33d K33d, const bool redraw = false);
+    void updateCameras(const std::list<cv::Matx34d> camPoses, const cv::Matx33d K33d, const bool redraw = false);
 
     void addCamera(const cv::Matx34d camPose);
 

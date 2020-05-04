@@ -59,10 +59,10 @@ void Reconstruction::triangulateCloud(Camera camera, const std::vector<cv::Point
     pointsToRGBCloud(camera, colorImage, cv::Mat(recPose.R), cv::Mat(recPose.t), _pts3D, _currPtsMat.t(), points3D, pointsRGB, m_minDistance, m_maxDistance, m_maxProjectionError, mask);
 }
 
-void Reconstruction::adjustBundle(Camera& camera, std::vector<TrackView>& tracks, std::vector<cv::Matx34d>& camPoses, uint maxIter) {
+void Reconstruction::adjustBundle(Camera& camera, std::list<cv::Vec3d>& pCloud, std::list<Track>& pCloudTracks, std::list<cv::Matx34d>& camPoses, uint maxIter) {
     std::cout << "Bundle adjustment...\n" << std::flush;
 
-    /*if (m_baMethod == "CERES") {
+    if (m_baMethod == "CERES") {
         cv::Matx14d intrinsics4d (
             camera.focal.x,
             camera.focal.y,
@@ -97,16 +97,17 @@ void Reconstruction::adjustBundle(Camera& camera, std::vector<TrackView>& tracks
         ceres::Problem problem;
 
         bool isCameraLocked = false;
-        for (auto [t, tEnd, c, cEnd, it] = std::tuple{tracks.begin(), tracks.end(), extrinsics6d.begin(), extrinsics6d.end(), 0}; t != tEnd && c != cEnd && it < maxIter; ++t, ++c, ++it) {
-            for (size_t i = 0; i < t->numTracks; ++i) {
-                cv::Point2f p2d = t->points2D[i];
+        for (auto [c, ct, cEnd, ctEnd] = std::tuple{pCloud.begin(), pCloudTracks.begin(), pCloud.end(), pCloudTracks.end()}; c != cEnd && ct != ctEnd; ++c, ++ct) {
+            for (size_t idx = 0; idx < ct->trackSize; ++idx) {
+                cv::Point2f* p2d = ct->projKey[idx];
+                cv::Matx16d* ext = &extrinsics6d[*ct->extrinsicsKey[idx]];
                 
-                ceres::CostFunction* costFunc = SnavelyReprojectionError::Create(p2d.x, p2d.y);
+                ceres::CostFunction* costFunc = SnavelyReprojectionError::Create(p2d->x, p2d->y);
 
-                problem.AddResidualBlock(costFunc, NULL, &intrinsics4d(0), c->val, &t->points3D[i](0));
+                problem.AddResidualBlock(costFunc, NULL, intrinsics4d.val, ext->val, c->val);
 
                 if (!isCameraLocked) {
-                    problem.SetParameterBlockConstant(c->val);
+                    problem.SetParameterBlockConstant(ext->val);
 
                     isCameraLocked = true;
                 }
@@ -164,7 +165,8 @@ void Reconstruction::adjustBundle(Camera& camera, std::vector<TrackView>& tracks
             cam(1, 3) = cam6(4); 
             cam(2, 3) = cam6(5);
         }
-    } else {
+    } 
+    /*else {
         gtsam::NonlinearFactorGraph graph;
         gtsam::Values initial;
 

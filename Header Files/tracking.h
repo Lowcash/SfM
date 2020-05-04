@@ -38,16 +38,20 @@ public:
 };
 
 class Track {
+public:
+    std::vector<cv::Point2f*> projKey;
+    std::vector<uint*> extrinsicsKey;
 
+    size_t trackSize;
 };
 
 class Tracking {
 private:
     
 public:
-    std::vector<TrackView> m_trackViews;
+    std::list<TrackView> m_trackViews;
 
-    std::vector<cv::Matx34d> m_camPoses;
+    std::list<cv::Matx34d> m_camPoses;
 
     std::list<cv::Vec3d> m_pCloud;
 
