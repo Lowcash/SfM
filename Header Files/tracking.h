@@ -26,35 +26,34 @@ public:
 
 class TrackView : public View {
 public:
-    std::vector<cv::KeyPoint> keyPoints;
+    std::vector<cv::Vec3d*> keyPoints3D;
+    std::vector<cv::KeyPoint> keyPoints2D;
     cv::Mat descriptor;
 
-    std::vector<cv::Point2f> points2D;
-    std::vector<cv::Vec3d> points3D;
-    std::vector<cv::Vec3b> pointsRGB;
-
-    size_t numTracks;
-
-    TrackView() { numTracks = 0; }
-
-    void addTrack(const cv::Point2f point2D, const cv::Vec3d point3D, const cv::Vec3b pointRGB, const cv::KeyPoint keyPoint, cv::Mat descriptor) {
-        points2D.push_back(point2D);
-        points3D.push_back(point3D);
-        pointsRGB.push_back(pointRGB);
-
-        this->keyPoints.push_back(keyPoint);
+    void addTrack(cv::Vec3d* keyPoint3D, const cv::KeyPoint keyPoint2D, cv::Mat descriptor) {
+        this->keyPoints3D.push_back(keyPoint3D);
+        this->keyPoints2D.push_back(keyPoint2D);
         this->descriptor.push_back(descriptor);
-
-        numTracks++;
     }
 };
+
+class Track {
+
+};
+
 class Tracking {
 private:
     
 public:
+    std::vector<TrackView> m_trackViews;
+
     std::vector<cv::Matx34d> m_camPoses;
 
-    std::vector<TrackView> m_trackViews;
+    std::list<cv::Vec3d> m_pCloud;
+
+    std::list<cv::Vec3b> m_pClRGB;
+
+    std::vector<Track> m_graph;
 
     cv::Matx33d R; cv::Matx31d t;
 
@@ -65,7 +64,7 @@ public:
 
     bool findCameraPose(RecoveryPose& recPose, std::vector<cv::Point2f> prevPts, std::vector<cv::Point2f> currPts, cv::Mat cameraK, int minInliers, int& numInliers);
 
-    bool findRecoveredCameraPose(DescriptorMatcher matcher, int minMatches, Camera camera, FeatureView& featView, std::vector<cv::Point2f>& posePoints2D, std::vector<cv::Vec3d>& posePoints3D, RecoveryPose& recPose);
+    bool findRecoveredCameraPose(DescriptorMatcher matcher, int minMatches, Camera camera, FeatureView& featView, RecoveryPose& recPose);
 
     void addCamPose(const cv::Matx34d camPose) { 
         m_camPoses.push_back(camPose);

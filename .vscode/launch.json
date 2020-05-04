@@ -11,19 +11,19 @@
             "program": "${workspaceFolder}/SfM_App.out",
             "args": [
             //--------------------------------- BASE --------------------------------//
-              "-bSource=/home/lowcash/Documents/SfM_Resources/Video/vid_13.mp4", 
+              "-bSource=/home/lowcash/Documents/SfM_Resources/Video/vid_6.mp4", 
               //"-bSource=https://192.168.1.101:8080/video", 
-              //"-bcalib=/home/lowcash/Documents/SfM_Resources/Calibration/mobile_cam_calib_1.yml", 
-              "-bcalib=/home/lowcash/Documents/SfM_Resources/Calibration/KITTI_cam_calib_0.yml", 
-              "-bDownSamp=1.0", "-bWinWidth=960", "-bWinHeight=540", "-bUseCuda=false", "-bUseMethod=VO", "-bMaxSkFram=15", "-bVisEnable=true",
+              "-bcalib=/home/lowcash/Documents/SfM_Resources/Calibration/mobile_cam_calib_1.yml", 
+              //"-bcalib=/home/lowcash/Documents/SfM_Resources/Calibration/KITTI_cam_calib_0.yml", 
+              "-bDownSamp=1.0", "-bWinWidth=960", "-bWinHeight=540", "-bUseCuda=false", "-bUseMethod=PNP", "-bMaxSkFram=15", "-bVisEnable=true",
             
               //------------------------------- FEATURES ------------------------------//
               //"-fDecType=ORB", "-fMatchType=BRUTEFORCE_HAMMING", "-fKnnRatio=0.75",
-              "-fDecType=AKAZE", "-fMatchType=BRUTEFORCE_HAMMING", "-fKnnRatio=0.5",
+              //"-fDecType=AKAZE", "-fMatchType=BRUTEFORCE_HAMMING", "-fKnnRatio=0.5",
               //"-fDecType=KAZE", "-fMatchType=FLANNBASED", "-fKnnRatio=0.5",
               //"-fDecType=FAST", "-fMatchType=BRUTEFORCE_HAMMING", "-fKnnRatio=0.5",
               //"-fDecType=SIFT", "-fMatchType=FLANNBASED", "-fKnnRatio=0.5",
-              //"-fDecType=SURF", "-fMatchType=FLANNBASED", "-fKnnRatio=0.5",
+              "-fDecType=SURF", "-fMatchType=FLANNBASED", "-fKnnRatio=0.5",
               //"-fDecType=STAR", "-fMatchType=BRUTEFORCE_HAMMING", "-fKnnRatio=0.5",
 
               //----------------------------- OPTICAL FLOW ----------------------------//

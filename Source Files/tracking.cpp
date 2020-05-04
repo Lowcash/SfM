@@ -46,11 +46,16 @@ void Tracking::addTrackView(ViewData* view, const std::vector<bool>& mask, const
         const cv::KeyPoint _keypoint = featureIndexer.empty() ? keyPoints[idx] : keyPoints[featureIndexer[idx]];
         const cv::Mat _descriptor = featureIndexer.empty() ? descriptor.row(idx) : descriptor.row(featureIndexer[idx]);
 
-        if (mask[idx])
-            _trackView.addTrack(points2D[idx], points3D[idx], pointsRGB[idx], _keypoint, _descriptor);
+        if (mask[idx]) {
+            m_pCloud.push_back(points3D[idx]);
+            m_pClRGB.push_back(pointsRGB[idx]);
+
+            _trackView.addTrack(&m_pCloud.back(), _keypoint, _descriptor);
+        }
+            
     }
 
-    if (!_trackView.points3D.empty()) {
+    if (!_trackView.keyPoints2D.empty() && !_trackView.keyPoints3D.empty()) {
         _trackView.setView(view);
 
         m_trackViews.push_back(_trackView);
@@ -79,42 +84,45 @@ bool Tracking::findCameraPose(RecoveryPose& recPose, std::vector<cv::Point2f> pr
     return numInliers > minInliers;
 }
 
-bool Tracking::findRecoveredCameraPose(DescriptorMatcher matcher, int minMatches, Camera camera, FeatureView& featView, std::vector<cv::Point2f>& posePoints2D, std::vector<cv::Vec3d>& posePoints3D, RecoveryPose& recPose) {
+bool Tracking::findRecoveredCameraPose(DescriptorMatcher matcher, int minMatches, Camera camera, FeatureView& featView, RecoveryPose& recPose) {
     if (m_trackViews.empty()) { return true; }
     
     std::cout << "Recovering pose..." << std::flush;
     
+    std::vector<cv::Point2f> _posePoints2D;
+    std::vector<cv::Vec3d> _posePoints3D;
+
     cv::Mat _R, _t, _inliers;
 
     for (auto t = m_trackViews.rbegin(); t != m_trackViews.rend(); ++t) {
-        if (t->points2D.empty() || featView.keyPts.empty()) { continue; }
+        if (t->keyPoints2D.empty() || featView.keyPts.empty()) { continue; }
 
         std::vector<cv::Point2f> _prevPts, _currPts;
         std::vector<cv::DMatch> _matches;
         std::vector<int> _prevIdx, _currIdx;
-        matcher.findRobustMatches(t->keyPoints, featView.keyPts, t->descriptor, featView.descriptor, _prevPts, _currPts, _matches, _prevIdx, _currIdx);
+        matcher.findRobustMatches(t->keyPoints2D, featView.keyPts, t->descriptor, featView.descriptor, _prevPts, _currPts, _matches, _prevIdx, _currIdx);
 
         std::cout << "Recover pose matches: " << _matches.size() << "\n";
 
         if (_matches.size() < minMatches)
             break;
 
-        cv::Mat _imOutMatch; cv::drawMatches(t->viewPtr->imColor, t->keyPoints, featView.viewPtr->imColor, featView.keyPts, _matches, _imOutMatch);
+        cv::Mat _imOutMatch; cv::drawMatches(t->viewPtr->imColor, t->keyPoints2D, featView.viewPtr->imColor, featView.keyPts, _matches, _imOutMatch);
 
         for (const auto& m : _matches) {
-            cv::Vec3d _point3D = (cv::Vec3d)t->points3D[m.queryIdx];
+            cv::Vec3d _point3D = (cv::Vec3d)*t->keyPoints3D[m.queryIdx];
             cv::Point2f _point2D = (cv::Point2f)featView.keyPts[m.trainIdx].pt;
 
-            posePoints2D.push_back(_point2D);
-            posePoints3D.push_back(_point3D);
+            _posePoints2D.push_back(_point2D);
+            _posePoints3D.push_back(_point3D);
         }
 
         cv::imshow("Matches", _imOutMatch); cv::waitKey(1);
     }
 
-    if (posePoints2D.size() < 7 || posePoints3D.size() < 7) { return false; }
+    if (_posePoints2D.size() < 7 || _posePoints3D.size() < 7) { return false; }
 
-    if (!cv::solvePnPRansac(posePoints3D, posePoints2D, camera.K, cv::Mat(), _R, _t, recPose.useExtrinsicGuess, recPose.numIter, recPose.threshold, recPose.prob, _inliers, recPose.poseEstMethod)) { return false; }
+    if (!cv::solvePnPRansac(_posePoints3D, _posePoints2D, camera.K, cv::Mat(), _R, _t, recPose.useExtrinsicGuess, recPose.numIter, recPose.threshold, recPose.prob, _inliers, recPose.poseEstMethod)) { return false; }
     //if (!cv::solvePnP(_posePoints3D, _posePoints2D, camera._K, cv::Mat(), _R, _t, recPose.useExtrinsicGuess, recPose.poseEstMethod)) { return false; }
 
     std::cout << "Recover pose inliers: " << _inliers.rows << "\n";

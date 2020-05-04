@@ -62,7 +62,7 @@ void Reconstruction::triangulateCloud(Camera camera, const std::vector<cv::Point
 void Reconstruction::adjustBundle(Camera& camera, std::vector<TrackView>& tracks, std::vector<cv::Matx34d>& camPoses, uint maxIter) {
     std::cout << "Bundle adjustment...\n" << std::flush;
 
-    if (m_baMethod == "CERES") {
+    /*if (m_baMethod == "CERES") {
         cv::Matx14d intrinsics4d (
             camera.focal.x,
             camera.focal.y,
@@ -168,9 +168,9 @@ void Reconstruction::adjustBundle(Camera& camera, std::vector<TrackView>& tracks
         gtsam::NonlinearFactorGraph graph;
         gtsam::Values initial;
 
-        gtsam::Cal3_S2 K = gtsam::Cal3_S2(camera.focal.x, camera.focal.y, 0 /*skew*/, camera.pp.x, camera.pp.y);
+        gtsam::Cal3_S2 K = gtsam::Cal3_S2(camera.focal.x, camera.focal.y, 0 , camera.pp.x, camera.pp.y);
 
-        gtsam::noiseModel::Diagonal::shared_ptr camNoise = gtsam::noiseModel::Diagonal::Sigmas((gtsam::Vector(5) << 0, 0, 0 /*skew*/, 0, 0).finished());
+        gtsam::noiseModel::Diagonal::shared_ptr camNoise = gtsam::noiseModel::Diagonal::Sigmas((gtsam::Vector(5) << 0, 0, 0 , 0, 0).finished());
         graph.emplace_shared<gtsam::PriorFactor<gtsam::Cal3_S2>>(gtsam::Symbol('K', 0), K, camNoise);
 
         initial.insert(gtsam::Symbol('K', 0), K);
@@ -270,7 +270,7 @@ void Reconstruction::adjustBundle(Camera& camera, std::vector<TrackView>& tracks
                 points++;
             }
         }
-    }
+    }*/
 
     std::cout << "[DONE]\n";
 }
