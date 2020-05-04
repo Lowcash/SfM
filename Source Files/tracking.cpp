@@ -39,7 +39,7 @@ void RecoveryPose::drawRecoveredPose(cv::Mat inputImg, cv::Mat& outputImg, const
     }
 }
 
-void Tracking::addTrackView(ViewData* view, const std::vector<bool>& mask, const std::vector<cv::Point2f>& points2D, const std::vector<cv::Vec3d> points3D, const std::vector<cv::Vec3b>& pointsRGB, const std::vector<cv::KeyPoint>& keyPoints, const cv::Mat& descriptor, const std::vector<int>& featureIndexer) {
+void Tracking::addTrackView(ViewData* view, const std::vector<bool>& mask, const std::vector<cv::Point2f>& points2D, const std::vector<cv::Vec3d> points3D, const std::vector<cv::Vec3b>& pointsRGB, const std::vector<cv::KeyPoint>& keyPoints, const cv::Mat& descriptor, std::map<std::pair<float, float>, size_t>& cloudMap, const std::vector<int>& featureIndexer) {
     TrackView _trackView;
 
     for (uint idx = 0; idx < points3D.size(); ++idx) {
@@ -47,16 +47,32 @@ void Tracking::addTrackView(ViewData* view, const std::vector<bool>& mask, const
         const cv::Mat _descriptor = featureIndexer.empty() ? descriptor.row(idx) : descriptor.row(featureIndexer[idx]);
 
         if (mask[idx]) {
-            m_pCloud.push_back(points3D[idx]);
-            m_pClRGB.push_back(pointsRGB[idx]);
-            //m_graph.push_back();
+            if (cloudMap.find(std::pair{_keypoint.pt.x, _keypoint.pt.y}) == cloudMap.end()) {
+                m_pCloud.push_back(points3D[idx]);
+                m_pClRGB.push_back(pointsRGB[idx]);
 
-            _trackView.addTrack(&m_pCloud.back(), _keypoint, _descriptor);
-        }
-            
+                Track track;
+                track.extrinsicsIdx.push_back(m_trackViews.size());
+                track.projKey.push_back(_keypoint.pt);
+                track.trackSize = 1;
+
+                m_tracks.push_back(track);
+
+                _trackView.addTrack(_keypoint, _descriptor, m_pCloud.size() - 1);
+
+            } else {
+                size_t cloudIdx = cloudMap[std::pair{_keypoint.pt.x, _keypoint.pt.y}];
+
+                m_tracks[cloudIdx].extrinsicsIdx.push_back(m_trackViews.size());
+                m_tracks[cloudIdx].projKey.push_back(_keypoint.pt);
+                m_tracks[cloudIdx].trackSize++;
+
+                _trackView.addTrack(_keypoint, _descriptor, cloudIdx);
+            }
+        }    
     }
 
-    if (!_trackView.keyPoints2D.empty() && !_trackView.keyPoints3D.empty()) {
+    if (!_trackView.keyPoints.empty() && !_trackView.cloudIdxs.empty()) {
         _trackView.setView(view);
 
         m_trackViews.push_back(_trackView);
@@ -85,7 +101,7 @@ bool Tracking::findCameraPose(RecoveryPose& recPose, std::vector<cv::Point2f> pr
     return numInliers > minInliers;
 }
 
-bool Tracking::findRecoveredCameraPose(DescriptorMatcher matcher, int minMatches, Camera camera, FeatureView& featView, RecoveryPose& recPose) {
+bool Tracking::findRecoveredCameraPose(DescriptorMatcher matcher, int minMatches, Camera camera, FeatureView& featView, RecoveryPose& recPose, std::map<std::pair<float, float>, size_t>& cloudMap) {
     if (m_trackViews.empty()) { return true; }
     
     std::cout << "Recovering pose..." << std::flush;
@@ -96,26 +112,28 @@ bool Tracking::findRecoveredCameraPose(DescriptorMatcher matcher, int minMatches
     cv::Mat _R, _t, _inliers;
 
     for (auto t = m_trackViews.rbegin(); t != m_trackViews.rend(); ++t) {
-        if (t->keyPoints2D.empty() || featView.keyPts.empty()) { continue; }
+        if (t->keyPoints.empty() || featView.keyPts.empty()) { continue; }
 
         std::vector<cv::Point2f> _prevPts, _currPts;
         std::vector<cv::DMatch> _matches;
         std::vector<int> _prevIdx, _currIdx;
-        matcher.findRobustMatches(t->keyPoints2D, featView.keyPts, t->descriptor, featView.descriptor, _prevPts, _currPts, _matches, _prevIdx, _currIdx);
+        matcher.findRobustMatches(t->keyPoints, featView.keyPts, t->descriptor, featView.descriptor, _prevPts, _currPts, _matches, _prevIdx, _currIdx);
 
         std::cout << "Recover pose matches: " << _matches.size() << "\n";
 
         if (_matches.size() < minMatches)
             break;
 
-        cv::Mat _imOutMatch; cv::drawMatches(t->viewPtr->imColor, t->keyPoints2D, featView.viewPtr->imColor, featView.keyPts, _matches, _imOutMatch);
+        cv::Mat _imOutMatch; cv::drawMatches(t->viewPtr->imColor, t->keyPoints, featView.viewPtr->imColor, featView.keyPts, _matches, _imOutMatch);
 
         for (const auto& m : _matches) {
-            cv::Vec3d _point3D = (cv::Vec3d)*t->keyPoints3D[m.queryIdx];
+            cv::Vec3d _point3D = (cv::Vec3d)m_pCloud[t->cloudIdxs[m.queryIdx]];
             cv::Point2f _point2D = (cv::Point2f)featView.keyPts[m.trainIdx].pt;
 
             _posePoints2D.push_back(_point2D);
             _posePoints3D.push_back(_point3D);
+            
+            cloudMap[std::pair{_point2D.x, _point2D.y}] = t->cloudIdxs[m.queryIdx];
         }
 
         cv::imshow("Matches", _imOutMatch); cv::waitKey(1);

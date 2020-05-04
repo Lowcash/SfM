@@ -279,8 +279,10 @@ void AppSolver::run() {
 
                     continue; 
                 }
-                
-                if(!m_tracking.findRecoveredCameraPose(descMatcher, params.peMinMatch, camera, featCurrView, recPose)) {
+
+                std::map<std::pair<float, float>, size_t> cloudMap;
+
+                if(!m_tracking.findRecoveredCameraPose(descMatcher, params.peMinMatch, camera, featCurrView, recPose, cloudMap)) {
                     std::cout << "Recovering camera fail, skip current reconstruction iteration!\n";
         
                     std::swap(ofPrevView, ofCurrView);
@@ -289,21 +291,9 @@ void AppSolver::run() {
                     continue;
                 }
 
-                /*if (!m_tracking.m_camPoses.empty()) {
-                    cv::Matx34d _pose; composeExtrinsicMat(recPose.R, recPose.t, _pose);
-
-                    m_tracking.m_trackViews.push_back(_trackView);
-                    m_tracking.m_camPoses.push_back(_pose);
-
-                    //reconstruction.adjustBundle(camera, m_tracking.m_trackViews, m_tracking.m_camPoses);
-
-                    cv::Matx34d _lastPose = m_tracking.m_camPoses.back();
-
-                    decomposeExtrinsicMat(_lastPose, recPose.R, recPose.t);
-
-                    m_tracking.m_trackViews.pop_back();
-                    m_tracking.m_camPoses.pop_back();
-                }*/
+                if (!m_tracking.m_camPoses.empty()) {
+                    reconstruction.adjustBundle(camera, m_tracking.m_pCloud, m_tracking.m_tracks, m_tracking.m_camPoses, params.baNumIter);
+                }
 
                 if (m_tracking.m_camPoses.empty())
                     composeExtrinsicMat(cv::Matx33d::eye(), cv::Matx31d::eye(), _prevPose);
@@ -334,7 +324,7 @@ void AppSolver::run() {
 
                 userInput.recoverPoints(imOutUsrInp, camera.K, cv::Mat(m_tracking.R), cv::Mat(m_tracking.t));
 
-                m_tracking.addTrackView(featCurrView.viewPtr, _mask, _currPts, _points3D, _pointsRGB, featCurrView.keyPts, featCurrView.descriptor, _currIdx);
+                m_tracking.addTrackView(featCurrView.viewPtr, _mask, _currPts, _points3D, _pointsRGB, featCurrView.keyPts, featCurrView.descriptor, cloudMap, _currIdx);
 
                 visVTK.addPointCloud(m_tracking.m_pCloud, m_tracking.m_pClRGB);
 

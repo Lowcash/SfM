@@ -29,7 +29,7 @@ private:
 public:
     VisPCL(const std::string windowName, const cv::Size windowSize, const cv::viz::Color backgroundColor = cv::viz::Color::black());
 
-    void addPointCloud(const std::list<cv::Vec3d>& points3D, const std::list<cv::Vec3b>& pointsRGB);
+    void addPointCloud(const std::vector<cv::Vec3d>& points3D, const std::vector<cv::Vec3b>& pointsRGB);
 
     void addPoints(const std::vector<cv::Vec3d> points3D);
     
@@ -69,7 +69,7 @@ private:
 public:
     VisVTK(const std::string windowName, const cv::Size windowSize, const cv::viz::Color backgroundColor = cv::viz::Color::black());
 
-    void addPointCloud(const std::list<cv::Vec3d>& points3D, const std::list<cv::Vec3b>& pointsRGB);
+    void addPointCloud(const std::vector<cv::Vec3d>& points3D, const std::vector<cv::Vec3b>& pointsRGB);
     
     void addPoints(const std::vector<cv::Vec3d> points3D);
 

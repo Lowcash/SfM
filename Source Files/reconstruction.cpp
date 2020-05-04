@@ -59,7 +59,7 @@ void Reconstruction::triangulateCloud(Camera camera, const std::vector<cv::Point
     pointsToRGBCloud(camera, colorImage, cv::Mat(recPose.R), cv::Mat(recPose.t), _pts3D, _currPtsMat.t(), points3D, pointsRGB, m_minDistance, m_maxDistance, m_maxProjectionError, mask);
 }
 
-void Reconstruction::adjustBundle(Camera& camera, std::list<cv::Vec3d>& pCloud, std::list<Track>& pCloudTracks, std::list<cv::Matx34d>& camPoses, uint maxIter) {
+void Reconstruction::adjustBundle(Camera& camera, std::vector<cv::Vec3d>& pCloud, std::vector<Track>& pCloudTracks, std::list<cv::Matx34d>& camPoses, uint maxIter) {
     std::cout << "Bundle adjustment...\n" << std::flush;
 
     if (m_baMethod == "CERES") {
@@ -99,10 +99,10 @@ void Reconstruction::adjustBundle(Camera& camera, std::list<cv::Vec3d>& pCloud, 
         bool isCameraLocked = false;
         for (auto [c, ct, cEnd, ctEnd] = std::tuple{pCloud.begin(), pCloudTracks.begin(), pCloud.end(), pCloudTracks.end()}; c != cEnd && ct != ctEnd; ++c, ++ct) {
             for (size_t idx = 0; idx < ct->trackSize; ++idx) {
-                cv::Point2f* p2d = ct->projKey[idx];
-                cv::Matx16d* ext = &extrinsics6d[*ct->extrinsicsKey[idx]];
+                cv::Point2f p2d = ct->projKey[idx];
+                cv::Matx16d* ext = &extrinsics6d[ct->extrinsicsIdx[idx]];
                 
-                ceres::CostFunction* costFunc = SnavelyReprojectionError::Create(p2d->x, p2d->y);
+                ceres::CostFunction* costFunc = SnavelyReprojectionError::Create(p2d.x, p2d.y);
 
                 problem.AddResidualBlock(costFunc, NULL, intrinsics4d.val, ext->val, c->val);
 

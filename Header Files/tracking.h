@@ -26,21 +26,23 @@ public:
 
 class TrackView : public View {
 public:
-    std::vector<cv::Vec3d*> keyPoints3D;
-    std::vector<cv::KeyPoint> keyPoints2D;
+    std::vector<size_t> cloudIdxs;
+    
+    std::vector<cv::KeyPoint> keyPoints;
     cv::Mat descriptor;
 
-    void addTrack(cv::Vec3d* keyPoint3D, const cv::KeyPoint keyPoint2D, cv::Mat descriptor) {
-        this->keyPoints3D.push_back(keyPoint3D);
-        this->keyPoints2D.push_back(keyPoint2D);
+    void addTrack(const cv::KeyPoint keyPoint, cv::Mat descriptor, size_t cloudIdx) {
+        this->keyPoints.push_back(keyPoint);
         this->descriptor.push_back(descriptor);
+
+        this->cloudIdxs.push_back(cloudIdx);
     }
 };
 
 class Track {
 public:
-    std::vector<cv::Point2f*> projKey;
-    std::vector<uint*> extrinsicsKey;
+    std::vector<cv::Point2f> projKey;
+    std::vector<uint> extrinsicsIdx;
 
     size_t trackSize;
 };
@@ -53,22 +55,22 @@ public:
 
     std::list<cv::Matx34d> m_camPoses;
 
-    std::list<cv::Vec3d> m_pCloud;
+    std::vector<cv::Vec3d> m_pCloud;
 
-    std::list<cv::Vec3b> m_pClRGB;
+    std::vector<cv::Vec3b> m_pClRGB;
 
-    std::vector<Track> m_graph;
+    std::vector<Track> m_tracks;
 
     cv::Matx33d R; cv::Matx31d t;
 
     Tracking()
         : R(cv::Matx33d::eye()), t(cv::Matx31d::eye()) {}
 
-    void addTrackView(ViewData* view, const std::vector<bool>& mask, const std::vector<cv::Point2f>& points2D, const std::vector<cv::Vec3d> points3D, const std::vector<cv::Vec3b>& pointsRGB, const std::vector<cv::KeyPoint>& keyPoints, const cv::Mat& descriptor, const std::vector<int>& featureIndexer = std::vector<int>());
+    void addTrackView(ViewData* view, const std::vector<bool>& mask, const std::vector<cv::Point2f>& points2D, const std::vector<cv::Vec3d> points3D, const std::vector<cv::Vec3b>& pointsRGB, const std::vector<cv::KeyPoint>& keyPoints, const cv::Mat& descriptor, std::map<std::pair<float, float>, size_t>& cloudMap, const std::vector<int>& featureIndexer = std::vector<int>());
 
     bool findCameraPose(RecoveryPose& recPose, std::vector<cv::Point2f> prevPts, std::vector<cv::Point2f> currPts, cv::Mat cameraK, int minInliers, int& numInliers);
 
-    bool findRecoveredCameraPose(DescriptorMatcher matcher, int minMatches, Camera camera, FeatureView& featView, RecoveryPose& recPose);
+    bool findRecoveredCameraPose(DescriptorMatcher matcher, int minMatches, Camera camera, FeatureView& featView, RecoveryPose& recPose, std::map<std::pair<float, float>, size_t>& cloudMap);
 
     void addCamPose(const cv::Matx34d camPose) { 
         m_camPoses.push_back(camPose);

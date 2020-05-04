@@ -24,7 +24,7 @@ boost::shared_ptr<pcl::visualization::PCLVisualizer> VisPCL::getNewViewer(const 
     return (viewer);
 }
 
-void VisPCL::addPointCloud(const std::list<cv::Vec3d>& points3D, const std::list<cv::Vec3b>& pointsRGB) {
+void VisPCL::addPointCloud(const std::vector<cv::Vec3d>& points3D, const std::vector<cv::Vec3b>& pointsRGB) {
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr pointCloud(new pcl::PointCloud<pcl::PointXYZRGB>);
 
     for (auto [p3d, p3dEnd, pClr, pClrEnd] = std::tuple{points3D.cbegin(), points3D.cend(), pointsRGB.cbegin(), pointsRGB.cend()}; p3d != p3dEnd && pClr != pClrEnd; ++p3d, ++pClr) {
@@ -117,11 +117,8 @@ VisVTK::VisVTK(const std::string windowName, const cv::Size windowSize, const cv
     m_numPoints = 0;
 }
 
-void VisVTK::addPointCloud(const std::list<cv::Vec3d>& points3D, const std::list<cv::Vec3b>& pointsRGB) {
-    const std::vector<cv::Vec3d> _points3D(points3D.begin(), points3D.end());
-    const std::vector<cv::Vec3b> _pointsRGB(pointsRGB.begin(), pointsRGB.end());
-
-    const cv::viz::WCloud _pCloud(_points3D, _pointsRGB);
+void VisVTK::addPointCloud(const std::vector<cv::Vec3d>& points3D, const std::vector<cv::Vec3b>& pointsRGB) {
+    const cv::viz::WCloud _pCloud(points3D, pointsRGB);
 
     if (m_numClouds > 0)
         m_viewer.removeWidget("cloud");
