@@ -59,7 +59,7 @@ void Reconstruction::triangulateCloud(Camera camera, const std::vector<cv::Point
     pointsToRGBCloud(camera, colorImage, cv::Mat(recPose.R), cv::Mat(recPose.t), _pts3D, _currPtsMat.t(), points3D, pointsRGB, m_minDistance, m_maxDistance, m_maxProjectionError, mask);
 }
 
-void Reconstruction::adjustBundle(Camera& camera, std::vector<cv::Vec3d>& pCloud, std::vector<Track>& pCloudTracks, std::list<cv::Matx34d>& camPoses) {
+void Reconstruction::adjustBundle(Camera& camera, std::vector<cv::Vec3d>& pCloud, std::vector<CloudTrack>& pCloudTracks, std::list<cv::Matx34d>& camPoses) {
     std::cout << "Bundle adjustment...\n" << std::flush;
 
     if (pCloud.empty()) {

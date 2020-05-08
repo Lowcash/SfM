@@ -367,10 +367,6 @@ void AppSolver::run() {
             composeExtrinsicMat(recPose.R, recPose.t, _currPose);
             m_tracking.addCamPose(_currPose);
 
-            if (!m_tracking.cloud3D.empty()) {
-                reconstruction.adjustBundle(camera, m_tracking.cloud3D, m_tracking.cloudTracks, m_tracking.camPoses);
-            }
-
             if (!userInput.m_usrClickedPts2D.empty() && isPtAdded) {
                 userInput.detachPointsFromMove(_prevPts, ofPrevView.corners, userInput.m_usrClickedPts2D.size());
                 userInput.detachPointsFromMove(_currPts, ofCurrView.corners, userInput.m_usrClickedPts2D.size());
@@ -393,6 +389,10 @@ void AppSolver::run() {
             userInput.recoverPoints(imOutUsrInp, camera.K, cv::Mat(m_tracking.R), cv::Mat(m_tracking.t));
 
             m_tracking.addTrackView(featCurrView.viewPtr, _mask, _currPts, _points3D, _pointsRGB, featCurrView.keyPts, featCurrView.descriptor, cloudMap, _currIdx);
+            
+            if (!m_tracking.cloud3D.empty()) {
+                reconstruction.adjustBundle(camera, m_tracking.cloud3D, m_tracking.cloudTracks, m_tracking.camPoses);
+            }
             
             visVTK.addPointCloud(m_tracking.cloud3D, m_tracking.cloudRGB);
             visPCL.addPointCloud(m_tracking.cloud3D, m_tracking.cloudRGB);

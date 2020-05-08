@@ -7,6 +7,9 @@
 #include "feature_processing.h"
 #include "camera.h"
 
+/** RecoveryPose helper
+ *  It holds pose estimation settings and calculation output result
+ * */
 class RecoveryPose {
 public:
     int recPoseMethod, poseEstMethod;
@@ -24,10 +27,15 @@ public:
     void drawRecoveredPose(cv::Mat inputImg, cv::Mat& outputImg, const std::vector<cv::Point2f> prevPts, const std::vector<cv::Point2f> currPts, cv::Mat mask = cv::Mat());
 };
 
+/** TrackView helper used for PnP matching
+ *  Only good tracks with cloud reference are created
+ * */
 class TrackView : public View {
 public:
+    // Each point is mapped to world point cloud idx
     std::vector<size_t> cloudIdxs;
     
+    // KeyPoints and descriptors for PnP matching
     std::vector<cv::KeyPoint> keyPoints;
     cv::Mat descriptor;
 
@@ -39,9 +47,16 @@ public:
     }
 };
 
-class Track {
+/** CloudTrack helper used by bundle adjuster
+ *  Track is created for each 3D cloud point
+ *  It holds camera indexes and 2D point projections, which affect 3D cloud point
+ * */
+class CloudTrack {
 public:
+    // 2D projections
     std::vector<cv::Point2f> projKeys;
+
+    // camera indexes
     std::vector<uint> extrinsicsIdxs;
 
     size_t numTracks;
@@ -53,7 +68,7 @@ public:
         numTracks++;
     }
 
-    Track(const cv::Point2f projKey, const uint extrinsicsIdx) {
+    CloudTrack(const cv::Point2f projKey, const uint extrinsicsIdx) {
         numTracks = 0;
 
         addTrack(projKey, extrinsicsIdx);
@@ -62,22 +77,28 @@ public:
 
 class Tracking {
 public:
+    // Good track used for matching
     std::list<TrackView> trackViews;
 
+    // Result camera poses -> updated by bundle adjuster
     std::list<cv::Matx34d> camPoses;
 
+    // Result cloud -> updated by bundle adjuster
     std::vector<cv::Vec3d> cloud3D;
 
+    // Result cloud colors -> not updated
     std::vector<cv::Vec3b> cloudRGB;
 
-    std::vector<Track> cloudTracks;
+    // CloudTracks same size as cloud3D
+    // Cameras and 2D point projections which affect cloud
+    std::vector<CloudTrack> cloudTracks;
 
     cv::Matx33d R; cv::Matx31d t;
 
     Tracking()
         : R(cv::Matx33d::eye()), t(cv::Matx31d::eye()) {}
 
-    void addTrackView(ViewData* view, const std::vector<bool>& mask, const std::vector<cv::Point2f>& points2D, const std::vector<cv::Vec3d> points3D, const std::vector<cv::Vec3b>& pointsRGB, const std::vector<cv::KeyPoint>& keyPoints, const cv::Mat& descriptor, std::map<std::pair<float, float>, size_t>& cloudMap, const std::vector<int>& featureIndexer = std::vector<int>());
+    void addTrackView(ViewData* view, const std::vector<bool>& mask, const std::vector<cv::Point2f>& points2D, const std::vector<cv::Vec3d> points3D, const std::vector<cv::Vec3b>& pointsRGB, const std::vector<cv::KeyPoint>& keyPoints, const cv::Mat& descriptor, std::map<std::pair<float, float>, size_t>& cloudMap, const std::vector<int>& ptsToKeyIdx = std::vector<int>());
 
     bool findCameraPose(RecoveryPose& recPose, std::vector<cv::Point2f> prevPts, std::vector<cv::Point2f> currPts, cv::Mat cameraK, int minInliers, int& numInliers);
 

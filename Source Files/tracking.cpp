@@ -39,17 +39,17 @@ void RecoveryPose::drawRecoveredPose(cv::Mat inputImg, cv::Mat& outputImg, const
     }
 }
 
-void Tracking::addTrackView(ViewData* view, const std::vector<bool>& mask, const std::vector<cv::Point2f>& points2D, const std::vector<cv::Vec3d> points3D, const std::vector<cv::Vec3b>& pointsRGB, const std::vector<cv::KeyPoint>& keyPoints, const cv::Mat& descriptor, std::map<std::pair<float, float>, size_t>& cloudMap, const std::vector<int>& featureIndexer) {
+void Tracking::addTrackView(ViewData* view, const std::vector<bool>& mask, const std::vector<cv::Point2f>& points2D, const std::vector<cv::Vec3d> points3D, const std::vector<cv::Vec3b>& pointsRGB, const std::vector<cv::KeyPoint>& keyPoints, const cv::Mat& descriptor, std::map<std::pair<float, float>, size_t>& cloudMap, const std::vector<int>& ptsToKeyIdx) {
     TrackView _trackView;
 
     size_t newPtsAdded = 0;
     for (uint idx = 0; idx < points3D.size(); ++idx) {
-        const cv::KeyPoint _keypoint = featureIndexer.empty() ? keyPoints[idx] : keyPoints[featureIndexer[idx]];
-        const cv::Mat _descriptor = featureIndexer.empty() ? descriptor.row(idx) : descriptor.row(featureIndexer[idx]);
+        const cv::KeyPoint _keypoint = ptsToKeyIdx.empty() ? keyPoints[idx] : keyPoints[ptsToKeyIdx[idx]];
+        const cv::Mat _descriptor = ptsToKeyIdx.empty() ? descriptor.row(idx) : descriptor.row(ptsToKeyIdx[idx]);
 
         if (mask[idx]) {
             if (cloudMap.find(std::pair{_keypoint.pt.x, _keypoint.pt.y}) == cloudMap.end()) {
-                cloudTracks.push_back(Track(_keypoint.pt, trackViews.size()));
+                cloudTracks.push_back(CloudTrack(_keypoint.pt, trackViews.size()));
 
                 _trackView.addTrack(_keypoint, _descriptor, cloud3D.size());
 

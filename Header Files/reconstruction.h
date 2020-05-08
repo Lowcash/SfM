@@ -95,7 +95,7 @@ public:
 
     void triangulateCloud(Camera camera, const std::vector<cv::Point2f> prevPts, const std::vector<cv::Point2f> currPts, const cv::Mat colorImage, std::vector<cv::Vec3d>& points3D, std::vector<cv::Vec3b>& pointsRGB, std::vector<bool>& mask, const cv::Matx34d prevPose, const cv::Matx34d currPose, RecoveryPose& recPose);
 
-    void adjustBundle(Camera& camera, std::vector<cv::Vec3d>& pCloud, std::vector<Track>& pCloudTracks, std::list<cv::Matx34d>& camPoses);
+    void adjustBundle(Camera& camera, std::vector<cv::Vec3d>& pCloud, std::vector<CloudTrack>& pCloudTracks, std::list<cv::Matx34d>& camPoses);
 };
 
 #endif //RECONSTRUCTION_H

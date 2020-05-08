@@ -185,7 +185,7 @@ void DescriptorMatcher::ratioMaches(const cv::Mat lDesc, const cv::Mat rDesc, st
     }
 }
 
-void DescriptorMatcher::findRobustMatches(std::vector<cv::KeyPoint> prevKeyPts, std::vector<cv::KeyPoint> currKeyPts, cv::Mat prevDesc, cv::Mat currDesc, std::vector<cv::Point2f>& prevPts, std::vector<cv::Point2f>& currPts, std::vector<cv::DMatch>& matches, std::vector<int>& prevIdx, std::vector<int>& currIdx) {
+void DescriptorMatcher::findRobustMatches(std::vector<cv::KeyPoint> prevKeyPts, std::vector<cv::KeyPoint> currKeyPts, cv::Mat prevDesc, cv::Mat currDesc, std::vector<cv::Point2f>& prevAligPts, std::vector<cv::Point2f>& currAligPts, std::vector<cv::DMatch>& matches, std::vector<int>& prevPtsToKeyIdx, std::vector<int>& currPtsToKeyIdx) {
     std::vector<cv::DMatch> fMatches, bMatches;
 
     ratioMaches(prevDesc, currDesc, fMatches);
@@ -196,8 +196,8 @@ void DescriptorMatcher::findRobustMatches(std::vector<cv::KeyPoint> prevKeyPts, 
 
         for (const auto& fM : fMatches) {
             if (bM.queryIdx == fM.trainIdx && bM.trainIdx == fM.queryIdx) {
-                prevPts.push_back(prevKeyPts[fM.queryIdx].pt);
-                currPts.push_back(currKeyPts[fM.trainIdx].pt);
+                prevAligPts.push_back(prevKeyPts[fM.queryIdx].pt);
+                currAligPts.push_back(currKeyPts[fM.trainIdx].pt);
 
                 matches.push_back(fM);
 
@@ -210,10 +210,10 @@ void DescriptorMatcher::findRobustMatches(std::vector<cv::KeyPoint> prevKeyPts, 
         if (isFound) { continue; }
     }
 
-    if (prevPts.empty() || currPts.empty()) { return; }
+    if (prevAligPts.empty() || currAligPts.empty()) { return; }
 
     std::vector<uint8_t> inliersMask(matches.size()); 
-    cv::findFundamentalMat(prevPts, currPts, inliersMask);
+    cv::findFundamentalMat(prevAligPts, currAligPts, inliersMask);
     
     std::vector<cv::DMatch> _epipolarMatch;
     std::vector<cv::Point2f> _epipolarPrevPts, _epipolarCurrPts;
@@ -223,16 +223,16 @@ void DescriptorMatcher::findRobustMatches(std::vector<cv::KeyPoint> prevKeyPts, 
             _epipolarPrevPts.push_back(prevKeyPts[matches[m].queryIdx].pt);
             _epipolarCurrPts.push_back(currKeyPts[matches[m].trainIdx].pt);
 
-            prevIdx.push_back(matches[m].queryIdx);
-            currIdx.push_back(matches[m].trainIdx);
+            prevPtsToKeyIdx.push_back(matches[m].queryIdx);
+            currPtsToKeyIdx.push_back(matches[m].trainIdx);
 
             _epipolarMatch.push_back(matches[m]);
         }
     }
 
     std::swap(matches, _epipolarMatch);
-    std::swap(prevPts, _epipolarPrevPts);
-    std::swap(currPts, _epipolarCurrPts);
+    std::swap(prevAligPts, _epipolarPrevPts);
+    std::swap(currAligPts, _epipolarCurrPts);
 }
 
 OptFlow::OptFlow(cv::TermCriteria termcrit, int winSize, int maxLevel, float maxError, uint maxCorners, float qualityLevel, float minCornersDistance, uint minFeatures, bool isUsingCUDA) {
