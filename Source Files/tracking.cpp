@@ -32,8 +32,10 @@ void RecoveryPose::drawRecoveredPose(cv::Mat inputImg, cv::Mat& outputImg, const
     inputImg.copyTo(outputImg);
 
     for (int i = 0; i < prevPts.size() && i < currPts.size(); ++i) {
+        //  Green arrow -> point used for pose estimation
         cv::arrowedLine(outputImg, currPts[i], prevPts[i], CV_RGB(0,200,0), 2);
 
+        //  Red arrow -> point filtered for pose estimation
         if (isUsingMask && mask.at<uchar>(i) == 0)
             cv::arrowedLine(outputImg, currPts[i], prevPts[i], CV_RGB(200,0,0), 2);
     }
@@ -44,10 +46,13 @@ void Tracking::addTrackView(ViewData* view, const std::vector<bool>& mask, const
 
     size_t newPtsAdded = 0;
     for (uint idx = 0; idx < points3D.size(); ++idx) {
+        //  mapping from triangulated point (alligned) to corresponding keypoint/descriptor (not alligned)
         const cv::KeyPoint _keypoint = ptsToKeyIdx.empty() ? keyPoints[idx] : keyPoints[ptsToKeyIdx[idx]];
         const cv::Mat _descriptor = ptsToKeyIdx.empty() ? descriptor.row(idx) : descriptor.row(ptsToKeyIdx[idx]);
 
+        //  Add only good reprojected points, points in front of camera, points not far away from camera
         if (mask[idx]) {
+            //  Check if point is new -> add to cloud / add to seen points
             if (cloudMap.find(std::pair{_keypoint.pt.x, _keypoint.pt.y}) == cloudMap.end()) {
                 cloudTracks.push_back(CloudTrack(_keypoint.pt, trackViews.size()));
 
@@ -67,12 +72,15 @@ void Tracking::addTrackView(ViewData* view, const std::vector<bool>& mask, const
         }    
     }
 
-    std::cout << "New points were added to cloud: " << newPtsAdded << "; Total points: " << cloud3D.size() << "\n";
-
+    //  Min points filter
     if (_trackView.keyPoints.size() > 7 && _trackView.cloudIdxs.size() > 7) {
+        std::cout << "New points were added to cloud: " << newPtsAdded << "; Total points: " << cloud3D.size() << "\n";
+
         _trackView.setView(view);
 
         trackViews.push_back(_trackView);
+    } else {
+        std::cout << "Points were not added to cloud!!" << "\n";
     }
 }
 
@@ -81,6 +89,7 @@ bool Tracking::findCameraPose(RecoveryPose& recPose, std::vector<cv::Point2f> pr
 
     cv::Mat E = cv::findEssentialMat(prevPts, currPts, cameraK, recPose.recPoseMethod, recPose.prob, recPose.threshold, recPose.mask);
 
+    // Essential matrix check
     if (!(E.cols == 3 && E.rows == 3)) { return false; }
 
     cv::Mat p0 = cv::Mat( { 3, 1 }, {
@@ -93,6 +102,7 @@ bool Tracking::findCameraPose(RecoveryPose& recPose, std::vector<cv::Point2f> pr
 
     if (E_error > 1e-03) { return false; }
 
+    // numInliers used for camera pose pruning
     numInliers = cv::recoverPose(E, prevPts, currPts, cameraK, recPose.R, recPose.t, recPose.mask);
 
     return numInliers > minInliers;
@@ -103,6 +113,7 @@ bool Tracking::findRecoveredCameraPose(DescriptorMatcher matcher, int minMatches
     
     std::cout << "Recovering pose..." << std::flush;
     
+    // 3D - 2D structures
     std::vector<cv::Point2f> _posePoints2D;
     std::vector<cv::Vec3d> _posePoints3D;
 
@@ -114,6 +125,7 @@ bool Tracking::findRecoveredCameraPose(DescriptorMatcher matcher, int minMatches
         std::vector<cv::Point2f> _prevPts, _currPts;
         std::vector<cv::DMatch> _matches;
         std::vector<int> _prevIdx, _currIdx;
+        //  matches between new view and old trackViews
         matcher.findRobustMatches(t->keyPoints, featView.keyPts, t->descriptor, featView.descriptor, _prevPts, _currPts, _matches, _prevIdx, _currIdx);
 
         std::cout << "Recover pose matches: " << _matches.size() << "\n";
@@ -121,9 +133,12 @@ bool Tracking::findRecoveredCameraPose(DescriptorMatcher matcher, int minMatches
         cv::Mat _imOutMatch; cv::drawMatches(t->viewPtr->imColor, t->keyPoints, featView.viewPtr->imColor, featView.keyPts, _matches, _imOutMatch);
 
         for (const auto& m : _matches) {
+            //  2D point from new view
             cv::Point2f _point2D = (cv::Point2f)featView.keyPts[m.trainIdx].pt;
 
+            //  prevent duplicities
             if (cloudMap.find(std::pair{_point2D.x, _point2D.y}) == cloudMap.end()) {
+                //  3D point from old view
                 cv::Vec3d _point3D = (cv::Vec3d)cloud3D[t->cloudIdxs[m.queryIdx]];
             
                 _posePoints2D.push_back(_point2D);
@@ -136,15 +151,19 @@ bool Tracking::findRecoveredCameraPose(DescriptorMatcher matcher, int minMatches
         cv::imshow("Matches", _imOutMatch); cv::waitKey(1);
     }
 
+    //  Min point filter
     if (_posePoints2D.size() < 7 || _posePoints3D.size() < 7) { return false; }
 
+    //  Use solvePnPRansac instead of solvePnP -> RANSAC is more robustness
     if (!cv::solvePnPRansac(_posePoints3D, _posePoints2D, camera.K, cv::Mat(), _R, _t, recPose.useExtrinsicGuess, recPose.numIter, recPose.threshold, recPose.prob, _inliers, recPose.poseEstMethod)) { return false; }
     //if (!cv::solvePnP(_posePoints3D, _posePoints2D, camera.K, cv::Mat(), _R, _t, recPose.useExtrinsicGuess, recPose.poseEstMethod)) { return false; }
 
     std::cout << "Recover pose inliers: " << _inliers.rows << "\n";
 
+    //  Min PnP inliers filter
     if (_inliers.rows < recPose.minInliers) { return false; }
 
+    //  Rotation matrix to rotation vector
     cv::Rodrigues(_R, recPose.R); recPose.t = _t;
 
     std::cout << "[DONE]\n";

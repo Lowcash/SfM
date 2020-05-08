@@ -53,7 +53,7 @@ public:
  * */
 class CloudTrack {
 public:
-    // 2D projections
+    // 2D projections in the camera
     std::vector<cv::Point2f> projKeys;
 
     // camera indexes
@@ -100,8 +100,14 @@ public:
 
     void addTrackView(ViewData* view, const std::vector<bool>& mask, const std::vector<cv::Point2f>& points2D, const std::vector<cv::Vec3d> points3D, const std::vector<cv::Vec3b>& pointsRGB, const std::vector<cv::KeyPoint>& keyPoints, const cv::Mat& descriptor, std::map<std::pair<float, float>, size_t>& cloudMap, const std::vector<int>& ptsToKeyIdx = std::vector<int>());
 
+    /** Find pose between two views
+     *  It creates essential matrix and return camera pose by SVD
+     * */
     bool findCameraPose(RecoveryPose& recPose, std::vector<cv::Point2f> prevPts, std::vector<cv::Point2f> currPts, cv::Mat cameraK, int minInliers, int& numInliers);
 
+    /** Find pose between trackViews 
+     *  It uses PnP alghoritm to return camera pose
+     * */
     bool findRecoveredCameraPose(DescriptorMatcher matcher, int minMatches, Camera camera, FeatureView& featView, RecoveryPose& recPose, std::map<std::pair<float, float>, size_t>& cloudMap);
 
     void addCamPose(const cv::Matx34d camPose) { 
