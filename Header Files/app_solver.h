@@ -114,6 +114,7 @@ private:
         );
     }
 
+    // Handle user input
     static void onUsrWinClick (int event, int x, int y, int flags, void* params) {
         if (event != cv::EVENT_LBUTTONDOWN) { return; }
 

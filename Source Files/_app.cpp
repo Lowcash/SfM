@@ -5,6 +5,7 @@ int main(int argc, char** argv) {
 #pragma region INIT
     std::cout << "Using OpenCV " << cv::getVersionString().c_str() << std::flush;
 
+    //  Prepare input parameters
     cv::CommandLineParser parser(argc, argv,
 		"{ help h ?  |             | help }"
         "{ bSource   | .           | source video file [.mp4, .avi ...] }"
@@ -49,6 +50,7 @@ int main(int argc, char** argv) {
         "{ tMaxPErr  | 5.0         | triangulation points max reprojection error }"
     );
 
+    //  Show help info
     if (parser.has("help")) {
         parser.printMessage();
         exit(0);
@@ -104,6 +106,7 @@ int main(int argc, char** argv) {
     bool useCUDA = false;
 
 #pragma ifdef OPENCV_CORE_CUDA_HPP
+    //  Use CUDA if availiable and selected
     if (bUseCuda) {
         if (cv::cuda::getCudaEnabledDeviceCount() > 0) {
             std::cout << " with CUDA support\n";
@@ -117,6 +120,7 @@ int main(int argc, char** argv) {
             std::cout << "\nCannot use nVidia CUDA -> no devices" << "\n"; 
     }
 #pragma endif
+    //  Read camera calibration script
     const cv::FileStorage fs(bcalib, cv::FileStorage::READ);
     cv::Mat cameraK; fs["camera_matrix"] >> cameraK;
 

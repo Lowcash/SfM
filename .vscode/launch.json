@@ -18,16 +18,16 @@
               "-bDownSamp=1.0", "-bWinWidth=960", "-bWinHeight=540", "-bUseCuda=false", "-bUseMethod=PNP", "-bMaxSkFram=15", "-bVisEnable=true",
             
               //------------------------------- FEATURES ------------------------------//
-              "-fDecType=AKAZE", "-fMatchType=BRUTEFORCE_HAMMING", "-fKnnRatio=0.25",
+              //"-fDecType=AKAZE", "-fMatchType=BRUTEFORCE_HAMMING", "-fKnnRatio=0.25",
               //"-fDecType=FAST", "-fMatchType=BRUTEFORCE_HAMMING", "-fKnnRatio=0.5",
               //"-fDecType=SIFT", "-fMatchType=FLANNBASED", "-fKnnRatio=0.5",
-              //"-fDecType=SURF", "-fMatchType=FLANNBASED", "-fKnnRatio=0.5",
+              "-fDecType=SURF", "-fMatchType=FLANNBASED", "-fKnnRatio=0.25",
 
               //----------------------------- OPTICAL FLOW ----------------------------//
               "-ofMinKPts=333", "-ofWinSize=30", "-ofMaxLevel=5", "-ofMaxItCt=250", "-ofItEps=0.01", "-ofMaxError=10.0", "-ofMaxCorn=2000", "-ofQualLvl=0.1", "-ofMinDist=1",
               
               //--------------------------- POSE ESTIMATION ---------------------------//
-              "-peMethod=RANSAC", "-peProb=0.99", "-peThresh=0.5", "-peMinInl=10", "-peMinMatch=100", "-pePMetrod=SOLVEPNP_P3P", "-peExGuess=false", "-peNumIteR=500",
+              "-peMethod=RANSAC", "-peProb=0.99", "-peThresh=0.5", "-peMinInl=10", "-peMinMatch=50", "-pePMetrod=SOLVEPNP_P3P", "-peExGuess=false", "-peNumIteR=500",
               //"-peMethod=RANSAC", "-peProb=0.99", "-peThresh=1.0", "-peMinInl=25", "-peMinMatch=50", "-pePMetrod=SOLVEPNP_P3P", "-peExGuess=false", "-peNumIteR=250",
               
               //-------------------------- BUNDLE ADJUSTMENT --------------------------//

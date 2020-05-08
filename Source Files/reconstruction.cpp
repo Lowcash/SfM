@@ -4,6 +4,7 @@ Reconstruction::Reconstruction(const std::string triangulateMethod, const std::s
     : m_triangulateMethod(triangulateMethod), m_baMethod(baMethod), m_minDistance(minDistance), m_maxDistance(maxDistance), m_maxProjectionError(maxProjectionError), m_useNormalizePts(useNormalizePts) {}
 
 void Reconstruction::pointsToRGBCloud(Camera camera, cv::Mat imgColor, cv::Mat R, cv::Mat t, cv::Mat points3D, cv::Mat inputPts2D, std::vector<cv::Vec3d>& cloud3D, std::vector<cv::Vec3b>& cloudRGB, float minDist, float maxDist, float maxProjErr, std::vector<bool>& mask) {
+    //  Project 3D points back to image plane for validation
     cv::Mat _pts2D; cv::projectPoints(points3D, R, t, camera.K, cv::Mat(), _pts2D);
 
     cloud3D.clear();
@@ -23,6 +24,7 @@ void Reconstruction::pointsToRGBCloud(Camera camera, cv::Mat imgColor, cv::Mat R
         cloud3D.push_back( point3D );
         cloudRGB.push_back( imPoint2D );
 
+        //  set mask to filter bad projected points, points behind camera and points far away from camera
         mask.push_back( err <  maxProjErr && point3D[2] > minDist && point3D[2] < maxDist );
     }
 }

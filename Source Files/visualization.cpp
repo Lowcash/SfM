@@ -22,7 +22,7 @@ boost::shared_ptr<pcl::visualization::PCLVisualizer> VisPCL::getNewViewer(const 
     return (viewer);
 }
 
-void VisPCL::addPointCloud(const std::vector<cv::Vec3d>& points3D, const std::vector<cv::Vec3b>& pointsRGB) {
+void VisPCL::updatePointCloud(const std::vector<cv::Vec3d>& points3D, const std::vector<cv::Vec3b>& pointsRGB) {
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr pointCloud(new pcl::PointCloud<pcl::PointXYZRGB>);
 
     for (auto [p3d, p3dEnd, pClr, pClrEnd] = std::tuple{points3D.cbegin(), points3D.cend(), pointsRGB.cbegin(), pointsRGB.cend()}; p3d != p3dEnd && pClr != pClrEnd; ++p3d, ++pClr) {
@@ -77,7 +77,7 @@ VisVTK::VisVTK(const std::string windowName, const cv::Size windowSize, const cv
     m_viewer = cv::viz::Viz3d(windowName);
     m_viewer.setBackgroundColor(cv::viz::Color::black());
     m_viewer.setWindowSize(windowSize);
-    
+
     cv::Mat rotVec = cv::Mat::zeros(1,3,CV_32F);
 
     //rotVec.at<float>(0,0) += CV_PI * 1.0f;
@@ -95,7 +95,7 @@ VisVTK::VisVTK(const std::string windowName, const cv::Size windowSize, const cv
     m_numPoints = 0;
 }
 
-void VisVTK::addPointCloud(const std::vector<cv::Vec3d>& points3D, const std::vector<cv::Vec3b>& pointsRGB) {
+void VisVTK::updatePointCloud(const std::vector<cv::Vec3d>& points3D, const std::vector<cv::Vec3b>& pointsRGB) {
     const cv::viz::WCloud _pCloud(points3D, pointsRGB);
 
     // Update point cloud
@@ -116,7 +116,7 @@ void VisVTK::addPoints(const std::vector<cv::Vec3d> points3D) {
     }
 }
 
-void VisVTK::updateCameras(const std::list<cv::Matx34d> camPoses, const cv::Matx33d K33d, bool markNewCam) {
+void VisVTK::updateCameras(const std::list<cv::Matx34d> camPoses, const cv::Matx33d K33d) {
     //  update all old cameras and create actual camera as red
     for (auto [it, end, idx] = std::tuple{camPoses.cbegin(), camPoses.cend(), 0}; it != end; ++it, ++idx) {
         auto c = (cv::Matx34d)*it;

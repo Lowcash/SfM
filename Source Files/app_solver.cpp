@@ -170,7 +170,7 @@ void AppSolver::run() {
                     std::vector<cv::Point2f> _newPts2D;
                     userInput.detachPointsFromMove(_newPts2D, ofCurrView.corners, userInput.m_usrPts2D.size());
 
-                    userInput.updatePoints(_newPts2D, cv::Rect(cv::Point(), ofCurrView.viewPtr->imColor.size()), 10);
+                    userInput.filterPoints(_newPts2D, cv::Rect(cv::Point(), ofCurrView.viewPtr->imColor.size()), 10);
                 }
 
                 if (!userInput.m_usrClickedPts2D.empty() && isPtAdded) {
@@ -394,8 +394,8 @@ void AppSolver::run() {
                 reconstruction.adjustBundle(camera, m_tracking.cloud3D, m_tracking.cloudTracks, m_tracking.camPoses);
             }
 
-            visVTK.addPointCloud(m_tracking.cloud3D, m_tracking.cloudRGB);
-            visPCL.addPointCloud(m_tracking.cloud3D, m_tracking.cloudRGB);
+            visVTK.updatePointCloud(m_tracking.cloud3D, m_tracking.cloudRGB);
+            visPCL.updatePointCloud(m_tracking.cloud3D, m_tracking.cloudRGB);
 
             visVTK.updateCameras(m_tracking.camPoses, camera.K);
             visVTK.visualize(params.bVisEnable);

@@ -3,18 +3,6 @@
 UserInput::UserInput(const float maxRange)
     : m_maxRange(maxRange) {}
 
-void UserInput::recoverPoints(cv::Mat R, cv::Mat t, Camera camera, cv::Mat& imOutUsr) {
-    if (!m_usrPts3D.empty()) {
-        std::vector<cv::Point2f> pts2D; cv::projectPoints(m_usrPts3D, R, t, camera.K, cv::Mat(), pts2D);
-
-        for (const auto p : pts2D) {
-            std::cout << "Point projected to: " << p << "\n";
-
-            cv::circle(imOutUsr, p, 3, CV_RGB(150, 200, 0), cv::FILLED, cv::LINE_AA);
-        }
-    }
-}
-
 void UserInput::addPoints(const std::vector<cv::Vec3d> pts3D) {
     m_usrPts3D.insert(m_usrPts3D.end(), pts3D.begin(), pts3D.end());
 }
@@ -29,7 +17,7 @@ void UserInput::addPoints(const std::vector<cv::Point2f> prevPts2D, const std::v
     }
 }
 
-void UserInput::updatePoints(const std::vector<cv::Point2f> currPts2D, const cv::Rect boundary, const uint offset) {
+void UserInput::filterPoints(const std::vector<cv::Point2f> currPts2D, const cv::Rect boundary, const uint offset) {
     std::map<std::pair<float, float>, float> pointsDist;
 
     for (auto [it, end, idx] = std::tuple{currPts2D.cbegin(), currPts2D.cend(), 0}; it != end; ++it, ++idx) {

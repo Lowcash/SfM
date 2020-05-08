@@ -42,12 +42,18 @@ public:
     void setView(ViewData* view) { this->viewPtr = view; }
 };
 
+/** ViewDataContainer to store views (images)
+ *  View components are referencing to ViewDataContainer
+ */
 class ViewDataContainer {
 private:
     const uint m_containerBufferSize;
 
     std::list<ViewData> m_dataContainer;
 public:
+    /** ViewDataContainer constructor
+     @param containerBufferSize buffer size to clear memory
+     */
     ViewDataContainer(const uint containerBufferSize = INT32_MAX)
         : m_containerBufferSize(containerBufferSize) {}
 

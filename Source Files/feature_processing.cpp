@@ -161,7 +161,7 @@ void FeatureDetector::generateFlowFeatures(cv::Mat& imGray, std::vector<cv::Poin
         cv::goodFeaturesToTrack(imGray, _corners, maxCorners, qualityLevel, minDistance);
     }
 
-    // Add new points to tail. Do not remove good points
+    // Add new points at the end. Do not remove good points
     corners.insert(corners.end(), _corners.begin(), _corners.end());
 
     std::cout << "[DONE]";

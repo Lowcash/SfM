@@ -113,7 +113,7 @@ bool Tracking::findRecoveredCameraPose(DescriptorMatcher matcher, int minMatches
     
     std::cout << "Recovering pose..." << std::flush;
     
-    // 3D - 2D structures for mapping
+    // 3D - 2D structures for PnP mapping
     std::vector<cv::Point2f> _posePoints2D;
     std::vector<cv::Vec3d> _posePoints3D;
 
