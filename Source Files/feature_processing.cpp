@@ -92,7 +92,10 @@ FeatureDetector::FeatureDetector(std::string method, bool isUsingCUDA) {
 }
 
 void FeatureDetector::generateFeatures(cv::Mat& imGray, std::vector<cv::KeyPoint>& keyPts, cv::Mat& descriptor) {
+    //  SURF CUDA not working properly
+    //  possible solution -> use CUDA keypoints and descriptors for matching as GpuMat
     if (m_isUsingCUDA && m_detectorType != DetectorType::SURF) {
+        //  Upload from host to device
         cv::cuda::GpuMat d_imGray; d_imGray.upload(imGray);
 
         //std::cout << "Generating CUDA features..." << std::flush;
@@ -107,6 +110,9 @@ void FeatureDetector::generateFeatures(cv::Mat& imGray, std::vector<cv::KeyPoint
 
             descriptor = cv::Mat(_descriptor);
         } */
+
+        //  detectAndCompute is faster than detect/compute
+        //  use detectAndCompute if same detector and extractor
         if (detector != extractor){
             detector->detect(d_imGray, keyPts);
             extractor->compute(imGray, keyPts, descriptor);
@@ -116,9 +122,12 @@ void FeatureDetector::generateFeatures(cv::Mat& imGray, std::vector<cv::KeyPoint
             d_descriptor.download(descriptor);
         }
 
+        //  Download from device to host (clear memory)
         d_imGray.download(imGray);
         // std::cout << "[DONE]";
     } else {
+        //  detectAndCompute is faster than detect/compute
+        //  use detectAndCompute if same detector and extractor
         if (detector != extractor){
             detector->detect(imGray, keyPts);
             extractor->compute(imGray, keyPts, descriptor);
@@ -133,23 +142,26 @@ void FeatureDetector::generateFlowFeatures(cv::Mat& imGray, std::vector<cv::Poin
     if (m_isUsingCUDA) {
         std::cout << "Generating CUDA flow features..." << std::flush;
 
+        //  Upload from host to device
         cv::cuda::GpuMat d_imGray, d_corners;
         d_imGray.upload(imGray);
 
+        //  Use Shi-Tomasi corner detector
         cv::Ptr<cv::cuda::CornersDetector> cudaCornersDetector = cv::cuda::createGoodFeaturesToTrackDetector(d_imGray.type(), maxCorners, qualityLevel, minDistance);
 
         cudaCornersDetector->detect(d_imGray, d_corners);
 
+        //  Download from device to host (clear memory)
         d_corners.download(_corners);
         d_imGray.download(imGray);
     } else {
         std::cout << "Generating flow features..." << std::flush;
 
+        //  Use Shi-Tomasi corner detector
         cv::goodFeaturesToTrack(imGray, _corners, maxCorners, qualityLevel, minDistance);
     }
 
-    //int numAddCorners = std::abs(std::min(0, (int)(corners.size() + _corners.size() - maxCorners)));
-
+    // Add new points to tail. Do not remove good points
     corners.insert(corners.end(), _corners.begin(), _corners.end());
 
     std::cout << "[DONE]";
@@ -179,6 +191,8 @@ void DescriptorMatcher::ratioMaches(const cv::Mat lDesc, const cv::Mat rDesc, st
     matcher->knnMatch(lDesc, rDesc, knnMatches, 2);
 
     matches.clear();
+
+    //  Match by knn the neighbor and the second best neighbor ratio
     for (const auto& k : knnMatches) {
         if (k[0].distance < m_ratioThreshold * k[1].distance) 
             matches.push_back(k[0]);
@@ -188,9 +202,11 @@ void DescriptorMatcher::ratioMaches(const cv::Mat lDesc, const cv::Mat rDesc, st
 void DescriptorMatcher::findRobustMatches(std::vector<cv::KeyPoint> prevKeyPts, std::vector<cv::KeyPoint> currKeyPts, cv::Mat prevDesc, cv::Mat currDesc, std::vector<cv::Point2f>& prevAligPts, std::vector<cv::Point2f>& currAligPts, std::vector<cv::DMatch>& matches, std::vector<int>& prevPtsToKeyIdx, std::vector<int>& currPtsToKeyIdx) {
     std::vector<cv::DMatch> fMatches, bMatches;
 
+    // knn matches
     ratioMaches(prevDesc, currDesc, fMatches);
     ratioMaches(currDesc, prevDesc, bMatches);
 
+    // crossmatching
     for (const auto& bM : bMatches) {
         bool isFound = false;
 
@@ -212,6 +228,7 @@ void DescriptorMatcher::findRobustMatches(std::vector<cv::KeyPoint> prevKeyPts, 
 
     if (prevAligPts.empty() || currAligPts.empty()) { return; }
 
+    // epipolar filter -> use fundamental mat
     std::vector<uint8_t> inliersMask(matches.size()); 
     cv::findFundamentalMat(prevAligPts, currAligPts, inliersMask);
     
@@ -219,6 +236,7 @@ void DescriptorMatcher::findRobustMatches(std::vector<cv::KeyPoint> prevKeyPts, 
     std::vector<cv::Point2f> _epipolarPrevPts, _epipolarCurrPts;
 
     for (size_t m = 0; m < matches.size(); ++m) {
+        // filter by fundamental mask
         if (inliersMask[m]) {
             _epipolarPrevPts.push_back(prevKeyPts[matches[m].queryIdx].pt);
             _epipolarCurrPts.push_back(currKeyPts[matches[m].trainIdx].pt);
@@ -230,6 +248,7 @@ void DescriptorMatcher::findRobustMatches(std::vector<cv::KeyPoint> prevKeyPts, 
         }
     }
 
+    //  update informations to output structures
     std::swap(matches, _epipolarMatch);
     std::swap(prevAligPts, _epipolarPrevPts);
     std::swap(currAligPts, _epipolarCurrPts);
@@ -250,7 +269,7 @@ OptFlow::OptFlow(cv::TermCriteria termcrit, int winSize, int maxLevel, float max
     additionalSettings.setMinFeatures(minFeatures);
 }
 
-void OptFlow::computeFlow(cv::Mat imPrevGray, cv::Mat imCurrGray, std::vector<cv::Point2f>& prevPts, std::vector<cv::Point2f>& currPts, std::vector<uchar>& statusMask, bool useImageCorrection, bool useErrorCorrection) {
+void OptFlow::computeFlow(cv::Mat imPrevGray, cv::Mat imCurrGray, std::vector<cv::Point2f>& prevPts, std::vector<cv::Point2f>& currPts, std::vector<uchar>& statusMask, bool useBoundaryCorrection, bool useErrorCorrection) {
     std::vector<float> err;
 
     if (m_isUsingCUDA) {
@@ -258,13 +277,16 @@ void OptFlow::computeFlow(cv::Mat imPrevGray, cv::Mat imCurrGray, std::vector<cv
         cv::cuda::GpuMat d_prevPts, d_currPts;
         cv::cuda::GpuMat d_statusMask, d_err;
 
+        //  Upload from host to device
         d_imPrevGray.upload(imPrevGray);
         d_imCurrGray.upload(imCurrGray);
 
         d_prevPts.upload(prevPts);
 
+        // Calculate sparse Lucas-Kanade optical flow
         d_optFlow->calc(d_imPrevGray, d_imCurrGray, d_prevPts, d_currPts, d_statusMask, d_err);
 
+        //  Download from device to host (clear memory)
         d_imPrevGray.download(imPrevGray);
         d_imCurrGray.download(imCurrGray);
 
@@ -275,16 +297,19 @@ void OptFlow::computeFlow(cv::Mat imPrevGray, cv::Mat imCurrGray, std::vector<cv
     } else 
         optFlow->calc(imPrevGray, imCurrGray, prevPts, currPts, statusMask, err);
     
+    //  Image boundary filter
     cv::Rect boundary(cv::Point(), imCurrGray.size());
 
     for (uint i = 0, idxCorrection = 0; i < statusMask.size() && i < err.size(); ++i) {
         cv::Point2f pt = currPts[i - idxCorrection];
 
+        //  Filter by provided parameters
         bool isErrorCorr = statusMask[i] == 1 && err[i] < additionalSettings.maxError;
-        bool isImgCorr = boundary.contains(pt);
+        bool isBoundCorr = boundary.contains(pt);
 
-        if (!isErrorCorr || !isImgCorr) {
-            if ((useErrorCorrection && !isErrorCorr) || (useImageCorrection && !isImgCorr)) {
+        if (!isErrorCorr || !isBoundCorr) {
+            if ((useErrorCorrection && !isErrorCorr) || (useBoundaryCorrection && !isBoundCorr)) {
+                //  Throw away bad points
                 prevPts.erase(prevPts.begin() + (i - idxCorrection));
                 currPts.erase(currPts.begin() + (i - idxCorrection));
 
@@ -301,8 +326,10 @@ void OptFlow::drawOpticalFlow(cv::Mat inputImg, cv::Mat& outputImg, const std::v
     inputImg.copyTo(outputImg);
 
     for (int i = 0; i < prevPts.size() && i < currPts.size(); ++i) {
+        //  Green arrow -> good optical flow (mask, error)
         cv::arrowedLine(outputImg, currPts[i], prevPts[i], CV_RGB(0,200,0), 2);
 
+        //  Red arrow -> bad optical flow (mask, error)
         if (isUsingMask && statusMask[i] == 0)
             cv::arrowedLine(outputImg, currPts[i], prevPts[i], CV_RGB(200,0,0), 2);
     }

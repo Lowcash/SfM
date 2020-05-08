@@ -35,7 +35,7 @@ void RecoveryPose::drawRecoveredPose(cv::Mat inputImg, cv::Mat& outputImg, const
         //  Green arrow -> point used for pose estimation
         cv::arrowedLine(outputImg, currPts[i], prevPts[i], CV_RGB(0,200,0), 2);
 
-        //  Red arrow -> point filtered for pose estimation
+        //  Red arrow -> point filtered by SVD cv::recoveryPose
         if (isUsingMask && mask.at<uchar>(i) == 0)
             cv::arrowedLine(outputImg, currPts[i], prevPts[i], CV_RGB(200,0,0), 2);
     }
@@ -52,7 +52,7 @@ void Tracking::addTrackView(ViewData* view, const std::vector<bool>& mask, const
 
         //  Add only good reprojected points, points in front of camera, points not far away from camera
         if (mask[idx]) {
-            //  Check if point is new -> add to cloud / add to seen points
+            //  Check if point is new -> add to cloud otherwise add to seen points
             if (cloudMap.find(std::pair{_keypoint.pt.x, _keypoint.pt.y}) == cloudMap.end()) {
                 cloudTracks.push_back(CloudTrack(_keypoint.pt, trackViews.size()));
 
@@ -113,7 +113,7 @@ bool Tracking::findRecoveredCameraPose(DescriptorMatcher matcher, int minMatches
     
     std::cout << "Recovering pose..." << std::flush;
     
-    // 3D - 2D structures
+    // 3D - 2D structures for mapping
     std::vector<cv::Point2f> _posePoints2D;
     std::vector<cv::Vec3d> _posePoints3D;
 

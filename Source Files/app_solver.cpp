@@ -264,7 +264,7 @@ void AppSolver::run() {
 
             userInput.recoverPoints(imOutUsrInp, camera.K, cv::Mat(m_tracking.R), cv::Mat(m_tracking.t));
 
-            visVTK.updateCameras(m_tracking.camPoses, camera.K, false);
+            visVTK.addCamera(m_tracking.camPoses, camera.K);
             visVTK.visualize(params.bVisEnable);
 
             cv::imshow(params.usrInpWinName, imOutUsrInp);
@@ -393,11 +393,11 @@ void AppSolver::run() {
             if (!m_tracking.cloud3D.empty()) {
                 reconstruction.adjustBundle(camera, m_tracking.cloud3D, m_tracking.cloudTracks, m_tracking.camPoses);
             }
-            
+
             visVTK.addPointCloud(m_tracking.cloud3D, m_tracking.cloudRGB);
             visPCL.addPointCloud(m_tracking.cloud3D, m_tracking.cloudRGB);
 
-            visVTK.updateCameras(m_tracking.camPoses, camera.K, true);
+            visVTK.updateCameras(m_tracking.camPoses, camera.K);
             visVTK.visualize(params.bVisEnable);
             
             visPCL.updateCameras(m_tracking.camPoses);

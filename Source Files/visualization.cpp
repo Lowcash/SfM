@@ -6,8 +6,6 @@ VisPCL::VisPCL(const std::string windowName, const cv::Size windowSize, const cv
     m_numClouds = 0;
     m_numCams = 0;
     m_numPoints = 0;
-
-    m_isUpdate = false;
 }
 
 boost::shared_ptr<pcl::visualization::PCLVisualizer> VisPCL::getNewViewer(const std::string windowName, const cv::Size windowSize, const cv::viz::Color bColor) {
@@ -41,8 +39,7 @@ void VisPCL::addPointCloud(const std::vector<cv::Vec3d>& points3D, const std::ve
         pointCloud->push_back(rgbPoint);
     }
 
-    m_viewer->removePointCloud();
-    m_viewer->addPointCloud(pointCloud);
+    m_viewer->updatePointCloud(pointCloud);
 }
 
 void VisPCL::addPoints(const std::vector<cv::Vec3d> points3D) {
@@ -53,14 +50,6 @@ void VisPCL::addPoints(const std::vector<cv::Vec3d> points3D) {
 
         m_numPoints++;
     }
-}
-
-void VisPCL::addCamera(const cv::Matx34d camPose) {       
-    pcl::PointXYZ pclPose; cvPoseToPCLPose(camPose, pclPose);
-
-    m_viewer->addSphere(pclPose, 0.25, "cam_pose_" + std::to_string(m_numCams));
-
-    m_numCams++;
 }
 
 void VisPCL::updateCameras(const std::list<cv::Matx34d> camPoses) { 
@@ -80,18 +69,6 @@ void VisPCL::updateCameras(const std::list<cv::Matx34d> camPoses) {
 
 void VisPCL::visualize(const bool isEnabled) {
     if (isEnabled) {
-        // while(!m_viewer->wasStopped()) {
-        //     boost::mutex::scoped_lock updateLock(m_updateModelMutex);
-
-        //     if (m_isUpdate) {
-        //         m_viewer->spinOnce(60);
-
-        //         m_isUpdate = false;
-        //     }
-
-        //     updateLock.unlock();
-        // }
-
         m_viewer->spinOnce(60, true);
     }
 }
@@ -100,7 +77,7 @@ VisVTK::VisVTK(const std::string windowName, const cv::Size windowSize, const cv
     m_viewer = cv::viz::Viz3d(windowName);
     m_viewer.setBackgroundColor(cv::viz::Color::black());
     m_viewer.setWindowSize(windowSize);
-
+    
     cv::Mat rotVec = cv::Mat::zeros(1,3,CV_32F);
 
     //rotVec.at<float>(0,0) += CV_PI * 1.0f;
@@ -110,6 +87,7 @@ VisVTK::VisVTK(const std::string windowName, const cv::Size windowSize, const cv
 
     cv::Affine3f rotation(rotMat, cv::Vec3d());
     
+    //  Move camera a little bit back away from the cloud
     m_viewer.setViewerPose(rotation.translate(cv::Vec3d(0, 0, -150)));
 
     m_numClouds = 0;
@@ -120,6 +98,7 @@ VisVTK::VisVTK(const std::string windowName, const cv::Size windowSize, const cv
 void VisVTK::addPointCloud(const std::vector<cv::Vec3d>& points3D, const std::vector<cv::Vec3b>& pointsRGB) {
     const cv::viz::WCloud _pCloud(points3D, pointsRGB);
 
+    // Update point cloud
     if (m_numClouds > 0)
         m_viewer.removeWidget("cloud");
     m_viewer.showWidget("cloud", _pCloud);
@@ -137,42 +116,41 @@ void VisVTK::addPoints(const std::vector<cv::Vec3d> points3D) {
     }
 }
 
-void VisVTK::updateCameras(const std::list<cv::Matx34d> camPoses, const cv::Matx33d K33d, bool redraw) {
-    if (redraw) {
-        for (auto [it, end, idx] = std::tuple{camPoses.cbegin(), camPoses.cend(), 0}; it != end; ++it, ++idx) {
-            auto c = (cv::Matx34d)*it;
+void VisVTK::updateCameras(const std::list<cv::Matx34d> camPoses, const cv::Matx33d K33d, bool markNewCam) {
+    //  update all old cameras and create actual camera as red
+    for (auto [it, end, idx] = std::tuple{camPoses.cbegin(), camPoses.cend(), 0}; it != end; ++it, ++idx) {
+        auto c = (cv::Matx34d)*it;
 
-            cv::Affine3d vtkPose; cvPoseToInverseVTKPose(c, vtkPose);
+        cv::Affine3d vtkPose; cvPoseToInverseVTKPose(c, vtkPose);
 
-            if (idx != m_numCams) {
-                const cv::viz::WCameraPosition _cam(K33d, -1, cv::viz::Color::orange());
+        if (idx != m_numCams) {
+            const cv::viz::WCameraPosition _cam(K33d, -1, cv::viz::Color::orange());
 
-                //m_viewer.removeWidget("cam_" + std::to_string(idx));
+            //m_viewer.removeWidget("cam_" + std::to_string(idx));
 
-                m_viewer.showWidget("cam_" + std::to_string(idx), _cam, vtkPose);
-            } else {
-                const cv::viz::WCameraPosition _cam(K33d, -5, cv::viz::Color::red());
+            m_viewer.showWidget("cam_" + std::to_string(idx), _cam, vtkPose);
+        } else {
+            const cv::viz::WCameraPosition _cam(K33d, -5, cv::viz::Color::red());
 
-                m_viewer.showWidget("cam_" + std::to_string(idx), _cam, vtkPose);
-            }
+            m_viewer.showWidget("cam_" + std::to_string(idx), _cam, vtkPose);
         }
-    } else {
-        const cv::viz::WCameraPosition _cam(K33d, -1, cv::viz::Color::orange());
-
-        cv::Affine3d vtkPose; cvPoseToInverseVTKPose(camPoses.back(), vtkPose);
-
-        m_viewer.showWidget("cam_" + std::to_string(m_numCams), _cam, vtkPose);
     }
 
     m_numCams++;
 }
 
-void VisVTK::addCamera(const cv::Matx34d camPose) {}
+void VisVTK::addCamera(const std::list<cv::Matx34d> camPoses, const cv::Matx33d K33d) {
+    const cv::viz::WCameraPosition _cam(K33d, -1, cv::viz::Color::orange());
+
+    cv::Affine3d vtkPose; cvPoseToInverseVTKPose(camPoses.back(), vtkPose);
+
+    m_viewer.showWidget("cam_" + std::to_string(m_numCams), _cam, vtkPose);
+
+    m_numCams++;
+}
 
 void VisVTK::visualize(const bool isEnabled) {
     if (isEnabled) {
-        //while(!m_viewer->wasStopped())
-            m_viewer.spinOnce(60, true);
-        //m_viewer.spin();
+        m_viewer.spinOnce(60, true);
     }
 }
