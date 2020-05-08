@@ -28,16 +28,6 @@
 #include <opencv4/opencv2/cudaoptflow.hpp>
 #include <opencv4/opencv2/tracking.hpp>
 
-#include <gtsam/geometry/Point2.h>
-#include <gtsam/inference/Symbol.h>
-#include <gtsam/slam/PriorFactor.h>
-#include <gtsam/slam/ProjectionFactor.h>
-#include <gtsam/slam/GeneralSFMFactor.h>
-#include <gtsam/nonlinear/NonlinearFactorGraph.h>
-#include <gtsam/nonlinear/LevenbergMarquardtOptimizer.h>
-#include <gtsam/nonlinear/DoglegOptimizer.h>
-#include <gtsam/nonlinear/Values.h>
-
 #define CERES_FOUND true
 
 #include "ceres/ceres.h"

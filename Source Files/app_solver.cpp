@@ -123,7 +123,7 @@ void AppSolver::run() {
     FeatureView featPrevView, featCurrView;
     FlowView ofPrevView, ofCurrView; 
 
-    Reconstruction reconstruction(params.tMethod, params.baLibrary, params.baCMethod, params.tMinDist, params.tMaxDist, params.tMaxPErr, true);
+    Reconstruction reconstruction(params.tMethod, params.baMethod, params.tMinDist, params.tMaxDist, params.tMaxPErr, true);
 
     VisPCL visPCL(params.ptCloudWinName + " PCL", params.winSize);
     //boost::thread visPCLthread(boost::bind(&VisPCL::visualize, &visPCL));
@@ -133,11 +133,8 @@ void AppSolver::run() {
     //std::thread visVTKThread(&VisVTK::visualize, &visVTK);
 
     for (uint iteration = 1; ; ++iteration) {
-        bool isPtAdded = false;
-
-        if (m_usedMethod == Method::KLT || 
-            m_usedMethod == Method::VO  ||
-            m_usedMethod == Method::PNP) {
+        if (m_usedMethod == Method::KLT) {
+            bool isPtAdded = false;
 
             if (iteration != 1 && ofPrevView.corners.size() < optFlow.additionalSettings.minFeatures) {
                 ofPrevView.setView(viewContainer.getLastOneItem());
@@ -150,40 +147,20 @@ void AppSolver::run() {
 
                 isPtAdded = true;
             }
-        }
 
-        if (m_usedMethod == Method::KLT) {
             if (!userInput.m_usrPts2D.empty()) {
                 userInput.attachPointsToMove(userInput.m_usrPts2D, ofPrevView.corners);
             }
 
             if (findGoodImages(cap, viewContainer) == ImageFindState::SOURCE_LOST) 
                 break;
-        }
-            
-        if (m_usedMethod == Method::VO || m_usedMethod == Method::PNP) {
-            ImageFindState state = (ImageFindState)findGoodImages(cap, viewContainer, featDetector, optFlow, camera,recPose, ofPrevView, ofCurrView);
-            
-            if (state == ImageFindState::SOURCE_LOST) { break; }
-            if (state == ImageFindState::NOT_FOUND) {
-                ofPrevView.corners.clear();
-                ofCurrView.corners.clear();
 
-                std::swap(featPrevView, featCurrView);
+            ofPrevView.setView(viewContainer.getLastButOneItem());
+            ofCurrView.setView(viewContainer.getLastOneItem());
 
-                std::cout << "Good images pair not found -> skipping current iteration!" << "\n";
+            ofCurrView.viewPtr->imColor.copyTo(imOutRecPose);
+            ofCurrView.viewPtr->imColor.copyTo(imOutUsrInp);
 
-                continue;
-            }
-        }
-
-        ofPrevView.setView(viewContainer.getLastButOneItem());
-        ofCurrView.setView(viewContainer.getLastOneItem());
-
-        ofCurrView.viewPtr->imColor.copyTo(imOutRecPose);
-        ofCurrView.viewPtr->imColor.copyTo(imOutUsrInp);
-
-        if (m_usedMethod == Method::KLT) {
             if (!ofPrevView.corners.empty()) {
                 optFlow.computeFlow(ofPrevView.viewPtr->imGray, ofCurrView.viewPtr->imGray, ofPrevView.corners, ofCurrView.corners, optFlow.statusMask, true, false);
 
@@ -207,142 +184,231 @@ void AppSolver::run() {
 
                 userInput.recoverPoints(imOutUsrInp);
             }
-        }
 
-        if ((m_usedMethod == Method::VO || m_usedMethod == Method::PNP)) {
+            cv::imshow(params.recPoseWinName, imOutRecPose);
+            cv::imshow(params.usrInpWinName, imOutUsrInp);
+
+            std::cout << "Iteration: " << iteration << "\n"; cv::waitKey(29);
+
+            std::swap(ofPrevView, ofCurrView);
+            std::swap(featPrevView, featCurrView);
+        }
+        if (m_usedMethod == Method::VO) {
+            bool isPtAdded = false;
+
+            if (iteration != 1 && ofPrevView.corners.size() < optFlow.additionalSettings.minFeatures) {
+                ofPrevView.setView(viewContainer.getLastOneItem());
+
+                featDetector.generateFlowFeatures(ofPrevView.viewPtr->imGray, ofPrevView.corners, optFlow.additionalSettings.maxCorn, optFlow.additionalSettings.qualLvl, optFlow.additionalSettings.minDist);
+            }
+            
+            if (!userInput.m_usrClickedPts2D.empty()) {
+                userInput.attachPointsToMove(userInput.m_usrClickedPts2D, ofPrevView.corners);
+
+                isPtAdded = true;
+            }
+
+            ImageFindState state = (ImageFindState)findGoodImages(cap, viewContainer, featDetector, optFlow, camera,recPose, ofPrevView, ofCurrView);
+            
+            if (state == ImageFindState::SOURCE_LOST) { break; }
+            if (state == ImageFindState::NOT_FOUND) {
+                ofPrevView.corners.clear();
+                ofCurrView.corners.clear();
+
+                std::swap(featPrevView, featCurrView);
+
+                std::cout << "Good images pair not found -> skipping current iteration!" << "\n";
+
+                continue;
+            }
+
+            ofPrevView.setView(viewContainer.getLastButOneItem());
+            ofCurrView.setView(viewContainer.getLastOneItem());
+
+            ofCurrView.viewPtr->imColor.copyTo(imOutRecPose);
+            ofCurrView.viewPtr->imColor.copyTo(imOutUsrInp);
+
             recPose.drawRecoveredPose(imOutRecPose, imOutRecPose, ofPrevView.corners, ofCurrView.corners, recPose.mask);
+
+            cv::imshow(params.recPoseWinName, imOutRecPose);
+
+            std::vector<cv::Vec3d> _points3D;
+            std::vector<cv::Vec3b> _pointsRGB;
+            std::vector<bool> _mask;
+
+            cv::Matx34d _prevPose, _currPose;
+
+            composeExtrinsicMat(m_tracking.R, m_tracking.t, _prevPose);
+
+            m_tracking.t = m_tracking.t + (m_tracking.R * recPose.t);
+            m_tracking.R = m_tracking.R * recPose.R;
+
+            composeExtrinsicMat(m_tracking.R, m_tracking.t, _currPose);
+            m_tracking.addCamPose(_currPose);
+
+            reconstruction.triangulateCloud(camera, ofPrevView.corners, ofCurrView.corners, ofCurrView.viewPtr->imColor, _points3D, _pointsRGB, _mask, _prevPose, _currPose, recPose);
+
+            if (!userInput.m_usrClickedPts2D.empty() && isPtAdded) {
+                std::vector<cv::Point2f> _newPts2D;
+                std::vector<cv::Vec3d> _newPts3D;
+                
+                userInput.detachPointsFromMove(_newPts2D, ofCurrView.corners, userInput.m_usrClickedPts2D.size());
+                userInput.detachPointsFromReconstruction(_newPts3D, _points3D, _pointsRGB, _mask, userInput.m_usrClickedPts2D.size());
+
+                userInput.addPoints(_newPts3D);
+                
+                userInput.m_usrClickedPts2D.clear();
+                
+                visVTK.addPoints(_newPts3D);
+            }
+
+            userInput.recoverPoints(imOutUsrInp, camera.K, cv::Mat(m_tracking.R), cv::Mat(m_tracking.t));
+
+            visVTK.updateCameras(m_tracking.camPoses, camera.K, false);
+            visVTK.visualize(params.bVisEnable);
+
+            cv::imshow(params.usrInpWinName, imOutUsrInp);
+
+            std::cout << "Iteration: " << iteration << "\n"; cv::waitKey(29);
+
+            std::swap(ofPrevView, ofCurrView);
+            std::swap(featPrevView, featCurrView);
         }
+        if (m_usedMethod == Method::PNP) {
+            bool isPtAdded = false;
 
-        cv::imshow(params.recPoseWinName, imOutRecPose);
+            if (iteration != 1 && ofPrevView.corners.size() < optFlow.additionalSettings.minFeatures) {
+                ofPrevView.setView(viewContainer.getLastOneItem());
 
-        if ((m_usedMethod == Method::VO || m_usedMethod == Method::PNP)) {
+                featDetector.generateFlowFeatures(ofPrevView.viewPtr->imGray, ofPrevView.corners, optFlow.additionalSettings.maxCorn, optFlow.additionalSettings.qualLvl, optFlow.additionalSettings.minDist);
+            }
+            
+            if (!userInput.m_usrClickedPts2D.empty()) {
+                userInput.attachPointsToMove(userInput.m_usrClickedPts2D, ofPrevView.corners);
+
+                isPtAdded = true;
+            }
+
+            ImageFindState state = (ImageFindState)findGoodImages(cap, viewContainer, featDetector, optFlow, camera,recPose, ofPrevView, ofCurrView);
+            
+            if (state == ImageFindState::SOURCE_LOST) { break; }
+            if (state == ImageFindState::NOT_FOUND) {
+                ofPrevView.corners.clear();
+                ofCurrView.corners.clear();
+
+                std::swap(featPrevView, featCurrView);
+
+                std::cout << "Good images pair not found -> skipping current iteration!" << "\n";
+
+                continue;
+            }
+
+            ofPrevView.setView(viewContainer.getLastButOneItem());
+            ofCurrView.setView(viewContainer.getLastOneItem());
+
+            ofCurrView.viewPtr->imColor.copyTo(imOutRecPose);
+            ofCurrView.viewPtr->imColor.copyTo(imOutUsrInp);
+
+            recPose.drawRecoveredPose(imOutRecPose, imOutRecPose, ofPrevView.corners, ofCurrView.corners, recPose.mask);
+
+            cv::imshow(params.recPoseWinName, imOutRecPose);
+
             std::vector<cv::Vec3d> _points3D;
             std::vector<cv::Vec3b> _pointsRGB;
             std::vector<bool> _mask;
 
             cv::Matx34d _prevPose, _currPose; 
 
-            if (m_usedMethod == Method::VO) {
-                composeExtrinsicMat(m_tracking.R, m_tracking.t, _prevPose);
+            featPrevView.setView(viewContainer.getLastButOneItem());
+            featCurrView.setView(viewContainer.getLastOneItem());
 
-                m_tracking.t = m_tracking.t + (m_tracking.R * recPose.t);
-                m_tracking.R = m_tracking.R * recPose.R;
-
-                composeExtrinsicMat(m_tracking.R, m_tracking.t, _currPose);
-                m_tracking.addCamPose(_currPose);
-
-                reconstruction.triangulateCloud(camera, ofPrevView.corners, ofCurrView.corners, ofCurrView.viewPtr->imColor, _points3D, _pointsRGB, _mask, _prevPose, _currPose, recPose);
-
-                if (!userInput.m_usrClickedPts2D.empty() && isPtAdded) {
-                    std::vector<cv::Point2f> _newPts2D;
-                    std::vector<cv::Vec3d> _newPts3D;
-                    
-                    userInput.detachPointsFromMove(_newPts2D, ofCurrView.corners, userInput.m_usrClickedPts2D.size());
-                    userInput.detachPointsFromReconstruction(_newPts3D, _points3D, _pointsRGB, _mask, userInput.m_usrClickedPts2D.size());
-
-                    userInput.addPoints(_newPts3D);
-                    
-                    userInput.m_usrClickedPts2D.clear();
-                    
-                    visVTK.addPoints(_newPts3D);
-                }
-
-                userInput.recoverPoints(imOutUsrInp, camera.K, cv::Mat(m_tracking.R), cv::Mat(m_tracking.t));
+            if (featPrevView.keyPts.empty()) {
+                featDetector.generateFeatures(featPrevView.viewPtr->imGray, featPrevView.keyPts, featPrevView.descriptor);
             }
 
-            if (m_usedMethod == Method::PNP) {
-                featPrevView.setView(viewContainer.getLastButOneItem());
-                featCurrView.setView(viewContainer.getLastOneItem());
+            featDetector.generateFeatures(featCurrView.viewPtr->imGray, featCurrView.keyPts, featCurrView.descriptor);
 
-                if (featPrevView.keyPts.empty()) {
-                    featDetector.generateFeatures(featPrevView.viewPtr->imGray, featPrevView.keyPts, featPrevView.descriptor);
-                }
+            if (featPrevView.keyPts.empty() || featCurrView.keyPts.empty()) { 
+                std::cerr << "None keypoints to match, skip matching/triangulation!\n";
 
-                featDetector.generateFeatures(featCurrView.viewPtr->imGray, featCurrView.keyPts, featCurrView.descriptor);
-
-                if (featPrevView.keyPts.empty() || featCurrView.keyPts.empty()) { 
-                    std::cerr << "None keypoints to match, skip matching/triangulation!\n";
-
-                    continue; 
-                }
-
-                std::vector<cv::Point2f> _prevPts, _currPts;
-                std::vector<cv::DMatch> _matches;
-                std::vector<int> _prevIdx, _currIdx;
-
-                descMatcher.findRobustMatches(featPrevView.keyPts, featCurrView.keyPts, featPrevView.descriptor, featCurrView.descriptor, _prevPts, _currPts, _matches, _prevIdx, _currIdx);
-
-                std::cout << "Matches count: " << _matches.size() << "\n";
-
-                if (_prevPts.empty() || _currPts.empty()) { 
-                    std::cerr << "None points to triangulate, skip triangulation!\n";
-
-                    continue; 
-                }
-
-                std::map<std::pair<float, float>, size_t> cloudMap;
-
-                if(!m_tracking.findRecoveredCameraPose(descMatcher, params.peMinMatch, camera, featCurrView, recPose, cloudMap)) {
-                    std::cout << "Recovering camera fail, skip current reconstruction iteration!\n";
-        
-                    std::swap(ofPrevView, ofCurrView);
-                    std::swap(featPrevView, featCurrView);
-
-                    continue;
-                }
-
-                if (!m_tracking.m_camPoses.empty()) {
-                    reconstruction.adjustBundle(camera, m_tracking.m_pCloud, m_tracking.m_tracks, m_tracking.m_camPoses, params.baNumIter);
-                }
-
-                if (m_tracking.m_camPoses.empty())
-                    composeExtrinsicMat(cv::Matx33d::eye(), cv::Matx31d::eye(), _prevPose);
-                else
-                    _prevPose = m_tracking.m_camPoses.back();
-
-                composeExtrinsicMat(recPose.R, recPose.t, _currPose);
-                m_tracking.addCamPose(_currPose);
-
-                if (!userInput.m_usrClickedPts2D.empty() && isPtAdded) {
-                    userInput.detachPointsFromMove(_prevPts, ofPrevView.corners, userInput.m_usrClickedPts2D.size());
-                    userInput.detachPointsFromMove(_currPts, ofCurrView.corners, userInput.m_usrClickedPts2D.size());
-                }
-
-                reconstruction.triangulateCloud(camera, _prevPts, _currPts, ofCurrView.viewPtr->imColor, _points3D, _pointsRGB, _mask, _prevPose, _currPose, recPose);
-
-                if (!userInput.m_usrClickedPts2D.empty() && isPtAdded) {
-                    std::vector<cv::Vec3d> _newPts3D;
-                    userInput.detachPointsFromReconstruction(_newPts3D, _points3D, _pointsRGB, _mask, userInput.m_usrClickedPts2D.size());
-
-                    userInput.addPoints(_newPts3D);
-                    
-                    userInput.m_usrClickedPts2D.clear();
-                    
-                    visVTK.addPoints(_newPts3D);
-                    visPCL.addPoints(_newPts3D);
-                }
-
-                userInput.recoverPoints(imOutUsrInp, camera.K, cv::Mat(m_tracking.R), cv::Mat(m_tracking.t));
-
-                m_tracking.addTrackView(featCurrView.viewPtr, _mask, _currPts, _points3D, _pointsRGB, featCurrView.keyPts, featCurrView.descriptor, cloudMap, _currIdx);
-
-                visVTK.addPointCloud(m_tracking.m_pCloud, m_tracking.m_pClRGB);
-
-                visPCL.addPointCloud(m_tracking.m_pCloud, m_tracking.m_pClRGB);
-
-                visPCL.updateCameras(m_tracking.m_camPoses);
-                visPCL.visualize(params.bVisEnable);
+                continue; 
             }
 
-            visVTK.updateCameras(m_tracking.m_camPoses, camera.K, m_usedMethod != Method::VO);
+            std::vector<cv::Point2f> _prevPts, _currPts;
+            std::vector<cv::DMatch> _matches;
+            std::vector<int> _prevIdx, _currIdx;
+
+            descMatcher.findRobustMatches(featPrevView.keyPts, featCurrView.keyPts, featPrevView.descriptor, featCurrView.descriptor, _prevPts, _currPts, _matches, _prevIdx, _currIdx);
+
+            std::cout << "Matches count: " << _matches.size() << "\n";
+
+            if (_prevPts.empty() || _currPts.empty()) { 
+                std::cerr << "None points to triangulate, skip triangulation!\n";
+
+                continue; 
+            }
+
+            std::map<std::pair<float, float>, size_t> cloudMap;
+
+            if(!m_tracking.findRecoveredCameraPose(descMatcher, params.peMinMatch, camera, featCurrView, recPose, cloudMap)) {
+                std::cout << "Recovering camera fail, skip current reconstruction iteration!\n";
+    
+                std::swap(ofPrevView, ofCurrView);
+                std::swap(featPrevView, featCurrView);
+
+                continue;
+            }
+
+            if (m_tracking.camPoses.empty())
+                composeExtrinsicMat(cv::Matx33d::eye(), cv::Matx31d::eye(), _prevPose);
+            else
+                _prevPose = m_tracking.camPoses.back();
+
+            composeExtrinsicMat(recPose.R, recPose.t, _currPose);
+            m_tracking.addCamPose(_currPose);
+
+            if (!m_tracking.cloud3D.empty()) {
+                reconstruction.adjustBundle(camera, m_tracking.cloud3D, m_tracking.cloudTracks, m_tracking.camPoses);
+            }
+
+            if (!userInput.m_usrClickedPts2D.empty() && isPtAdded) {
+                userInput.detachPointsFromMove(_prevPts, ofPrevView.corners, userInput.m_usrClickedPts2D.size());
+                userInput.detachPointsFromMove(_currPts, ofCurrView.corners, userInput.m_usrClickedPts2D.size());
+            }
+
+            reconstruction.triangulateCloud(camera, _prevPts, _currPts, ofCurrView.viewPtr->imColor, _points3D, _pointsRGB, _mask, _prevPose, _currPose, recPose);
+
+            if (!userInput.m_usrClickedPts2D.empty() && isPtAdded) {
+                std::vector<cv::Vec3d> _newPts3D;
+                userInput.detachPointsFromReconstruction(_newPts3D, _points3D, _pointsRGB, _mask, userInput.m_usrClickedPts2D.size());
+
+                userInput.addPoints(_newPts3D);
+                
+                userInput.m_usrClickedPts2D.clear();
+                
+                visVTK.addPoints(_newPts3D);
+                visPCL.addPoints(_newPts3D);
+            }
+
+            userInput.recoverPoints(imOutUsrInp, camera.K, cv::Mat(m_tracking.R), cv::Mat(m_tracking.t));
+
+            m_tracking.addTrackView(featCurrView.viewPtr, _mask, _currPts, _points3D, _pointsRGB, featCurrView.keyPts, featCurrView.descriptor, cloudMap, _currIdx);
+            
+            visVTK.addPointCloud(m_tracking.cloud3D, m_tracking.cloudRGB);
+            visPCL.addPointCloud(m_tracking.cloud3D, m_tracking.cloudRGB);
+
+            visVTK.updateCameras(m_tracking.camPoses, camera.K, true);
             visVTK.visualize(params.bVisEnable);
+            
+            visPCL.updateCameras(m_tracking.camPoses);
+            visPCL.visualize(params.bVisEnable);
+
+            cv::imshow(params.usrInpWinName, imOutUsrInp);
+
+            std::cout << "Iteration: " << iteration << "\n"; cv::waitKey(29);
+
+            std::swap(ofPrevView, ofCurrView);
+            std::swap(featPrevView, featCurrView);
         }
-
-        cv::imshow(params.usrInpWinName, imOutUsrInp);
-
-        std::cout << "Iteration: " << iteration << "\n"; cv::waitKey(0);
-
-        std::swap(ofPrevView, ofCurrView);
-        std::swap(featPrevView, featCurrView);
     }
 }

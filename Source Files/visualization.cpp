@@ -92,7 +92,7 @@ void VisPCL::visualize(const bool isEnabled) {
         //     updateLock.unlock();
         // }
 
-        m_viewer->spinOnce(60);
+        m_viewer->spinOnce(60, true);
     }
 }
 
@@ -172,7 +172,7 @@ void VisVTK::addCamera(const cv::Matx34d camPose) {}
 void VisVTK::visualize(const bool isEnabled) {
     if (isEnabled) {
         //while(!m_viewer->wasStopped())
-            m_viewer.spinOnce(60);
+            m_viewer.spinOnce(60, true);
         //m_viewer.spin();
     }
 }

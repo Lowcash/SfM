@@ -92,21 +92,11 @@ FeatureDetector::FeatureDetector(std::string method, bool isUsingCUDA) {
 }
 
 void FeatureDetector::generateFeatures(cv::Mat& imGray, std::vector<cv::KeyPoint>& keyPts, cv::Mat& descriptor) {
-    //std::cout << "Generating features..." << std::flush;
+    if (m_isUsingCUDA && m_detectorType != DetectorType::SURF) {
+        cv::cuda::GpuMat d_imGray; d_imGray.upload(imGray);
 
-    if (detector != extractor){
-        detector->detect(imGray, keyPts);
-        extractor->compute(imGray, keyPts, descriptor);
-    } else
-        detector->detectAndCompute(imGray, cv::noArray(), keyPts, descriptor);
-
-    //std::cout << "[DONE]";
-}
-
-void FeatureDetector::generateFeatures(cv::Mat& imGray, cv::cuda::GpuMat& d_imGray, std::vector<cv::KeyPoint>& keyPts, cv::Mat& descriptor) {
-    if (m_isUsingCUDA) {
         //std::cout << "Generating CUDA features..." << std::flush;
-        if(m_detectorType == DetectorType::SURF){
+        /*if(m_detectorType == DetectorType::SURF){
             cv::cuda::SURF_CUDA d_surf;
             cv::cuda::GpuMat d_keyPts, d_descriptor;
             std::vector<float> _descriptor;
@@ -116,7 +106,8 @@ void FeatureDetector::generateFeatures(cv::Mat& imGray, cv::cuda::GpuMat& d_imGr
             d_surf.downloadDescriptors(d_descriptor, _descriptor);
 
             descriptor = cv::Mat(_descriptor);
-        } else if (detector != extractor){
+        } */
+        if (detector != extractor){
             detector->detect(d_imGray, keyPts);
             extractor->compute(imGray, keyPts, descriptor);
         } else {
@@ -125,9 +116,15 @@ void FeatureDetector::generateFeatures(cv::Mat& imGray, cv::cuda::GpuMat& d_imGr
             d_descriptor.download(descriptor);
         }
 
+        d_imGray.download(imGray);
         // std::cout << "[DONE]";
-    } else
-        generateFeatures(imGray, keyPts, descriptor);
+    } else {
+        if (detector != extractor){
+            detector->detect(imGray, keyPts);
+            extractor->compute(imGray, keyPts, descriptor);
+        } else
+            detector->detectAndCompute(imGray, cv::noArray(), keyPts, descriptor);
+    }
 }
 
 void FeatureDetector::generateFlowFeatures(cv::Mat& imGray, std::vector<cv::Point2f>& corners, int maxCorners, double qualityLevel, double minDistance) {

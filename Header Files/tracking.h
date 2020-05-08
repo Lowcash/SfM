@@ -41,25 +41,36 @@ public:
 
 class Track {
 public:
-    std::vector<cv::Point2f> projKey;
-    std::vector<uint> extrinsicsIdx;
+    std::vector<cv::Point2f> projKeys;
+    std::vector<uint> extrinsicsIdxs;
 
-    size_t trackSize;
+    size_t numTracks;
+
+    void addTrack(const cv::Point2f projKey, const uint extrinsicsIdx) {
+        projKeys.push_back(projKey);
+        extrinsicsIdxs.push_back(extrinsicsIdx);
+
+        numTracks++;
+    }
+
+    Track(const cv::Point2f projKey, const uint extrinsicsIdx) {
+        numTracks = 0;
+
+        addTrack(projKey, extrinsicsIdx);
+    }
 };
 
 class Tracking {
-private:
-    
 public:
-    std::list<TrackView> m_trackViews;
+    std::list<TrackView> trackViews;
 
-    std::list<cv::Matx34d> m_camPoses;
+    std::list<cv::Matx34d> camPoses;
 
-    std::vector<cv::Vec3d> m_pCloud;
+    std::vector<cv::Vec3d> cloud3D;
 
-    std::vector<cv::Vec3b> m_pClRGB;
+    std::vector<cv::Vec3b> cloudRGB;
 
-    std::vector<Track> m_tracks;
+    std::vector<Track> cloudTracks;
 
     cv::Matx33d R; cv::Matx31d t;
 
@@ -73,21 +84,11 @@ public:
     bool findRecoveredCameraPose(DescriptorMatcher matcher, int minMatches, Camera camera, FeatureView& featView, RecoveryPose& recPose, std::map<std::pair<float, float>, size_t>& cloudMap);
 
     void addCamPose(const cv::Matx34d camPose) { 
-        m_camPoses.push_back(camPose);
+        camPoses.push_back(camPose);
 
         R = camPose.get_minor<3, 3>(0, 0);
         t = cv::Matx31d(camPose(0,3), camPose(1,3), camPose(2,3));
     }
-
-    /*std::list<cv::Matx34f>* getCamPoses() { return &m_camPoses; }
-
-    cv::Matx34f* getLastCamPose() { return &*m_camPoses.rbegin(); }
-
-    bool isCamPosesEmpty() { return m_camPoses.empty(); }
-
-    std::list<TrackView>* getTrackViews() { return &m_trackViews; }
-
-    TrackView* getLastTrackView() { return &*m_trackViews.rbegin(); }*/
 };
 
 #endif //TRACKING_H
