@@ -98,7 +98,7 @@ public:
     Tracking()
         : R(cv::Matx33d::eye()), t(cv::Matx31d::eye()) {}
 
-    void addTrackView(ViewData* view, const std::vector<bool>& mask, const std::vector<cv::Point2f>& points2D, const std::vector<cv::Vec3d> points3D, const std::vector<cv::Vec3b>& pointsRGB, const std::vector<cv::KeyPoint>& keyPoints, const cv::Mat& descriptor, std::map<std::pair<float, float>, size_t>& cloudMap, const std::vector<int>& ptsToKeyIdx = std::vector<int>());
+    bool addTrackView(ViewData* view, const std::vector<bool>& mask, const std::vector<cv::Point2f>& points2D, const std::vector<cv::Vec3d> points3D, const std::vector<cv::Vec3b>& pointsRGB, const std::vector<cv::KeyPoint>& keyPoints, const cv::Mat& descriptor, std::map<std::pair<float, float>, size_t>& cloudMap, const std::vector<int>& ptsToKeyIdx = std::vector<int>());
 
     /** Find pose between two views
      *  It creates essential matrix and return camera pose by SVD
@@ -110,7 +110,7 @@ public:
      * */
     bool findRecoveredCameraPose(DescriptorMatcher matcher, int minMatches, Camera camera, FeatureView& featView, RecoveryPose& recPose, std::map<std::pair<float, float>, size_t>& cloudMap);
 
-    void addCamPose(const cv::Matx34d camPose) { 
+    bool addCamPose(const cv::Matx34d camPose) { 
         camPoses.push_back(camPose);
 
         R = camPose.get_minor<3, 3>(0, 0);

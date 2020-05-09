@@ -91,13 +91,15 @@ private:
 
     const std::string m_triangulateMethod, m_baMethod;
 
+    const double m_baMaxRMSE;
+
     const float m_minDistance, m_maxDistance, m_maxProjectionError;
 
     const bool m_useNormalizePts;
 
     void pointsToRGBCloud(Camera camera, cv::Mat imgColor, cv::Mat R, cv::Mat t, cv::Mat points3D, cv::Mat inputPts2D, std::vector<cv::Vec3d>& cloud3D, std::vector<cv::Vec3b>& cloudRGB, float minDist, float maxDist, float maxProjErr, std::vector<bool>& mask);
 public:
-    Reconstruction(const std::string triangulateMethod, const std::string baMethod, const float minDistance, const float maxDistance, const float maxProjectionError, const bool useNormalizePts);
+    Reconstruction(const std::string triangulateMethod, const std::string baMethod, const double baMaxRMSE, const float minDistance, const float maxDistance, const float maxProjectionError, const bool useNormalizePts);
 
     void triangulateCloud(Camera camera, const std::vector<cv::Point2f> prevPts, const std::vector<cv::Point2f> currPts, const cv::Mat colorImage, std::vector<cv::Vec3d>& points3D, std::vector<cv::Vec3b>& pointsRGB, std::vector<bool>& mask, const cv::Matx34d prevPose, const cv::Matx34d currPose, RecoveryPose& recPose);
 

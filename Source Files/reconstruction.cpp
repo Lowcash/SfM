@@ -1,7 +1,7 @@
 #include "reconstruction.h"
 
-Reconstruction::Reconstruction(const std::string triangulateMethod, const std::string baMethod, const float minDistance, const float maxDistance, const float maxProjectionError, const bool useNormalizePts)
-    : m_triangulateMethod(triangulateMethod), m_baMethod(baMethod), m_minDistance(minDistance), m_maxDistance(maxDistance), m_maxProjectionError(maxProjectionError), m_useNormalizePts(useNormalizePts) {}
+Reconstruction::Reconstruction(const std::string triangulateMethod, const std::string baMethod, const double baMaxRMSE, const float minDistance, const float maxDistance, const float maxProjectionError, const bool useNormalizePts)
+    : m_triangulateMethod(triangulateMethod), m_baMethod(baMethod), m_baMaxRMSE(baMaxRMSE), m_minDistance(minDistance), m_maxDistance(maxDistance), m_maxProjectionError(maxProjectionError), m_useNormalizePts(useNormalizePts) {}
 
 void Reconstruction::pointsToRGBCloud(Camera camera, cv::Mat imgColor, cv::Mat R, cv::Mat t, cv::Mat points3D, cv::Mat inputPts2D, std::vector<cv::Vec3d>& cloud3D, std::vector<cv::Vec3b>& cloudRGB, float minDist, float maxDist, float maxProjErr, std::vector<bool>& mask) {
     //  Project 3D points back to image plane for validation
@@ -101,6 +101,8 @@ void Reconstruction::adjustBundle(Camera& camera, std::vector<cv::Vec3d>& pCloud
         ));
     }
 
+    std::vector<cv::Vec3d> _cloudBackUp(pCloud);
+
     ceres::Problem problem;
 
     bool isCameraLocked = false;
@@ -140,16 +142,35 @@ void Reconstruction::adjustBundle(Camera& camera, std::vector<cv::Vec3d>& pCloud
 
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
-    std::cout << summary.FullReport() << std::endl;
+    std::cout << summary.FullReport() << "\n";
+    
+    if (!summary.IsSolutionUsable()) {
+		std::cout << "Bundle Adjustment failed -> recovering from back up!" << "\n";
 
-    cv::Mat K; camera.K.copyTo(K);
+        std::swap(_cloudBackUp, pCloud);
 
-    K.at<double>(0,0) = intrinsics4d(0);
-    K.at<double>(1,1) = intrinsics4d(1);
-    K.at<double>(0,2) = intrinsics4d(2);
-    K.at<double>(1,2) = intrinsics4d(3);
+        return;
+	} else {
+        double finalRMSE = std::sqrt(summary.final_cost / summary.num_residuals);
 
-    camera.updateCameraParameters(K, camera.distCoeffs);
+		// Display statistics about the minimization
+		std::cout << std::endl
+			<< "Bundle Adjustment statistics (approximated RMSE):\n"
+			<< " #views: " << camPoses.size() << "\n"
+			<< " #num_residuals: " << summary.num_residuals << "\n"
+			<< " Initial RMSE: " << std::sqrt(summary.initial_cost / summary.num_residuals) << "\n"
+			<< " Final RMSE: " << finalRMSE << "\n"
+			<< " Time (s): " << summary.total_time_in_seconds << "\n"
+			<< std::endl;
+
+        if (finalRMSE > m_baMaxRMSE) {
+            std::cout << "Bundle Adjustment failed -> recovering from back up!" << "\n";
+
+            std::swap(_cloudBackUp, pCloud);
+
+            return;
+        }
+	}
 
     for (auto [c, cEnd, c6, c6End, it] = std::tuple{camPoses.begin(), camPoses.end(), extrinsics6d.begin(), extrinsics6d.end(), 0}; c != cEnd && c6 != c6End; ++c, ++c6, ++it) {
         cv::Matx34d& cam = (cv::Matx34d&)*c;

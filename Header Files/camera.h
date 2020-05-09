@@ -5,7 +5,7 @@
 #include "pch.h"
 
 /** Camera helper
- */
+ * */
 class Camera {
 public:
     cv::Mat K, distCoeffs;

@@ -41,7 +41,7 @@ void RecoveryPose::drawRecoveredPose(cv::Mat inputImg, cv::Mat& outputImg, const
     }
 }
 
-void Tracking::addTrackView(ViewData* view, const std::vector<bool>& mask, const std::vector<cv::Point2f>& points2D, const std::vector<cv::Vec3d> points3D, const std::vector<cv::Vec3b>& pointsRGB, const std::vector<cv::KeyPoint>& keyPoints, const cv::Mat& descriptor, std::map<std::pair<float, float>, size_t>& cloudMap, const std::vector<int>& ptsToKeyIdx) {
+bool Tracking::addTrackView(ViewData* view, const std::vector<bool>& mask, const std::vector<cv::Point2f>& points2D, const std::vector<cv::Vec3d> points3D, const std::vector<cv::Vec3b>& pointsRGB, const std::vector<cv::KeyPoint>& keyPoints, const cv::Mat& descriptor, std::map<std::pair<float, float>, size_t>& cloudMap, const std::vector<int>& ptsToKeyIdx) {
     TrackView _trackView;
 
     size_t newPtsAdded = 0;
@@ -81,7 +81,11 @@ void Tracking::addTrackView(ViewData* view, const std::vector<bool>& mask, const
         trackViews.push_back(_trackView);
     } else {
         std::cout << "Points were not added to cloud!!" << "\n";
+
+        return false;
     }
+
+    return true;
 }
 
 bool Tracking::findCameraPose(RecoveryPose& recPose, std::vector<cv::Point2f> prevPts, std::vector<cv::Point2f> currPts, cv::Mat cameraK, int minInliers, int& numInliers) {

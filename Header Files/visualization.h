@@ -9,13 +9,13 @@
 class VisPCLUtils {
 protected:
     /** OpenCV pose to PCL pose
-     */
+     * */
     void cvPoseToPCLPose(cv::Matx34d cvPose, pcl::PointXYZ& pclPose) {
         pclPose = pcl::PointXYZ(cvPose(0, 3), cvPose(1, 3), cvPose(2, 3));
     }
 
     /** OpenCV pose to PCL pose
-     */
+     * */
     void cvPoseToInversePCLPose(cv::Matx34d cvPose, pcl::PointXYZ& pclPose) {
         pclPose = pcl::PointXYZ(-cvPose(0, 3), -cvPose(1, 3), -cvPose(2, 3));
     }
@@ -41,7 +41,7 @@ public:
 class VisVTKUtils {
 private:
     /** OpenCV pose to rotation matrix and translation vector
-     */
+     * */
     void decomposeCvPose(cv::Matx34d cvPose, cv::Matx33d& R, cv::Vec3d& t) {
         R = cvPose.get_minor<3, 3>(0, 0);
         t = cv::Vec3d(cvPose(0, 3), cvPose(1, 3), cvPose(2, 3));
@@ -49,7 +49,7 @@ private:
 
 protected:
     /** OpenCV pose to OpenCV VTK pose
-     */
+     * */
     void cvPoseToVTKPose(cv::Matx34d cvPose, cv::Affine3d& vtkPose) {
         cv::Matx33d R; cv::Vec3d t; decomposeCvPose(cvPose, R, t);
 
@@ -57,7 +57,7 @@ protected:
     }
     
     /** OpenCV pose to OpenCV VTK pose
-     */
+     * */
     void cvPoseToInverseVTKPose(cv::Matx34d cvPose, cv::Affine3d& vtkPose) {
         cv::Matx33d R; cv::Vec3d t; decomposeCvPose(cvPose, R, t);
 
