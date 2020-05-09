@@ -135,10 +135,10 @@ void Reconstruction::adjustBundle(Camera& camera, std::vector<cv::Vec3d>& pCloud
     options.num_threads = std::thread::hardware_concurrency();
     options.max_num_iterations = 100;
 
-    options.use_nonmonotonic_steps = true;
-    options.preconditioner_type = ceres::SCHUR_JACOBI;
-    options.linear_solver_type = ceres::ITERATIVE_SCHUR;
-    options.use_inner_iterations = true;
+    // options.use_nonmonotonic_steps = true;
+    // options.preconditioner_type = ceres::SCHUR_JACOBI;
+    // options.linear_solver_type = ceres::ITERATIVE_SCHUR;
+    // options.use_inner_iterations = true;
 
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);

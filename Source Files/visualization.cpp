@@ -67,9 +67,12 @@ void VisPCL::updateCameras(const std::list<cv::Matx34d> camPoses) {
     }
 }
 
-void VisPCL::visualize(const bool isEnabled) {
+void VisPCL::visualize(const bool isEnabled, const bool isInfinite) {
     if (isEnabled) {
-        m_viewer->spinOnce(60, true);
+        if (isInfinite)
+            m_viewer->spin();
+        else
+            m_viewer->spinOnce(1, true);
     }
 }
 
@@ -149,8 +152,11 @@ void VisVTK::addCamera(const std::list<cv::Matx34d> camPoses, const cv::Matx33d 
     m_numCams++;
 }
 
-void VisVTK::visualize(const bool isEnabled) {
+void VisVTK::visualize(const bool isEnabled, const bool isInfinite) {
     if (isEnabled) {
-        m_viewer.spinOnce(60, true);
+        if (isInfinite)
+            m_viewer.spin();
+        else
+            m_viewer.spinOnce(1, true);
     }
 }

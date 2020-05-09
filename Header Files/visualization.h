@@ -35,7 +35,7 @@ public:
     
     void updateCameras(const std::list<cv::Matx34d> camPoses);
 
-    void visualize(const bool isEnabled);
+    void visualize(const bool isEnabled, const bool isInfinite = false);
 };
 
 class VisVTKUtils {
@@ -81,7 +81,7 @@ public:
 
     void addCamera(const std::list<cv::Matx34d> camPoses, const cv::Matx33d K33d);
 
-    void visualize(const bool isEnabled);
+    void visualize(const bool isEnabled, const bool isInfinite = false);
 };
 
 #endif //VISUALIZATION_H

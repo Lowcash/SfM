@@ -38,7 +38,7 @@ int main(int argc, char** argv) {
         "{ peMinInl  | 50          | pose estimation in number of homography inliers user for reconstruction }"
         "{ peMinMatch| 50          | pose estimation min matches to break }"
        
-        "{ pePMetrod | SOLVEPNP_P3P| pose estimation method SOLVEPNP_ITERATIVE/SOLVEPNP_P3P/SOLVEPNP_AP3P }"
+        "{ pePMetrod | SOLVEPNP_P3P| pose estimation method ITERATIVE/SOLVEPNP_P3P/SOLVEPNP_AP3P }"
         "{ peExGuess | false       | pose estimation use extrinsic guess }"
         "{ peNumIteR | 250         | pose estimation max iteration }"
 

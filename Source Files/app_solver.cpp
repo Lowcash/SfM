@@ -277,10 +277,15 @@ void AppSolver::run() {
         if (m_usedMethod == Method::PNP) {
             bool isPtAdded = false;
 
-            if (iteration != 1 && ofPrevView.corners.size() < optFlow.additionalSettings.minFeatures) {
-                ofPrevView.setView(viewContainer.getLastOneItem());
+            if (iteration != 1) {
+                if (iteration % params.baProcIt == 1)
+                    reconstruction.adjustBundle(camera, m_tracking.cloud3D, m_tracking.cloudTracks, m_tracking.camPoses);
 
-                featDetector.generateFlowFeatures(ofPrevView.viewPtr->imGray, ofPrevView.corners, optFlow.additionalSettings.maxCorn, optFlow.additionalSettings.qualLvl, optFlow.additionalSettings.minDist);
+                if (ofPrevView.corners.size() < optFlow.additionalSettings.minFeatures) {
+                    ofPrevView.setView(viewContainer.getLastOneItem());
+
+                    featDetector.generateFlowFeatures(ofPrevView.viewPtr->imGray, ofPrevView.corners, optFlow.additionalSettings.maxCorn, optFlow.additionalSettings.qualLvl, optFlow.additionalSettings.minDist);
+                }
             }
             
             if (!userInput.m_usrClickedPts2D.empty()) {
@@ -389,9 +394,6 @@ void AppSolver::run() {
             userInput.recoverPoints(imOutUsrInp, camera.K, cv::Mat(m_tracking.R), cv::Mat(m_tracking.t));
 
             if (m_tracking.addTrackView(featCurrView.viewPtr, _mask, _currPts, _points3D, _pointsRGB, featCurrView.keyPts, featCurrView.descriptor, cloudMap, _currIdx)) {
-                if (iteration % params.baProcIt == 0)
-                    reconstruction.adjustBundle(camera, m_tracking.cloud3D, m_tracking.cloudTracks, m_tracking.camPoses);
-
                 visVTK.updatePointCloud(m_tracking.cloud3D, m_tracking.cloudRGB);
                 visPCL.updatePointCloud(m_tracking.cloud3D, m_tracking.cloudRGB);
 
@@ -409,5 +411,10 @@ void AppSolver::run() {
             std::swap(ofPrevView, ofCurrView);
             std::swap(featPrevView, featCurrView);
         }
+    }
+
+    if (m_usedMethod == Method::PNP) {
+        visVTK.visualize(params.bVisEnable, true);
+        visPCL.visualize(params.bVisEnable, true);
     }
 }
