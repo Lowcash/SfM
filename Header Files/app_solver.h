@@ -125,7 +125,7 @@ private:
 
         const cv::Point clickedPoint(x, y);
 
-        inputDataParams->userInput->m_usrClickedPts2D.push_back(clickedPoint);
+        inputDataParams->userInput->usrClickedPts2D.push_back(clickedPoint);
 
         std::cout << "Clicked to: " << clickedPoint << "\n";
         

@@ -142,14 +142,14 @@ void AppSolver::run() {
                 featDetector.generateFlowFeatures(ofPrevView.viewPtr->imGray, ofPrevView.corners, optFlow.additionalSettings.maxCorn, optFlow.additionalSettings.qualLvl, optFlow.additionalSettings.minDist);
             }
             
-            if (!userInput.m_usrClickedPts2D.empty()) {
-                userInput.attachPointsToMove(userInput.m_usrClickedPts2D, ofPrevView.corners);
+            if (!userInput.usrClickedPts2D.empty()) {
+                userInput.attachPointsToMove(userInput.usrClickedPts2D, ofPrevView.corners);
 
                 isPtAdded = true;
             }
 
-            if (!userInput.m_usrPts2D.empty()) {
-                userInput.attachPointsToMove(userInput.m_usrPts2D, ofPrevView.corners);
+            if (!userInput.usrPts2D.empty()) {
+                userInput.attachPointsToMove(userInput.usrPts2D, ofPrevView.corners);
             }
 
             if (findGoodImages(cap, viewContainer) == ImageFindState::SOURCE_LOST) 
@@ -166,20 +166,20 @@ void AppSolver::run() {
 
                 optFlow.drawOpticalFlow(imOutRecPose, imOutRecPose, ofPrevView.corners, ofCurrView.corners, optFlow.statusMask);
 
-                if (!userInput.m_usrPts2D.empty()) {
+                if (!userInput.usrPts2D.empty()) {
                     std::vector<cv::Point2f> _newPts2D;
-                    userInput.detachPointsFromMove(_newPts2D, ofCurrView.corners, userInput.m_usrPts2D.size());
+                    userInput.detachPointsFromMove(_newPts2D, ofCurrView.corners, userInput.usrPts2D.size());
 
                     userInput.filterPoints(_newPts2D, cv::Rect(cv::Point(), ofCurrView.viewPtr->imColor.size()), 10);
                 }
 
-                if (!userInput.m_usrClickedPts2D.empty() && isPtAdded) {
+                if (!userInput.usrClickedPts2D.empty() && isPtAdded) {
                     std::vector<cv::Point2f> _newPts2D;
-                    userInput.detachPointsFromMove(_newPts2D, ofCurrView.corners, userInput.m_usrClickedPts2D.size());
+                    userInput.detachPointsFromMove(_newPts2D, ofCurrView.corners, userInput.usrClickedPts2D.size());
 
-                    userInput.addPoints(userInput.m_usrClickedPts2D, _newPts2D);
+                    userInput.addPoints(_newPts2D);
 
-                    userInput.m_usrClickedPts2D.clear();
+                    userInput.usrClickedPts2D.clear();
                 }
 
                 userInput.recoverPoints(imOutUsrInp);
@@ -202,8 +202,8 @@ void AppSolver::run() {
                 featDetector.generateFlowFeatures(ofPrevView.viewPtr->imGray, ofPrevView.corners, optFlow.additionalSettings.maxCorn, optFlow.additionalSettings.qualLvl, optFlow.additionalSettings.minDist);
             }
             
-            if (!userInput.m_usrClickedPts2D.empty()) {
-                userInput.attachPointsToMove(userInput.m_usrClickedPts2D, ofPrevView.corners);
+            if (!userInput.usrClickedPts2D.empty()) {
+                userInput.attachPointsToMove(userInput.usrClickedPts2D, ofPrevView.corners);
 
                 isPtAdded = true;
             }
@@ -248,21 +248,21 @@ void AppSolver::run() {
 
             reconstruction.triangulateCloud(camera, ofPrevView.corners, ofCurrView.corners, ofCurrView.viewPtr->imColor, _points3D, _pointsRGB, _mask, _prevPose, _currPose, recPose);
 
-            if (!userInput.m_usrClickedPts2D.empty() && isPtAdded) {
+            if (!userInput.usrClickedPts2D.empty() && isPtAdded) {
                 std::vector<cv::Point2f> _newPts2D;
                 std::vector<cv::Vec3d> _newPts3D;
                 
-                userInput.detachPointsFromMove(_newPts2D, ofCurrView.corners, userInput.m_usrClickedPts2D.size());
-                userInput.detachPointsFromReconstruction(_newPts3D, _points3D, _pointsRGB, _mask, userInput.m_usrClickedPts2D.size());
+                userInput.detachPointsFromMove(_newPts2D, ofCurrView.corners, userInput.usrClickedPts2D.size());
+                userInput.detachPointsFromReconstruction(_newPts3D, _points3D, _pointsRGB, _mask, userInput.usrClickedPts2D.size());
 
-                userInput.addPoints(_newPts3D);
+                userInput.addPoints(_newPts2D, _newPts3D, m_tracking.cloud3D, m_tracking.cloudRGB, m_tracking.cloudTracks, m_tracking.trackViews.size());
                 
-                userInput.m_usrClickedPts2D.clear();
+                userInput.usrClickedPts2D.clear();
                 
                 visVTK.addPoints(_newPts3D);
             }
 
-            userInput.recoverPoints(imOutUsrInp, camera.K, cv::Mat(m_tracking.R), cv::Mat(m_tracking.t));
+            userInput.recoverPoints(imOutUsrInp, m_tracking.cloud3D, camera.K, cv::Mat(m_tracking.R), cv::Mat(m_tracking.t));
 
             visVTK.addCamera(m_tracking.camPoses, camera.K);
             visVTK.visualize(params.bVisEnable);
@@ -288,8 +288,8 @@ void AppSolver::run() {
                 }
             }
             
-            if (!userInput.m_usrClickedPts2D.empty()) {
-                userInput.attachPointsToMove(userInput.m_usrClickedPts2D, ofPrevView.corners);
+            if (!userInput.usrClickedPts2D.empty()) {
+                userInput.attachPointsToMove(userInput.usrClickedPts2D, ofPrevView.corners);
 
                 isPtAdded = true;
             }
@@ -372,26 +372,32 @@ void AppSolver::run() {
             composeExtrinsicMat(recPose.R, recPose.t, _currPose);
             m_tracking.addCamPose(_currPose);
 
-            if (!userInput.m_usrClickedPts2D.empty() && isPtAdded) {
-                userInput.detachPointsFromMove(_prevPts, ofPrevView.corners, userInput.m_usrClickedPts2D.size());
-                userInput.detachPointsFromMove(_currPts, ofCurrView.corners, userInput.m_usrClickedPts2D.size());
+            std::vector<cv::Point2f> _newPts2D;
+            std::vector<cv::Vec3d> _newPts3D;
+
+            if (!userInput.usrClickedPts2D.empty() && isPtAdded) {
+                userInput.detachPointsFromMove(_prevPts, ofPrevView.corners, userInput.usrClickedPts2D.size());
+
+                
+                userInput.detachPointsFromMove(_newPts2D, ofCurrView.corners, userInput.usrClickedPts2D.size());
+
+                _currPts.insert(_currPts.end(), _newPts2D.begin(), _newPts2D.end());
             }
 
             reconstruction.triangulateCloud(camera, _prevPts, _currPts, ofCurrView.viewPtr->imColor, _points3D, _pointsRGB, _mask, _prevPose, _currPose, recPose);
 
-            if (!userInput.m_usrClickedPts2D.empty() && isPtAdded) {
-                std::vector<cv::Vec3d> _newPts3D;
-                userInput.detachPointsFromReconstruction(_newPts3D, _points3D, _pointsRGB, _mask, userInput.m_usrClickedPts2D.size());
+            if (!userInput.usrClickedPts2D.empty() && isPtAdded) {       
+                userInput.detachPointsFromReconstruction(_newPts3D, _points3D, _pointsRGB, _mask, userInput.usrClickedPts2D.size());
 
-                userInput.addPoints(_newPts3D);
+                userInput.addPoints(_newPts2D, _newPts3D, m_tracking.cloud3D, m_tracking.cloudRGB, m_tracking.cloudTracks, m_tracking.trackViews.size());
                 
-                userInput.m_usrClickedPts2D.clear();
+                userInput.usrClickedPts2D.clear();
                 
                 visVTK.addPoints(_newPts3D);
                 visPCL.addPoints(_newPts3D);
             }
 
-            userInput.recoverPoints(imOutUsrInp, camera.K, cv::Mat(m_tracking.R), cv::Mat(m_tracking.t));
+            userInput.recoverPoints(imOutUsrInp, m_tracking.cloud3D, camera.K, cv::Mat(m_tracking.R), cv::Mat(m_tracking.t));
 
             if (m_tracking.addTrackView(featCurrView.viewPtr, _mask, _currPts, _points3D, _pointsRGB, featCurrView.keyPts, featCurrView.descriptor, cloudMap, _currIdx)) {
                 visVTK.updatePointCloud(m_tracking.cloud3D, m_tracking.cloudRGB);

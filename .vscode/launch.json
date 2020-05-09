@@ -18,9 +18,9 @@
               "-bDownSamp=0.5", "-bWinWidth=960", "-bWinHeight=540", "-bUseCuda=false", "-bUseMethod=PNP", "-bMaxSkFram=15", "-bVisEnable=true",
             
               //------------------------------- FEATURES ------------------------------//
-              //"-fDecType=AKAZE", "-fMatchType=BRUTEFORCE_HAMMING", "-fKnnRatio=0.5",
+              "-fDecType=AKAZE", "-fMatchType=BRUTEFORCE_HAMMING", "-fKnnRatio=0.5",
               //"-fDecType=FAST", "-fMatchType=BRUTEFORCE_HAMMING", "-fKnnRatio=0.5",
-              "-fDecType=SIFT", "-fMatchType=FLANNBASED", "-fKnnRatio=0.5",
+              //"-fDecType=SIFT", "-fMatchType=FLANNBASED", "-fKnnRatio=0.5",
               //"-fDecType=SURF", "-fMatchType=FLANNBASED", "-fKnnRatio=0.5",
 
               //----------------------------- OPTICAL FLOW ----------------------------//

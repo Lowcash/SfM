@@ -3,34 +3,39 @@
 UserInput::UserInput(const float maxRange)
     : m_maxRange(maxRange) {}
 
-void UserInput::addPoints(const std::vector<cv::Vec3d> pts3D) {
-    m_usrPts3D.insert(m_usrPts3D.end(), pts3D.begin(), pts3D.end());
-}
-
-void UserInput::addPoints(const std::vector<cv::Point2f> prevPts2D, const std::vector<cv::Point2f> currPts2D) {
-    std::map<std::pair<float, float>, float> pointsDist;
-
-    for (auto [it, end, idx] = std::tuple{currPts2D.cbegin(), currPts2D.cend(), 0}; it != end; ++it, ++idx) {
+void UserInput::addPoints(const std::vector<cv::Point2f> pts2D) {
+    for (auto [it, end, idx] = std::tuple{pts2D.cbegin(), pts2D.cend(), 0}; it != end; ++it, ++idx) {
         cv::Point2f p = (cv::Point2f)*it;
         
-        m_usrPts2D.push_back(p);
+        usrPts2D.push_back(p);
     }
 }
 
-void UserInput::filterPoints(const std::vector<cv::Point2f> currPts2D, const cv::Rect boundary, const uint offset) {
+void UserInput::addPoints(const std::vector<cv::Point2f> pts2D, const std::vector<cv::Vec3d> pts3D, std::vector<cv::Vec3d>& pCloud, std::vector<cv::Vec3b>& pCloudRGB, std::vector<CloudTrack>& cloudTracks, uint iter) {
+    for (auto [p2d, p2dEnd, p3d, p3dEnd] = std::tuple{pts2D.cbegin(), pts2D.cend(), pts3D.cbegin(), pts3D.cend()}; p2d != p2dEnd && p3d != p3dEnd; ++p2d, ++p3d) {
+        cloudTracks.push_back(CloudTrack((cv::Point2f)*p2d, iter));
+
+        m_usrCloudPts3DIdx.push_back(pCloud.size());
+
+        pCloud.push_back((cv::Vec3d)*p3d);
+        pCloudRGB.push_back(cv::Vec3b());
+    }
+}
+
+void UserInput::filterPoints(const std::vector<cv::Point2f> pts2D, const cv::Rect boundary, const uint offset) {
     std::map<std::pair<float, float>, float> pointsDist;
 
-    for (auto [it, end, idx] = std::tuple{currPts2D.cbegin(), currPts2D.cend(), 0}; it != end; ++it, ++idx) {
+    for (auto [it, end, idx] = std::tuple{pts2D.cbegin(), pts2D.cend(), 0}; it != end; ++it, ++idx) {
         cv::Point2f p = (cv::Point2f)*it;
         
-        m_usrPts2D[idx] = currPts2D[idx];
+        usrPts2D[idx] = pts2D[idx];
     }
 
-    for (int i = 0, idxCorrection = 0; i < m_usrPts2D.size(); ++i) {
-        auto p = m_usrPts2D[i];
+    for (int i = 0, idxCorrection = 0; i < usrPts2D.size(); ++i) {
+        auto p = usrPts2D[i];
 
         if (p.x < boundary.x + offset || p.y < boundary.y + offset || p.x > boundary.width - offset || p.y > boundary.height - offset) {
-            m_usrPts2D.erase(m_usrPts2D.begin() + (i - idxCorrection));
+            usrPts2D.erase(usrPts2D.begin() + (i - idxCorrection));
 
             idxCorrection++;
         } 
@@ -38,18 +43,21 @@ void UserInput::filterPoints(const std::vector<cv::Point2f> currPts2D, const cv:
 }
 
 void UserInput::recoverPoints(cv::Mat& imOutUsr) {
-    for (const auto& p : m_usrPts2D) {
+    for (const auto& p : usrPts2D) {
         //std::cout << "Point projected to: " << p << "\n";
             
         cv::circle(imOutUsr, p, 3, CV_RGB(150, 200, 0), cv::FILLED, cv::LINE_AA);
     }
 }
 
-void UserInput::recoverPoints(cv::Mat& imOutUsr, cv::Mat cameraK, cv::Mat R, cv::Mat t) {
-    if (!m_usrPts3D.empty()) {
-        cv::Mat recoveredPts;
+void UserInput::recoverPoints(cv::Mat& imOutUsr, std::vector<cv::Vec3d>& pCloud, cv::Mat cameraK, cv::Mat R, cv::Mat t) {
+    if (!pCloud.empty() && !m_usrCloudPts3DIdx.empty()) {
+        std::vector<cv::Vec3d> usrPts3D;
 
-        cv::projectPoints(m_usrPts3D, R, t, cameraK, cv::Mat(), recoveredPts);
+        for (const auto& idx : m_usrCloudPts3DIdx)
+            usrPts3D.push_back(pCloud[idx]);
+
+        cv::Mat recoveredPts; cv::projectPoints(usrPts3D, R, t, cameraK, cv::Mat(), recoveredPts);
 
         for (int i = 0; i < recoveredPts.rows; ++i) {
             auto p = recoveredPts.at<cv::Point2d>(i);

@@ -3,23 +3,27 @@
 #pragma once
 
 #include "pch.h"
-#include "camera.h"
+#include "tracking.h"
 
 /** UserInput to managing selected points
  * */
 class UserInput {
 private:
     const float m_maxRange;
-public:
-    std::vector<cv::Point2f> m_usrClickedPts2D;
-    std::vector<cv::Point2f> m_usrPts2D;
-    std::vector<cv::Vec3d> m_usrPts3D;
     
+    std::vector<size_t> m_usrCloudPts3DIdx;
+public:
+    std::vector<cv::Point2f> usrClickedPts2D, usrPts2D;
+
     UserInput(const float maxRange);
 
-    void addPoints(const std::vector<cv::Vec3d> pts3D);
+    /** Add points to 2D
+     * */
+    void addPoints(const std::vector<cv::Point2f> pts2D);
 
-    void addPoints(const std::vector<cv::Point2f> prevPts2D, const std::vector<cv::Point2f> currPts2D);
+    /** Add points to 3D
+     * */
+    void addPoints(const std::vector<cv::Point2f> pts2D, const std::vector<cv::Vec3d> pts3D, std::vector<cv::Vec3d>& pCloud, std::vector<cv::Vec3b>& pCloudRGB, std::vector<CloudTrack>& cloudTracks, uint iter);
 
     /** Filter points by boundary
      * */
@@ -31,7 +35,7 @@ public:
 
     /** Recover points from 3D
      * */
-    void recoverPoints(cv::Mat& imOutUsr, cv::Mat cameraK, cv::Mat R, cv::Mat t);
+    void recoverPoints(cv::Mat& imOutUsr, std::vector<cv::Vec3d>& pCloud, cv::Mat cameraK, cv::Mat R, cv::Mat t);
 
     /** Attach points usually to optical flow
      * */
