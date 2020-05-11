@@ -1,7 +1,7 @@
 #include "user_input_manager.h"
 
-UserInput::UserInput(const float maxRange)
-    : m_maxRange(maxRange) {}
+UserInput::UserInput(const std::string winName, cv::Mat* imageSource, const float maxRange, const int pointSize)
+    : m_winName(winName), m_inputImage(imageSource), m_maxRange(maxRange), m_pointSize(pointSize) {}
 
 void UserInput::addPoints(const std::vector<cv::Point2f> pts2D) {
     for (auto [it, end, idx] = std::tuple{pts2D.cbegin(), pts2D.cend(), 0}; it != end; ++it, ++idx) {
@@ -46,7 +46,7 @@ void UserInput::recoverPoints(cv::Mat& imOutUsr) {
     for (const auto& p : usrPts2D) {
         //std::cout << "Point projected to: " << p << "\n";
             
-        cv::circle(imOutUsr, p, 3, CV_RGB(150, 200, 0), cv::FILLED, cv::LINE_AA);
+        cv::circle(imOutUsr, p, 5, CV_RGB(150, 200, 0), cv::FILLED, cv::LINE_AA);
     }
 }
 
@@ -63,7 +63,7 @@ void UserInput::recoverPoints(cv::Mat& imOutUsr, std::vector<cv::Vec3d>& pCloud,
             auto p = recoveredPts.at<cv::Point2d>(i);
             //std::cout << "Point projected to: " << p << "\n";
                 
-            cv::circle(imOutUsr, p, 3, CV_RGB(150, 200, 0), cv::FILLED, cv::LINE_AA);
+            cv::circle(imOutUsr, p, 5, CV_RGB(150, 200, 0), cv::FILLED, cv::LINE_AA);
         }
     } 
 }

@@ -1,0 +1,43 @@
+#ifndef COMMON_H
+#define COMMON_H
+#pragma once
+
+#include "pch.h"
+
+inline void composeExtrinsicMat(cv::Matx33d R, cv::Matx31d t, cv::Matx34d& pose) {
+    pose = cv::Matx34d(
+        R(0,0), R(0,1), R(0,2), t(0),
+        R(1,0), R(1,1), R(1,2), t(1),
+        R(2,0), R(2,1), R(2,2), t(2)
+    );
+}
+
+inline void composeExtrinsicMat(cv::Matx33d R, cv::Vec3d t, cv::Matx34d& pose) {
+    pose = cv::Matx34d(
+        R(0,0), R(0,1), R(0,2), t(0),
+        R(1,0), R(1,1), R(1,2), t(1),
+        R(2,0), R(2,1), R(2,2), t(2)
+    );
+}
+
+inline void decomposeExtrinsicMat(cv::Matx34d pose, cv::Matx33d& R, cv::Matx31d& t) {
+    R = pose.get_minor<3, 3>(0, 0);
+
+    t = cv::Matx31d(
+        pose(0,3),
+        pose(1,3),
+        pose(2,3)
+    );
+}
+
+inline void decomposeExtrinsicMat(cv::Matx34d pose, cv::Matx33d& R, cv::Vec3d& t) {
+    R = pose.get_minor<3, 3>(0, 0);
+
+    t = cv::Vec3d(
+        pose(0, 3), 
+        pose(1, 3), 
+        pose(2, 3)
+    );
+}
+
+#endif //COMMON_H

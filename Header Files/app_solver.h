@@ -3,6 +3,7 @@
 #pragma once
 
 #include "pch.h"
+#include "common.h"
 #include "tracking.h"
 #include "feature_processing.h"
 #include "visualization.h"
@@ -19,52 +20,53 @@ struct AppSolverDataParams {
     const int ofMinKPts, ofWinSize, ofMaxLevel, ofMaxCorn, peMinInl, peMinMatch, peNumIteR, bMaxSkFram, baProcIt;
     const cv::Mat cameraK, distCoeffs;
 
-    /** AppSolverDataParams constructor
-
-    Transfer params to solver
-    Usually from cv::CommandLineParser
-
-    @param bUseMethod method to use KLT/VO/PNP
-    @param ptCloudWinName point cloud window name
-    @param usrInpWinName user input window name
-    @param recPoseWinName recovery pose window name
-    @param matchesWinName matches window name
-    @param bSource source video file [.mp4, .avi ...] 
-    @param bDownSamp downsampling of input source images
-    @param bMaxSkFram max number of skipped frames to swap
-    @param bVisEnable is visualization by VTK, PCL enabled
-    @param winSize debug windows size
-    @param useCUDA is nVidia CUDA used 
-    @param fDecType used detector type
-    @param fMatchType used matcher type
-    @param fKnnRatio knn ration match
-    @param ofMinKPts optical flow min descriptor to generate new one
-    @param ofWinSize optical flow window size
-    @param ofMaxLevel optical flow max pyramid level
-    @param ofMaxItCt optical flow max iteration count
-    @param ofItEps optical flow iteration epsilon
-    @param ofMaxError optical flow max error
-    @param ofMaxCorn optical flow max generated corners
-    @param ofQualLvl optical flow generated corners quality level
-    @param ofMinDist optical flow generated corners min distance
-    @param peMethod pose estimation fundamental matrix computation method [RANSAC/LMEDS]
-    @param peProb pose estimation confidence/probability
-    @param peThresh pose estimation threshold
-    @param peMinInl pose estimation in number of homography inliers user for reconstruction
-    @param peMinMatch pose estimation min matches to break
-    @param pePMetrod pose estimation method SOLVEPNP_ITERATIVE/SOLVEPNP_P3P/SOLVEPNP_AP3P
-    @param peExGuess pose estimation use extrinsic guess
-    @param peNumIteR pose estimation max iteration
-    @param baMethod bundle adjustment solver type DENSE_SCHUR/SPARSE_NORMAL_CHOLESKY
-    @param baMaxRMSE bundle adjustment max RMSE error to recover from back up
-    @param baProcIt bundle adjustment process each %d iteration
-    @param tMethod triangulation method ITERATIVE/DLT
-    @param tMinDist triangulation points min distance
-    @param tMaxDist triangulation points max distance
-    @param tMaxPErr triangulation points max reprojection error
-    @param cameraK camera intrics parameters
-    @param distCoeffs camera distortion parameters
-    */
+    /** 
+     * AppSolverDataParams constructor
+     * 
+     * Transfer params to solver
+     * Typically from cv::CommandLineParser
+     * 
+     * @param bUseMethod method to use KLT/VO/PNP
+     * @param ptCloudWinName point cloud window name
+     * @param usrInpWinName user input window name
+     * @param recPoseWinName recovery pose window name
+     * @param matchesWinName matches window name
+     * @param bSource source video file [.mp4, .avi ...]
+     * @param bDownSamp downsampling of input source images
+     * @param bMaxSkFram max number of skipped frames to swap
+     * @param bVisEnable is visualization by VTK, PCL enabled
+     * @param winSize debug windows size
+     * @param useCUDA is nVidia CUDA used
+     * @param fDecType used detector type
+     * @param fMatchType used matcher type
+     * @param fKnnRatio knn ration match
+     * @param ofMinKPts optical flow min descriptor to generate new one
+     * @param ofWinSize optical flow window size
+     * @param ofMaxLevel optical flow max pyramid level
+     * @param ofMaxItCt optical flow max iteration count
+     * @param ofItEps optical flow iteration epsilon
+     * @param ofMaxError optical flow max error
+     * @param ofMaxCorn optical flow max generated corners
+     * @param ofQualLvl optical flow generated corners quality level
+     * @param ofMinDist optical flow generated corners min distance
+     * @param peMethod pose estimation fundamental matrix computation method [RANSAC/LMEDS]
+     * @param peProb pose estimation confidence/probability
+     * @param peThresh pose estimation threshold
+     * @param peMinInl pose estimation in number of homography inliers user for reconstruction
+     * @param peMinMatch pose estimation min matches to break
+     * @param pePMetrod pose estimation method SOLVEPNP_ITERATIVE/SOLVEPNP_P3P/SOLVEPNP_AP3P
+     * @param peExGuess pose estimation use extrinsic guess
+     * @param peNumIteR pose estimation max iteration
+     * @param baMethod bundle adjustment solver type DENSE_SCHUR/SPARSE_NORMAL_CHOLESKY
+     * @param baMaxRMSE bundle adjustment max RMSE error to recover from back up
+     * @param baProcIt bundle adjustment process each %d iteration
+     * @param tMethod triangulation method ITERATIVE/DLT
+     * @param tMinDist triangulation points min distance
+     * @param tMaxDist triangulation points max distance
+     * @param tMaxPErr triangulation points max reprojection error
+     * @param cameraK camera intrics parameters
+     * @param distCoeffs camera distortion parameters
+     */
     AppSolverDataParams(const std::string bUseMethod, const std::string ptCloudWinName, const std::string usrInpWinName, std::string recPoseWinName, const std::string matchesWinName, const std::string bSource, const float bDownSamp, const int bMaxSkFram, const cv::Size winSize, const bool bVisEnable, const bool useCUDA, const std::string fDecType, const std::string fMatchType, const float fKnnRatio, const int ofMinKPts, const int ofWinSize, const int ofMaxLevel, const float ofMaxItCt, const float ofItEps, const float ofMaxError, const int ofMaxCorn, const float ofQualLvl, const float ofMinDist, const std::string peMethod, const float peProb, const float peThresh, const int peMinInl, const int peMinMatch, const std::string pePMetrod, const bool peExGuess, const int peNumIteR, const std::string baMethod, const double baMaxRMSE, const int baProcIt, const std::string tMethod, const float tMinDist, const float tMaxDist, const float tMaxPErr, const cv::Mat cameraK, const cv::Mat distCoeffs) 
         : bUseMethod(bUseMethod), ptCloudWinName(ptCloudWinName), usrInpWinName(usrInpWinName), recPoseWinName(recPoseWinName), matchesWinName(matchesWinName), bSource(bSource), bDownSamp(bDownSamp), bMaxSkFram(bMaxSkFram), winSize(winSize), bVisEnable(bVisEnable), useCUDA(useCUDA), fDecType(fDecType), fMatchType(fMatchType), fKnnRatio(fKnnRatio), ofMinKPts(ofMinKPts), ofWinSize(ofWinSize), ofMaxLevel(ofMaxLevel), ofMaxItCt(ofMaxItCt), ofItEps(ofItEps), ofMaxError(ofMaxError), ofMaxCorn(ofMaxCorn), ofQualLvl(ofQualLvl), ofMinDist(ofMinDist), peMethod(peMethod), peProb(peProb), peThresh(peThresh), peMinInl(peMinInl), peMinMatch(peMinMatch), pePMetrod(pePMetrod), peExGuess(peExGuess), peNumIteR(peNumIteR), baMethod(baMethod), baMaxRMSE(baMaxRMSE), baProcIt(baProcIt), tMethod(tMethod), tMinDist(tMinDist), tMaxDist(tMaxDist), tMaxPErr(tMaxPErr), cameraK(cameraK), distCoeffs(distCoeffs) {}
 };
@@ -81,65 +83,51 @@ private:
 
     Tracking m_tracking;
 
-    /** Find good images
-        The result will be added to the ViewDataContainer
-     * */
+    /** 
+     * Find good images
+     * 
+     * The result will be added to ViewDataContainer
+     */
     int findGoodImages(cv::VideoCapture cap, ViewDataContainer& viewContainer);
 
-    /** Find good images by optical flow
-        The result will be added to the ViewDataContainer
-     * */
+    /** 
+     * Find good images by optical flow
+     * 
+     * The result will be added to ViewDataContainer
+     */
     int findGoodImages(cv::VideoCapture& cap, ViewDataContainer& viewContainer, FeatureDetector featDetector, OptFlow optFlow, Camera camera, RecoveryPose& recPose, FlowView& ofPrevView, FlowView& ofCurrView);
 
-    /** Load a convert image to grayscale
-     * */
+    /** 
+     * Load and convert image to grayscale
+     */
     int prepareImage(cv::VideoCapture& cap, cv::Mat& imColor, cv::Mat& imGray);
 
-    void composeExtrinsicMat(cv::Matx33d R, cv::Matx31d t, cv::Matx34d& pose) {
-        pose = cv::Matx34d(
-            R(0,0), R(0,1), R(0,2), t(0),
-            R(1,0), R(1,1), R(1,2), t(1),
-            R(2,0), R(2,1), R(2,2), t(2)
-        );
-    }
-
-    void decomposeExtrinsicMat(cv::Matx34d pose, cv::Matx33d& R, cv::Matx31d& t) {
-        R = cv::Matx33d(
-            pose(0,0), pose(0,1), pose(0,2),
-            pose(1,0), pose(1,1), pose(1,2),
-            pose(2,0), pose(2,1), pose(2,2)
-        );
-
-        t = cv::Matx31d(
-            pose(0,3),
-            pose(1,3),
-            pose(2,3)
-        );
-    }
-
-    // Handle user input
+    /**
+     * Handle user input
+     */
     static void onUsrWinClick (int event, int x, int y, int flags, void* params) {
         if (event != cv::EVENT_LBUTTONDOWN) { return; }
 
         UserInputDataParams* inputDataParams = (UserInputDataParams*)params;
 
         const cv::Point clickedPoint(x, y);
-
-        inputDataParams->userInput->usrClickedPts2D.push_back(clickedPoint);
-
-        std::cout << "Clicked to: " << clickedPoint << "\n";
         
-        cv::circle(*inputDataParams->inputImage, clickedPoint, 3, CV_RGB(200, 0, 0), cv::FILLED, cv::LINE_AA);
+        std::cout << "Clicked to: " << clickedPoint << "\n";
 
-        cv::imshow(inputDataParams->getWinName(), *inputDataParams->inputImage);
+        // register point and force redraw
+        inputDataParams->userInput->addClickedPoint(clickedPoint, true);
     }
 public:
     AppSolver (const AppSolverDataParams params)
-        : params(params) {       
-        if (params.bUseMethod == "KLT") 
-            m_usedMethod = Method::KLT;
-        else if (params.bUseMethod == "VO")
-            m_usedMethod = Method::VO;
+        : params(params) {
+        // std::string to Enum mapping by Mark Ransom
+        // https://stackoverflow.com/questions/7163069/c-string-to-enum
+        static std::unordered_map<std::string, Method> const table = { 
+            {"KLT", Method::KLT}, {"VO", Method::VO},  {"PNP", Method::PNP}
+        };
+    
+        if (auto it = table.find(params.bUseMethod); it != table.end())
+            m_usedMethod = it->second;
         else
             m_usedMethod = Method::PNP;
     }

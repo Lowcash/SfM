@@ -39,50 +39,55 @@ int AppSolver::findGoodImages(cv::VideoCapture cap, ViewDataContainer& viewConta
 int AppSolver::findGoodImages(cv::VideoCapture& cap, ViewDataContainer& viewContainer, FeatureDetector featDetector, OptFlow optFlow, Camera camera, RecoveryPose& recPose, FlowView& ofPrevView, FlowView& ofCurrView) {
     std::cout << "Finding good images" << std::flush;
 
-    cv::Mat _imColor, _imGray;
+    ViewData _viewData;
 
     std::vector<cv::Point2f> _prevCorners, _currCorners;
 
-    ImageFindState state;
-
+    // search for a good pair of images by min homography inliers -> use optical flow
     int numHomInliers = 0, numSkippedFrames = -1;
     do {
-        if ((state = (ImageFindState)prepareImage(cap, _imColor, _imGray)) != ImageFindState::FOUND)
+        ImageFindState state;
+
+        if ((state = (ImageFindState)prepareImage(cap, _viewData.imColor, _viewData.imGray)) != ImageFindState::FOUND)
             return state;
 
         std::cout << "." << std::flush;
         
+        // if there is nothing to compare, prepare the first image
         if (viewContainer.isEmpty()) {
-            viewContainer.addItem(ViewData(_imColor, _imGray));
+            viewContainer.addItem(_viewData);
 
-            featDetector.generateFlowFeatures(_imGray, ofPrevView.corners, optFlow.additionalSettings.maxCorn, optFlow.additionalSettings.qualLvl, optFlow.additionalSettings.minDist);
+            featDetector.generateFlowFeatures(_viewData.imGray, ofPrevView.corners, optFlow.additionalSettings.maxCorn, optFlow.additionalSettings.qualLvl, optFlow.additionalSettings.minDist);
 
-            if ((state = (ImageFindState)prepareImage(cap, _imColor, _imGray)) != ImageFindState::FOUND)
+            if ((state = (ImageFindState)prepareImage(cap, _viewData.imColor, _viewData.imGray)) != ImageFindState::FOUND)
                 return state;
         }
 
+        // set corners from back up -> computeFlow func removes corners
         _prevCorners = ofPrevView.corners;
         _currCorners = ofCurrView.corners;
 
-        optFlow.computeFlow(viewContainer.getLastOneItem()->imGray, _imGray, _prevCorners, _currCorners, optFlow.statusMask, true, true);
+        // flow computing with boundary and error filtering
+        optFlow.computeFlow(viewContainer.getLastOneItem()->imGray, _viewData.imGray, _prevCorners, _currCorners, optFlow.statusMask, true, true);
 
         numSkippedFrames++;
 
         if (numSkippedFrames > params.bMaxSkFram) {
-            viewContainer.addItem(ViewData(_imColor, _imGray));
+            viewContainer.addItem(_viewData);
 
             return ImageFindState::NOT_FOUND;
         }
     } while(!m_tracking.findCameraPose(recPose, _prevCorners, _currCorners, camera.K, recPose.minInliers, numHomInliers));
 
-    viewContainer.addItem(ViewData(_imColor, _imGray));
+    // complete the search for image pairs -> set flow views
+    viewContainer.addItem(_viewData);
 
     ofPrevView.setCorners(_prevCorners);
     ofCurrView.setCorners(_currCorners);
 
     std::cout << "[DONE]" << " - Inliers count: " << numHomInliers << "; Skipped frames: " << numSkippedFrames << "\t" << std::flush;
 
-    return state;
+    return ImageFindState::FOUND;
 }
 
 void AppSolver::run() {
@@ -113,8 +118,8 @@ void AppSolver::run() {
     cv::resizeWindow(params.recPoseWinName, params.winSize);
     cv::resizeWindow(params.matchesWinName, params.winSize);
     
-    UserInput userInput(params.ofMaxError);
-    UserInputDataParams mouseUsrDataParams(params.usrInpWinName, &imOutUsrInp, &userInput);
+    UserInput userInput(params.usrInpWinName, &imOutUsrInp, params.ofMaxError);
+    UserInputDataParams mouseUsrDataParams(&userInput);
 
     cv::setMouseCallback(params.usrInpWinName, onUsrWinClick, (void*)&mouseUsrDataParams);
 
@@ -184,6 +189,12 @@ void AppSolver::run() {
 
                 userInput.recoverPoints(imOutUsrInp);
             }
+
+            /*std::vector<cv::KeyPoint> _keyPts; cv::KeyPoint::convert(ofPrevView.corners, _keyPts);
+
+            cv::Mat _tmpImg; ofCurrView.viewPtr->imColor.copyTo(_tmpImg);
+            cv::drawKeypoints(_tmpImg, _keyPts, _tmpImg, CV_RGB(109, 17, 214));
+            cv::imshow("Optical flow key points", _tmpImg);*/
 
             cv::imshow(params.recPoseWinName, imOutRecPose);
             cv::imshow(params.usrInpWinName, imOutUsrInp);
@@ -264,7 +275,8 @@ void AppSolver::run() {
 
             userInput.recoverPoints(imOutUsrInp, m_tracking.cloud3D, camera.K, cv::Mat(m_tracking.R), cv::Mat(m_tracking.t));
 
-            visVTK.addCamera(m_tracking.camPoses, camera.K);
+            visVTK.updateCameras(m_tracking.camPoses, camera.K);
+            //visVTK.addCamera();
             visVTK.visualize(params.bVisEnable);
 
             cv::imshow(params.usrInpWinName, imOutUsrInp);
@@ -333,6 +345,10 @@ void AppSolver::run() {
 
             featDetector.generateFeatures(featCurrView.viewPtr->imGray, featCurrView.keyPts, featCurrView.descriptor);
 
+            /*cv::Mat _tmpImg; ofCurrView.viewPtr->imColor.copyTo(_tmpImg);
+            cv::drawKeypoints(_tmpImg, featCurrView.keyPts, _tmpImg, CV_RGB(109, 17, 214));
+            cv::imshow("Reconstruction key points", _tmpImg);
+            cv::waitKey();*/
             if (featPrevView.keyPts.empty() || featCurrView.keyPts.empty()) { 
                 std::cerr << "None keypoints to match, skip matching/triangulation!\n";
 
@@ -343,7 +359,7 @@ void AppSolver::run() {
             std::vector<cv::DMatch> _matches;
             std::vector<int> _prevIdx, _currIdx;
 
-            descMatcher.findRobustMatches(featPrevView.keyPts, featCurrView.keyPts, featPrevView.descriptor, featCurrView.descriptor, _prevPts, _currPts, _matches, _prevIdx, _currIdx);
+            descMatcher.findRobustMatches(featPrevView.keyPts, featCurrView.keyPts, featPrevView.descriptor, featCurrView.descriptor, _prevPts, _currPts, _matches, _prevIdx, _currIdx, featPrevView.viewPtr->imColor, featCurrView.viewPtr->imColor, true);
 
             std::cout << "Matches count: " << _matches.size() << "\n";
 
@@ -400,18 +416,24 @@ void AppSolver::run() {
             userInput.recoverPoints(imOutUsrInp, m_tracking.cloud3D, camera.K, cv::Mat(m_tracking.R), cv::Mat(m_tracking.t));
 
             if (m_tracking.addTrackView(featCurrView.viewPtr, _mask, _currPts, _points3D, _pointsRGB, featCurrView.keyPts, featCurrView.descriptor, cloudMap, _currIdx)) {
-                visVTK.updatePointCloud(m_tracking.cloud3D, m_tracking.cloudRGB);
+                //visVTK.updatePointCloud(m_tracking.cloud3D, m_tracking.cloudRGB);
                 visPCL.updatePointCloud(m_tracking.cloud3D, m_tracking.cloudRGB);
 
-                visVTK.updateCameras(m_tracking.camPoses, camera.K);
-                visVTK.visualize(params.bVisEnable);
+                //visVTK.updateCameras(m_tracking.camPoses, camera.K);
+                //visVTK.visualize(params.bVisEnable);
                 
                 visPCL.updateCameras(m_tracking.camPoses);
+                //visPCL.visualize(params.bVisEnable);
+
+                //visVTK.visualize(params.bVisEnable);
                 visPCL.visualize(params.bVisEnable);
             }
 
             cv::imshow(params.usrInpWinName, imOutUsrInp);
 
+            if (iteration == 1)
+                cv::waitKey();
+                
             std::cout << "Iteration: " << iteration << "\n"; cv::waitKey(29);
 
             std::swap(ofPrevView, ofCurrView);

@@ -109,6 +109,8 @@ int main(int argc, char** argv) {
 
     bool useCUDA = false;
 
+    auto cuda = cv::getBuildInformation();
+
 #pragma ifdef OPENCV_CORE_CUDA_HPP
     //  Use CUDA if availiable and selected
     if (bUseCuda) {

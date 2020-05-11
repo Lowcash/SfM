@@ -70,7 +70,7 @@ FeatureDetector::FeatureDetector(std::string method, bool isUsingCUDA) {
         
         case DetectorType::SURF: {
             if (!m_isUsingCUDA)
-                detector = extractor = cv::xfeatures2d::SURF::create();
+                detector = extractor = cv::xfeatures2d::SURF::create(400);
 
             break;
         }
@@ -199,12 +199,34 @@ void DescriptorMatcher::ratioMaches(const cv::Mat lDesc, const cv::Mat rDesc, st
     }
 }
 
-void DescriptorMatcher::findRobustMatches(std::vector<cv::KeyPoint> prevKeyPts, std::vector<cv::KeyPoint> currKeyPts, cv::Mat prevDesc, cv::Mat currDesc, std::vector<cv::Point2f>& prevAligPts, std::vector<cv::Point2f>& currAligPts, std::vector<cv::DMatch>& matches, std::vector<int>& prevPtsToKeyIdx, std::vector<int>& currPtsToKeyIdx) {
+void DescriptorMatcher::findRobustMatches(std::vector<cv::KeyPoint> prevKeyPts, std::vector<cv::KeyPoint> currKeyPts, cv::Mat prevDesc, cv::Mat currDesc, std::vector<cv::Point2f>& prevAligPts, std::vector<cv::Point2f>& currAligPts, std::vector<cv::DMatch>& matches, std::vector<int>& prevPtsToKeyIdx, std::vector<int>& currPtsToKeyIdx, cv::Mat prevFrame, cv::Mat currFrame, bool showMatch) {
     std::vector<cv::DMatch> fMatches, bMatches;
 
     // knn matches
     ratioMaches(prevDesc, currDesc, fMatches);
     ratioMaches(currDesc, prevDesc, bMatches);
+
+    auto fontFace = cv::FONT_HERSHEY_COMPLEX;
+    float fontScale = 1.0;
+
+    cv::Size textSize(15,15);
+    cv::Rect boxCoords(10, 20, 300, 100);
+        
+    if (showMatch) {
+        cv::Mat out;
+        cv::drawMatches(prevFrame, prevKeyPts, currFrame, currKeyPts, fMatches, out, CV_RGB(255,255,0));
+
+        const std::string headedText = "Knn match";
+        const std::string matchesText = "# Matches: " + std::to_string(fMatches.size());
+
+        cv::rectangle(out, boxCoords, cv::Scalar(75,75,75), cv::FILLED);
+
+        cv::putText(out, headedText, cv::Point(10,50), fontFace, fontScale, CV_RGB(255, 255, 255), 2);
+        cv::putText(out, matchesText, cv::Point(10,100), fontFace, fontScale, CV_RGB(255, 255, 255));
+
+        cv::imshow("Matches", out);
+        //cv::waitKey();
+    }
 
     // crossmatching
     for (const auto& bM : bMatches) {
@@ -224,6 +246,22 @@ void DescriptorMatcher::findRobustMatches(std::vector<cv::KeyPoint> prevKeyPts, 
         }
 
         if (isFound) { continue; }
+    }
+
+    if (showMatch) {
+        cv::Mat out;
+        cv::drawMatches(prevFrame, prevKeyPts, currFrame, currKeyPts, matches, out, CV_RGB(255,255,0));
+
+        const std::string headedText = "Crossmatching";
+        const std::string matchesText = "# Matches: " + std::to_string(matches.size());
+
+       cv::rectangle(out, boxCoords, cv::Scalar(75,75,75), cv::FILLED);
+
+        cv::putText(out, headedText, cv::Point(10,50), fontFace, fontScale, CV_RGB(255, 255, 255), 2);
+        cv::putText(out, matchesText, cv::Point(10,100), fontFace, fontScale, CV_RGB(255, 255, 255));
+
+        cv::imshow("Matches", out);
+        //cv::waitKey();
     }
 
     if (prevAligPts.empty() || currAligPts.empty()) { return; }
@@ -248,6 +286,22 @@ void DescriptorMatcher::findRobustMatches(std::vector<cv::KeyPoint> prevKeyPts, 
         }
     }
 
+    if (showMatch) {
+        cv::Mat out;
+        cv::drawMatches(prevFrame, prevKeyPts, currFrame, currKeyPts, _epipolarMatch, out, CV_RGB(255,255,0));
+
+        const std::string headedText = "Epipolar filter";
+        const std::string matchesText = "# Matches: " + std::to_string(_epipolarMatch.size());
+
+        cv::rectangle(out, boxCoords, cv::Scalar(75,75,75), cv::FILLED);
+
+        cv::putText(out, headedText, cv::Point(10,50), fontFace, fontScale, CV_RGB(255, 255, 255), 2);
+        cv::putText(out, matchesText, cv::Point(10,100), fontFace, fontScale, CV_RGB(255, 255, 255));
+
+        cv::imshow("Matches", out);
+        //cv::waitKey();
+    }
+    
     //  update informations to output structures
     std::swap(matches, _epipolarMatch);
     std::swap(prevAligPts, _epipolarPrevPts);
@@ -325,12 +379,14 @@ void OptFlow::drawOpticalFlow(cv::Mat inputImg, cv::Mat& outputImg, const std::v
 
     inputImg.copyTo(outputImg);
 
+
     for (int i = 0; i < prevPts.size() && i < currPts.size(); ++i) {
+        cv::Point2f dir = (prevPts[i] - currPts[i]) * 5;
         //  Green arrow -> good optical flow (mask, error)
-        cv::arrowedLine(outputImg, currPts[i], prevPts[i], CV_RGB(0,200,0), 2);
+        cv::arrowedLine(outputImg, currPts[i], currPts[i] + dir, CV_RGB(0,200,0), 1, cv::LineTypes::LINE_AA);
 
         //  Red arrow -> bad optical flow (mask, error)
         if (isUsingMask && statusMask[i] == 0)
-            cv::arrowedLine(outputImg, currPts[i], prevPts[i], CV_RGB(200,0,0), 2);
+            cv::arrowedLine(outputImg, currPts[i], currPts[i] + dir, CV_RGB(200,0,0),1, cv::LineTypes::LINE_AA);
     }
 }

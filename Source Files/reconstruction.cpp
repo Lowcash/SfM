@@ -151,6 +151,7 @@ void Reconstruction::adjustBundle(Camera& camera, std::vector<cv::Vec3d>& pCloud
 
         return;
 	} else {
+        double initialRMSE = std::sqrt(summary.initial_cost / summary.num_residuals);
         double finalRMSE = std::sqrt(summary.final_cost / summary.num_residuals);
 
 		// Display statistics about the minimization
@@ -158,12 +159,12 @@ void Reconstruction::adjustBundle(Camera& camera, std::vector<cv::Vec3d>& pCloud
 			<< "Bundle Adjustment statistics (approximated RMSE):\n"
 			<< " #views: " << camPoses.size() << "\n"
 			<< " #num_residuals: " << summary.num_residuals << "\n"
-			<< " Initial RMSE: " << std::sqrt(summary.initial_cost / summary.num_residuals) << "\n"
+			<< " Initial RMSE: " << initialRMSE << "\n"
 			<< " Final RMSE: " << finalRMSE << "\n"
 			<< " Time (s): " << summary.total_time_in_seconds << "\n"
 			<< std::endl;
 
-        if (finalRMSE > m_baMaxRMSE) {
+        if (finalRMSE > initialRMSE || finalRMSE > m_baMaxRMSE) {
             std::cout << "Bundle Adjustment failed -> recovering from back up!" << "\n";
 
             std::swap(_cloudBackUp, pCloud);

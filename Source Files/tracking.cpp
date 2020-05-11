@@ -130,7 +130,7 @@ bool Tracking::findRecoveredCameraPose(DescriptorMatcher matcher, int minMatches
         std::vector<cv::DMatch> _matches;
         std::vector<int> _prevIdx, _currIdx;
         //  matches between new view and old trackViews
-        matcher.findRobustMatches(t->keyPoints, featView.keyPts, t->descriptor, featView.descriptor, _prevPts, _currPts, _matches, _prevIdx, _currIdx);
+        matcher.findRobustMatches(t->keyPoints, featView.keyPts, t->descriptor, featView.descriptor, _prevPts, _currPts, _matches, _prevIdx, _currIdx, cv::Mat(), cv::Mat());
 
         std::cout << "Recover pose matches: " << _matches.size() << "\n";
 
@@ -152,7 +152,7 @@ bool Tracking::findRecoveredCameraPose(DescriptorMatcher matcher, int minMatches
             }
         }
 
-        cv::imshow("Matches", _imOutMatch); cv::waitKey(1);
+        //cv::imshow("Matches", _imOutMatch); cv::waitKey(1);
     }
 
     //  Min point filter
