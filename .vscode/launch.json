@@ -15,7 +15,7 @@
               //"-bSource=https://192.168.1.100:8080/video", 
               "-bcalib=/home/lowcash/Documents/SfM_Resources/Calibration/calib_mobile_0.yml", 
               //"-bcalib=/home/lowcash/Documents/SfM_Resources/Calibration/calib_KITTI_0.yml", 
-              "-bDownSamp=0.5", "-bWinWidth=960", "-bWinHeight=540", "-bUseCuda=false", "-bUseMethod=PNP", "-bMaxSkFram=15", "-bVisEnable=true",
+              "-bDownSamp=0.5", "-bWinWidth=960", "-bWinHeight=540", "-bUseCuda=false", "-bUseMethod=VO", "-bMaxSkFram=15", "-bVisEnable=true",
             
               //------------------------------- FEATURES ------------------------------//
               //"-fDecType=AKAZE", "-fMatchType=BRUTEFORCE_HAMMING", "-fKnnRatio=0.5",

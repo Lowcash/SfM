@@ -91,11 +91,13 @@ int AppSolver::findGoodImages(cv::VideoCapture& cap, ViewDataContainer& viewCont
 }
 
 void AppSolver::run() {
+#pragma region INIT
     cv::VideoCapture cap; if(!cap.open(params.bSource)) {
         std::cerr << "Error opening video stream or file!!" << "\n";
         exit(1);
     }
 
+    // initialize structures
     Camera camera(params.cameraK, params.distCoeffs, params.bDownSamp);
 
     FeatureDetector featDetector(params.fDecType, params.useCUDA);
@@ -106,8 +108,18 @@ void AppSolver::run() {
 
     RecoveryPose recPose(params.peMethod, params.peProb, params.peThresh, params.peMinInl, params.pePMetrod, params.peExGuess, params.peNumIteR);
 
-    cv::Mat imOutUsrInp, imOutRecPose, imOutMatches;
+    ViewDataContainer viewContainer(m_usedMethod == Method::KLT || m_usedMethod == Method::VO ? 100 : INT32_MAX);
 
+    FeatureView featPrevView, featCurrView;
+    FlowView ofPrevView, ofCurrView; 
+
+    Reconstruction reconstruction(params.tMethod, params.baMethod, params.baMaxRMSE, params.tMinDist, params.tMaxDist, params.tMaxPErr, true);
+
+    cv::Mat imOutUsrInp, imOutRecPose, imOutMatches;
+    
+    UserInput userInput(params.usrInpWinName, &imOutUsrInp, params.ofMaxError);
+
+    // run windows in new thread -> avoid rendering white screen
     cv::startWindowThread();
 
     cv::namedWindow(params.usrInpWinName, cv::WINDOW_NORMAL);
@@ -118,24 +130,17 @@ void AppSolver::run() {
     cv::resizeWindow(params.recPoseWinName, params.winSize);
     cv::resizeWindow(params.matchesWinName, params.winSize);
     
-    UserInput userInput(params.usrInpWinName, &imOutUsrInp, params.ofMaxError);
     UserInputDataParams mouseUsrDataParams(&userInput);
 
     cv::setMouseCallback(params.usrInpWinName, onUsrWinClick, (void*)&mouseUsrDataParams);
 
-    ViewDataContainer viewContainer(m_usedMethod == Method::KLT || m_usedMethod == Method::VO ? 100 : INT32_MAX);
-
-    FeatureView featPrevView, featCurrView;
-    FlowView ofPrevView, ofCurrView; 
-
-    Reconstruction reconstruction(params.tMethod, params.baMethod, params.baMaxRMSE, params.tMinDist, params.tMaxDist, params.tMaxPErr, true);
-
+    // initialize visualization windows VTK, PCL
     VisPCL visPCL(params.ptCloudWinName + " PCL", params.winSize);
-    //boost::thread visPCLthread(boost::bind(&VisPCL::visualize, &visPCL));
     //std::thread visPCLThread(&VisPCL::visualize, &visPCL);
 
     VisVTK visVTK(params.ptCloudWinName + " VTK", params.winSize);
     //std::thread visVTKThread(&VisVTK::visualize, &visVTK);
+#pragma endregion INIT
 
     for (uint iteration = 1; ; ++iteration) {
         if (m_usedMethod == Method::KLT) {

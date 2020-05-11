@@ -18,24 +18,30 @@ private:
 
     cv::Mat* m_inputImage;
 
-    std::vector<size_t> m_usrCloudPts3DIdx;
+    std::vector<size_t> m_usrCloudPtsIdx;
 
     void drawSelectedPoint(const cv::Point point) {
         // draw red point to image
         cv::circle(*m_inputImage, point, m_pointSize, CV_RGB(200, 0, 0), cv::FILLED, cv::LINE_AA);
+    }
 
-        cv::imshow(m_winName, *m_inputImage);
+    void drawRecoveredPoint(const cv::Point point) {
+        // draw green point to image
+        cv::circle(*m_inputImage, point, m_pointSize, CV_RGB(150, 200, 0), cv::FILLED, cv::LINE_AA);
     }
 public:
     std::vector<cv::Point2f> usrClickedPts2D, usrPts2D;
 
     UserInput(const std::string winName, cv::Mat* imageSource, const float maxRange, const int pointSize = 5);
 
-    void addClickedPoint(const cv::Point point, bool forceDraw = false) { 
+    void addClickedPoint(const cv::Point point, bool forceRedraw = false) { 
         usrClickedPts2D.push_back(point);
 
-        if (forceDraw)
+        if (forceRedraw) {
             drawSelectedPoint(point);
+
+            cv::imshow(m_winName, *m_inputImage);
+        }
     }
 
     /** 
@@ -64,12 +70,12 @@ public:
     void recoverPoints(cv::Mat& imOutUsr, std::vector<cv::Vec3d>& pCloud, cv::Mat cameraK, cv::Mat R, cv::Mat t);
 
     /** 
-     * Attach points usually to optical flow
+     * Attach points, usually to optical flow
      */
     void attachPointsToMove(std::vector<cv::Point2f>& points, std::vector<cv::Point2f>& move);
 
     /** 
-     * Detach points usually from optical flow
+     * Detach points, usually from optical flow
      */
     void detachPointsFromMove(std::vector<cv::Point2f>& points, std::vector<cv::Point2f>& move, uint numPtsToDetach) ;
 

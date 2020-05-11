@@ -132,6 +132,9 @@ public:
             m_usedMethod = Method::PNP;
     }
 
+    /**
+     *  Run SfM app
+     */
     void run();
 };
 
