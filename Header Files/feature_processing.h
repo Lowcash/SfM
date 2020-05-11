@@ -15,14 +15,16 @@ public:
 
     FeatureDetector(std::string method, bool isUsingCUDA = false);
 
-    /** Generate features for triangulation
+    /** 
+     *  Generate features for triangulation
      *  It uses AKAZE, FAST, STAR, SIFT, SURF, KAZE, BRISK detector
-     * */
+     */
     void generateFeatures(cv::Mat& imGray, std::vector<cv::KeyPoint>& keyPts, cv::Mat& descriptor);
 
-    /** Generate features for flow tracking
+    /** 
+     *  Generate features for flow tracking
      *  It uses Shi-Tomasi corner detector
-     * */
+     */
     void generateFlowFeatures(cv::Mat& imGray, std::vector<cv::Point2f>& corners, int maxCorners, double qualityLevel, double minDistance);
 };
 
@@ -34,12 +36,14 @@ public:
 
     DescriptorMatcher(std::string method, const float ratioThreshold, bool isUsingCUDA = false);
 
-    /** Knn ratio match by threshold
-     * */
+    /** 
+     * Knn ratio match by threshold
+     */
     void ratioMaches(const cv::Mat lDesc, const cv::Mat rDesc, std::vector<cv::DMatch>& matches);
 
-    /** Robust matching by knn match, crossmatching, epipolar filter
-     * */
+    /** 
+     * Robust matching by knn match, crossmatching, epipolar filter
+     */
     void findRobustMatches(std::vector<cv::KeyPoint> prevKeyPts, std::vector<cv::KeyPoint> currKeyPts, cv::Mat prevDesc, cv::Mat currAligPts, std::vector<cv::Point2f>& prevAligPts, std::vector<cv::Point2f>& currPts, std::vector<cv::DMatch>& matches, std::vector<int>& prevPtsToKeyIdx, std::vector<int>& currPtsToKeyIdx, cv::Mat prevFrame, cv::Mat currFrame, bool showMatch = false);
 };
 
@@ -70,9 +74,13 @@ public:
 
     OptFlow(cv::TermCriteria termcrit, int winSize, int maxLevel, float maxError, uint maxCorners, float qualityLevel, float minCornersDistance, uint minFeatures, bool isUsingCUDA = false);
 
-    /** Compute optical flow between grayscale images
-     *  It also filters bad points -> depending on the settings (useImageCorrection, useErrorCorrection)
-     * */
+    /** 
+     *  Compute optical flow between grayscale images
+     *  It also filters bad points -> depending on the settings
+     * 
+     *  @param useBoundaryCorrection filter by image boudary
+     *  @param useErrorCorrection filter by optical flow error
+     */
     void computeFlow(cv::Mat imPrevGray, cv::Mat imCurrGray, std::vector<cv::Point2f>& prevPts, std::vector<cv::Point2f>& currPts, std::vector<uchar>& statusMask, bool useBoundaryCorrection = false, bool useErrorCorrection = false);
 
     void drawOpticalFlow(cv::Mat inputImg, cv::Mat& outputImg, const std::vector<cv::Point2f> prevPts, const std::vector<cv::Point2f> currPts, std::vector<uchar> statusMask);

@@ -4,8 +4,9 @@
 
 #include "pch.h"
 
-/** Camera helper
- * */
+/** 
+ * Camera helper
+ */
 class Camera {
 public:
     cv::Mat K, distCoeffs;
@@ -22,9 +23,8 @@ public:
 
     void updateCameraParameters(const cv::Mat K, const cv::Mat distCoeffs, const double downSample = 1.0f) {
         this->K = K * downSample;
-
         this->K.at<double>(2,2) = 1.0;
-    
+
         std::cout << "\nCamera intrices: " << this->K << "\n";
 
         this->distCoeffs = distCoeffs;

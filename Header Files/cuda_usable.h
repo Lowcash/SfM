@@ -2,6 +2,9 @@
 #define CUDA_USABLE_H
 #pragma once
 
+/**
+ *  CUDA helper
+ */
 class CUDAUsable {
 protected:
     bool m_isUsingCUDA;
