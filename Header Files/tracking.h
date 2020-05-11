@@ -7,9 +7,11 @@
 #include "feature_processing.h"
 #include "camera.h"
 
-/** RecoveryPose helper
- *  It holds pose estimation settings and calculation output result
- * */
+/** 
+ * RecoveryPose helper
+ * 
+ * It holds pose estimation settings and calculation output result
+ */
 class RecoveryPose {
 public:
     int recPoseMethod, poseEstMethod;
@@ -27,9 +29,11 @@ public:
     void drawRecoveredPose(cv::Mat inputImg, cv::Mat& outputImg, const std::vector<cv::Point2f> prevPts, const std::vector<cv::Point2f> currPts, cv::Mat mask = cv::Mat());
 };
 
-/** TrackView helper used for PnP matching
- *  Only good tracks with cloud reference are created
- * */
+/** 
+ * TrackView helper used for PnP matching
+ * 
+ * Only good tracks with cloud reference are created
+ */
 class TrackView : public View {
 public:
     // Each point is mapped to world point cloud idx
@@ -47,10 +51,12 @@ public:
     }
 };
 
-/** CloudTrack helper used by bundle adjuster
- *  Track is created for each 3D cloud point
- *  It holds camera indexes and 2D point projections, which affect 3D cloud point
- * */
+/** 
+ * CloudTrack helper used by bundle adjuster
+ * 
+ * Track is created for each 3D cloud point
+ * It holds camera indexes and 2D point projections, which affect 3D cloud point
+ */
 class CloudTrack {
 public:
     // 2D projections in the camera
@@ -100,14 +106,16 @@ public:
 
     bool addTrackView(ViewData* view, const std::vector<bool>& mask, const std::vector<cv::Point2f>& points2D, const std::vector<cv::Vec3d> points3D, const std::vector<cv::Vec3b>& pointsRGB, const std::vector<cv::KeyPoint>& keyPoints, const cv::Mat& descriptor, std::map<std::pair<float, float>, size_t>& cloudMap, const std::vector<int>& ptsToKeyIdx = std::vector<int>());
 
-    /** Find pose between two views
-     *  It creates essential matrix and return camera pose by SVD
-     * */
+    /** 
+     * Find pose between two views
+     * It creates essential matrix and return camera pose by SVD
+     */
     bool findCameraPose(RecoveryPose& recPose, std::vector<cv::Point2f> prevPts, std::vector<cv::Point2f> currPts, cv::Mat cameraK, int minInliers, int& numInliers);
 
-    /** Find pose between trackViews 
-     *  It uses PnP alghoritm to return camera pose
-     * */
+    /** 
+     * Find pose between trackViews 
+     * It uses PnP alghoritm to return camera pose
+     */
     bool findRecoveredCameraPose(DescriptorMatcher matcher, int minMatches, Camera camera, FeatureView& featView, RecoveryPose& recPose, std::map<std::pair<float, float>, size_t>& cloudMap);
 
     bool addCamPose(const cv::Matx34d camPose) { 

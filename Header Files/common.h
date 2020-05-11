@@ -43,7 +43,7 @@ inline void decomposeExtrinsicMat(cv::Matx34d pose, cv::Matx33d& R, cv::Vec3d& t
 /** 
  *  Convert points to mat
  *  Usually for data preparation for OpenCV SFM structure
- * */
+ */
 inline void pointsToMat(std::vector<cv::Point2f> points, cv::Mat& pointsMat) {
     pointsMat = (cv::Mat_<double>(2,1) << 1, 1);;
 
@@ -56,9 +56,10 @@ inline void pointsToMat(std::vector<cv::Point2f> points, cv::Mat& pointsMat) {
     pointsMat = pointsMat.colRange(1, pointsMat.cols);
 }
 
-/** Convert points to mat
- *  Usually for data preparation for OpenCV SFM structure
- * */
+/** 
+ * Convert points to mat
+ * Usually for data preparation for OpenCV SFM structure
+ */
 inline void pointsToMat(cv::Mat points, cv::Mat& pointsMat) {
     pointsMat = (cv::Mat_<double>(2,1) << 1, 1);;
 
