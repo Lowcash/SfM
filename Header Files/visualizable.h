@@ -9,7 +9,7 @@ class IVisualizable {
 protected:
     int m_numClouds, m_numCams, m_numPoints;
 public:
-    virtual void updatePointCloud(const std::vector<cv::Vec3d>& points3D, const std::vector<cv::Vec3b>& pointsRGB) = 0;
+    virtual void updatePointCloud(const std::list<cv::Vec3d>& points3D, const std::list<cv::Vec3b>& pointsRGB) = 0;
 
     virtual void addPoints(const std::vector<cv::Vec3d> points3D) = 0;
 

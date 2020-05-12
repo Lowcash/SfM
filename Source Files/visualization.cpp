@@ -22,7 +22,7 @@ boost::shared_ptr<pcl::visualization::PCLVisualizer> VisPCL::getNewViewer(const 
     return (viewer);
 }
 
-void VisPCL::updatePointCloud(const std::vector<cv::Vec3d>& points3D, const std::vector<cv::Vec3b>& pointsRGB) {
+void VisPCL::updatePointCloud(const std::list<cv::Vec3d>& points3D, const std::list<cv::Vec3b>& pointsRGB) {
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr pointCloud(new pcl::PointCloud<pcl::PointXYZRGB>);
 
     for (auto [p3d, p3dEnd, pClr, pClrEnd] = std::tuple{points3D.cbegin(), points3D.cend(), pointsRGB.cbegin(), pointsRGB.cend()}; p3d != p3dEnd && pClr != pClrEnd; ++p3d, ++pClr) {
@@ -98,8 +98,11 @@ VisVTK::VisVTK(const std::string windowName, const cv::Size windowSize, const cv
     m_numPoints = 0;
 }
 
-void VisVTK::updatePointCloud(const std::vector<cv::Vec3d>& points3D, const std::vector<cv::Vec3b>& pointsRGB) {
-    const cv::viz::WCloud _pCloud(points3D, pointsRGB);
+void VisVTK::updatePointCloud(const std::list<cv::Vec3d>& points3D, const std::list<cv::Vec3b>& pointsRGB) {
+    const std::vector<cv::Vec3d> _points3D(points3D.begin(), points3D.end());
+    const std::vector<cv::Vec3b> _pointsRGB(pointsRGB.begin(), pointsRGB.end());
+
+    const cv::viz::WCloud _pCloud(_points3D, _pointsRGB);
 
     // Update point cloud
     if (m_numClouds > 0)

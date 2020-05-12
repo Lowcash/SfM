@@ -3,19 +3,22 @@
 #pragma once
 
 #include "pch.h"
+#include "common.h"
 #include "tracking.h"
 #include "visualizable.h"
 
 class VisPCLUtils {
 protected:
-    /** OpenCV pose to PCL pose
-     * */
+    /** 
+     * OpenCV pose to PCL pose
+     */
     void cvPoseToPCLPose(cv::Matx34d cvPose, pcl::PointXYZ& pclPose) {
         pclPose = pcl::PointXYZ(cvPose(0, 3), cvPose(1, 3), cvPose(2, 3));
     }
 
-    /** OpenCV pose to PCL pose
-     * */
+    /** 
+     * OpenCV pose to PCL pose
+     */
     void cvPoseToInversePCLPose(cv::Matx34d cvPose, pcl::PointXYZ& pclPose) {
         pclPose = pcl::PointXYZ(-cvPose(0, 3), -cvPose(1, 3), -cvPose(2, 3));
     }
@@ -29,7 +32,7 @@ private:
 public:
     VisPCL(const std::string windowName, const cv::Size windowSize, const cv::viz::Color backgroundColor = cv::viz::Color::black());
 
-    void updatePointCloud(const std::vector<cv::Vec3d>& points3D, const std::vector<cv::Vec3b>& pointsRGB);
+    void updatePointCloud(const std::list<cv::Vec3d>& points3D, const std::list<cv::Vec3b>& pointsRGB);
 
     void addPoints(const std::vector<cv::Vec3d> points3D);
     
@@ -39,27 +42,21 @@ public:
 };
 
 class VisVTKUtils {
-private:
-    /** OpenCV pose to rotation matrix and translation vector
-     * */
-    void decomposeCvPose(cv::Matx34d cvPose, cv::Matx33d& R, cv::Vec3d& t) {
-        R = cvPose.get_minor<3, 3>(0, 0);
-        t = cv::Vec3d(cvPose(0, 3), cvPose(1, 3), cvPose(2, 3));
-    }
-
 protected:
-    /** OpenCV pose to OpenCV VTK pose
-     * */
+    /** 
+     * OpenCV pose to OpenCV VTK pose
+     */
     void cvPoseToVTKPose(cv::Matx34d cvPose, cv::Affine3d& vtkPose) {
-        cv::Matx33d R; cv::Vec3d t; decomposeCvPose(cvPose, R, t);
+        cv::Matx33d R; cv::Vec3d t; decomposeExtrinsicMat(cvPose, R, t);
 
         vtkPose = cv::Affine3d(R, t);
     }
     
-    /** OpenCV pose to OpenCV VTK pose
-     * */
+    /** 
+     * OpenCV pose to OpenCV VTK pose
+     */
     void cvPoseToInverseVTKPose(cv::Matx34d cvPose, cv::Affine3d& vtkPose) {
-        cv::Matx33d R; cv::Vec3d t; decomposeCvPose(cvPose, R, t);
+        cv::Matx33d R; cv::Vec3d t; decomposeExtrinsicMat(cvPose, R, t);
 
         cv::Vec3d _t = cv::Vec3d(-t[0], -t[1], -t[2]);
 
@@ -73,7 +70,7 @@ private:
 public:
     VisVTK(const std::string windowName, const cv::Size windowSize, const cv::viz::Color backgroundColor = cv::viz::Color::black());
 
-    void updatePointCloud(const std::vector<cv::Vec3d>& points3D, const std::vector<cv::Vec3b>& pointsRGB);
+    void updatePointCloud(const std::list<cv::Vec3d>& points3D, const std::list<cv::Vec3b>& pointsRGB);
     
     void addPoints(const std::vector<cv::Vec3d> points3D);
 

@@ -3,18 +3,25 @@
 UserInput::UserInput(const std::string winName, cv::Mat* imageSource, const float maxRange, const int pointSize)
     : m_winName(winName), m_inputImage(imageSource), m_maxRange(maxRange), m_pointSize(pointSize) {}
 
+void UserInput::addClickedPoint(const cv::Point point, bool forceRedraw) { 
+    usrClickedPts2D.push_back(point);
+
+    if (forceRedraw) {
+        drawSelectedPoint(point);
+
+        cv::imshow(m_winName, *m_inputImage);
+    }
+}
+
 void UserInput::addPoints(const std::vector<cv::Point2f> pts2D) {
     usrPts2D.insert(usrPts2D.end(), pts2D.begin(), pts2D.end());
 }
 
-void UserInput::addPoints(const std::vector<cv::Point2f> pts2D, const std::vector<cv::Vec3d> pts3D, std::vector<cv::Vec3d>& pCloud, std::vector<cv::Vec3b>& pCloudRGB, std::vector<CloudTrack>& cloudTracks, uint iter) {
+void UserInput::addPoints(const std::vector<cv::Point2f> pts2D, const std::vector<cv::Vec3d> pts3D, PointCloud& pointCloud, uint iter) {
     for (auto [p2d, p2dEnd, p3d, p3dEnd] = std::tuple{pts2D.cbegin(), pts2D.cend(), pts3D.cbegin(), pts3D.cend()}; p2d != p2dEnd && p3d != p3dEnd; ++p2d, ++p3d) {
-        cloudTracks.push_back(CloudTrack((cv::Point2f)*p2d, iter));
+        m_usrCloudPtsIdx.push_back(pointCloud.cloudTracks.size());
 
-        m_usrCloudPtsIdx.push_back(pCloud.size());
-
-        pCloud.push_back((cv::Vec3d)*p3d);
-        pCloudRGB.push_back(cv::Vec3b());
+        pointCloud.addCloudPoint(*p2d, *p3d, cv::Vec3b(), iter);
     }
 }
 
@@ -46,12 +53,15 @@ void UserInput::recoverPoints(cv::Mat& imOutUsr) {
     }
 }
 
-void UserInput::recoverPoints(cv::Mat& imOutUsr, std::vector<cv::Vec3d>& pCloud, cv::Mat cameraK, cv::Mat R, cv::Mat t) {
-    if (!pCloud.empty() && !m_usrCloudPtsIdx.empty()) {
+void UserInput::recoverPoints(cv::Mat& imOutUsr, PointCloud& pointCloud, cv::Mat cameraK, cv::Mat R, cv::Mat t) {
+    if (!pointCloud.cloud3D.empty() && !m_usrCloudPtsIdx.empty()) {
         std::vector<cv::Vec3d> usrPts3D;
 
-        for (const auto& idx : m_usrCloudPtsIdx)
-            usrPts3D.push_back(pCloud[idx]);
+        for (const auto& idx : m_usrCloudPtsIdx) {
+            cv::Vec3d* cloudMapper = pointCloud.cloudMapper[idx];
+
+            usrPts3D.push_back(*cloudMapper);
+        }
 
         cv::Mat recoveredPts; cv::projectPoints(usrPts3D, R, t, cameraK, cv::Mat(), recoveredPts);
 

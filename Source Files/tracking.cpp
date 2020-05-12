@@ -9,21 +9,24 @@ RecoveryPose::RecoveryPose(std::string recPoseMethod, const double prob, const d
         c = ::toupper(c);
     });
 
-    if (recPoseMethod == "RANSAC")
-        this->recPoseMethod = cv::RANSAC;
-    else
-        this->recPoseMethod = cv::LMEDS;
+    this->recPoseMethod = recPoseMethod == "RANSAC" ? cv::RANSAC : cv::LMEDS;
 
     std::for_each(poseEstMethod.begin(), poseEstMethod.end(), [](char& c){
         c = ::toupper(c);
     });
 
-    if (poseEstMethod == "SOLVEPNP_P3P")
-        this->poseEstMethod = cv::SolvePnPMethod::SOLVEPNP_P3P;
-    else if (poseEstMethod == "SOLVEPNP_AP3P")
-        this->poseEstMethod = cv::SolvePnPMethod::SOLVEPNP_AP3P;
+    // std::string to Enum mapping by Mark Ransom
+    // https://stackoverflow.com/questions/7163069/c-string-to-enum
+    static std::unordered_map<std::string, cv::SolvePnPMethod> const tablePnP = { 
+        {"ITERATIVE", cv::SolvePnPMethod::SOLVEPNP_ITERATIVE}, 
+        {"SOLVEPNP_P3P", cv::SolvePnPMethod::SOLVEPNP_P3P},  
+        {"SOLVEPNP_AP3P", cv::SolvePnPMethod::SOLVEPNP_AP3P}
+    };
+
+    if (auto it = tablePnP.find(poseEstMethod); it != tablePnP.end())
+        this->poseEstMethod = it->second;
     else
-        this->poseEstMethod = cv::SolvePnPMethod::SOLVEPNP_ITERATIVE;
+        this->poseEstMethod = cv::SolvePnPMethod::SOLVEPNP_P3P;
 }
 
 void RecoveryPose::drawRecoveredPose(cv::Mat inputImg, cv::Mat& outputImg, const std::vector<cv::Point2f> prevPts, const std::vector<cv::Point2f> currPts, cv::Mat mask) {
@@ -54,18 +57,15 @@ bool Tracking::addTrackView(ViewData* view, const std::vector<bool>& mask, const
         if (mask[idx]) {
             //  Check if point is new -> add to cloud otherwise add to seen points
             if (cloudMap.find(std::pair{_keypoint.pt.x, _keypoint.pt.y}) == cloudMap.end()) {
-                cloudTracks.push_back(CloudTrack(_keypoint.pt, trackViews.size()));
+                _trackView.addTrack(_keypoint, _descriptor, pointCloud.cloud3D.size());
 
-                _trackView.addTrack(_keypoint, _descriptor, cloud3D.size());
-
-                cloud3D.push_back(points3D[idx]);
-                cloudRGB.push_back(pointsRGB[idx]);
+                pointCloud.addCloudPoint(_keypoint.pt, points3D[idx], pointsRGB[idx], trackViews.size());
 
                 newPtsAdded++;
             } else {
                 size_t cloudIdx = cloudMap[std::pair{_keypoint.pt.x, _keypoint.pt.y}];
 
-                cloudTracks[cloudIdx].addTrack(_keypoint.pt, trackViews.size());
+                pointCloud.registerCloudView(cloudIdx, _keypoint.pt, trackViews.size());
 
                 _trackView.addTrack(_keypoint, _descriptor, cloudIdx);
             }
@@ -74,7 +74,7 @@ bool Tracking::addTrackView(ViewData* view, const std::vector<bool>& mask, const
 
     //  Min points filter
     if (_trackView.keyPoints.size() > 7 && _trackView.cloudIdxs.size() > 7) {
-        std::cout << "New points were added to cloud: " << newPtsAdded << "; Total points: " << cloud3D.size() << "\n";
+        std::cout << "New points were added to cloud: " << newPtsAdded << "; Total points: " << pointCloud.cloud3D.size() << "\n";
 
         _trackView.setView(view);
 
@@ -129,6 +129,7 @@ bool Tracking::findRecoveredCameraPose(DescriptorMatcher matcher, int minMatches
         std::vector<cv::Point2f> _prevPts, _currPts;
         std::vector<cv::DMatch> _matches;
         std::vector<int> _prevIdx, _currIdx;
+
         //  matches between new view and old trackViews
         matcher.findRobustMatches(t->keyPoints, featView.keyPts, t->descriptor, featView.descriptor, _prevPts, _currPts, _matches, _prevIdx, _currIdx, cv::Mat(), cv::Mat());
 
@@ -142,8 +143,11 @@ bool Tracking::findRecoveredCameraPose(DescriptorMatcher matcher, int minMatches
 
             //  prevent duplicities
             if (cloudMap.find(std::pair{_point2D.x, _point2D.y}) == cloudMap.end()) {
+                // mapper from vector to list item
+                cv::Vec3d* cloudMapper = pointCloud.cloudMapper[t->cloudIdxs[m.queryIdx]];
+
                 //  3D point from old view
-                cv::Vec3d _point3D = (cv::Vec3d)cloud3D[t->cloudIdxs[m.queryIdx]];
+                cv::Vec3d _point3D = (cv::Vec3d)*cloudMapper;
             
                 _posePoints2D.push_back(_point2D);
                 _posePoints3D.push_back(_point3D);

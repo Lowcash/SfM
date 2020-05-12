@@ -3,6 +3,8 @@
 #pragma once
 
 #include "pch.h"
+#include "common.h"
+#include "reconstruction.h"
 #include "view.h"
 #include "feature_processing.h"
 #include "camera.h"
@@ -51,36 +53,6 @@ public:
     }
 };
 
-/** 
- * CloudTrack helper used by bundle adjuster
- * 
- * Track is created for each 3D cloud point
- * It holds camera indexes and 2D point projections, which affect 3D cloud point
- */
-class CloudTrack {
-public:
-    // 2D projections in the camera
-    std::vector<cv::Point2f> projKeys;
-
-    // camera indexes
-    std::vector<uint> extrinsicsIdxs;
-
-    size_t numTracks;
-
-    void addTrack(const cv::Point2f projKey, const uint extrinsicsIdx) {
-        projKeys.push_back(projKey);
-        extrinsicsIdxs.push_back(extrinsicsIdx);
-
-        numTracks++;
-    }
-
-    CloudTrack(const cv::Point2f projKey, const uint extrinsicsIdx) {
-        numTracks = 0;
-
-        addTrack(projKey, extrinsicsIdx);
-    }
-};
-
 class Tracking {
 public:
     // Good track used for matching
@@ -89,15 +61,11 @@ public:
     // Result camera poses -> updated by bundle adjuster
     std::list<cv::Matx34d> camPoses;
 
-    // Result cloud -> updated by bundle adjuster
-    std::vector<cv::Vec3d> cloud3D;
-
-    // Result cloud colors -> not updated
-    std::vector<cv::Vec3b> cloudRGB;
-
     // CloudTracks same size as cloud3D
     // Cameras and 2D point projections which affect cloud
     std::vector<CloudTrack> cloudTracks;
+
+    PointCloud pointCloud;
 
     cv::Matx33d R; cv::Matx31d t;
 
@@ -121,8 +89,7 @@ public:
     bool addCamPose(const cv::Matx34d camPose) { 
         camPoses.push_back(camPose);
 
-        R = camPose.get_minor<3, 3>(0, 0);
-        t = cv::Matx31d(camPose(0,3), camPose(1,3), camPose(2,3));
+        decomposeExtrinsicMat(camPose, R, t);
     }
 };
 

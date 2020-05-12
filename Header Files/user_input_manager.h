@@ -3,7 +3,7 @@
 #pragma once
 
 #include "pch.h"
-#include "tracking.h"
+#include "reconstruction.h"
 
 /** 
  * UserInput to managing selected points
@@ -34,15 +34,7 @@ public:
 
     UserInput(const std::string winName, cv::Mat* imageSource, const float maxRange, const int pointSize = 5);
 
-    void addClickedPoint(const cv::Point point, bool forceRedraw = false) { 
-        usrClickedPts2D.push_back(point);
-
-        if (forceRedraw) {
-            drawSelectedPoint(point);
-
-            cv::imshow(m_winName, *m_inputImage);
-        }
-    }
+    void addClickedPoint(const cv::Point point, bool forceRedraw = false);
 
     /** 
      * Add points to 2D
@@ -52,7 +44,7 @@ public:
     /** 
      * Add points to 3D
      */
-    void addPoints(const std::vector<cv::Point2f> pts2D, const std::vector<cv::Vec3d> pts3D, std::vector<cv::Vec3d>& pCloud, std::vector<cv::Vec3b>& pCloudRGB, std::vector<CloudTrack>& cloudTracks, uint iter);
+    void addPoints(const std::vector<cv::Point2f> pts2D, const std::vector<cv::Vec3d> pts3D, PointCloud& pointCloud, uint iter);
 
     /** 
      * Filter points by boundary
@@ -67,7 +59,7 @@ public:
     /** 
      * Recover points from 3D
      */
-    void recoverPoints(cv::Mat& imOutUsr, std::vector<cv::Vec3d>& pCloud, cv::Mat cameraK, cv::Mat R, cv::Mat t);
+    void recoverPoints(cv::Mat& imOutUsr, PointCloud& pointCloud, cv::Mat cameraK, cv::Mat R, cv::Mat t);
 
     /** 
      * Attach points, usually to optical flow

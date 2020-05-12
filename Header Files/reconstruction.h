@@ -4,7 +4,59 @@
 
 #include "pch.h"
 #include "camera.h"
-#include "tracking.h"
+#include "common.h"
+
+class CloudTrack {
+public:
+    // reference to cloud point
+    cv::Vec3d* ptrPoint3D;
+
+    // 2D projections in the camera
+    std::vector<cv::Point2f> projKeys;
+
+    // extrinsics camera indexes for mapping
+    std::vector<uint> extrinsicsIdxs;
+
+    void addTrack(const cv::Point2f projKey, const uint extrinsicsIdx) {
+        projKeys.push_back(projKey);
+        extrinsicsIdxs.push_back(extrinsicsIdx);
+    }
+
+    CloudTrack(cv::Vec3d* ptrPoint3D, const cv::Point2f projKey, const uint extrinsicsIdx) {
+        this->ptrPoint3D = ptrPoint3D;
+
+        addTrack(projKey, extrinsicsIdx);
+    }
+};
+
+class PointCloud {
+public:
+    std::vector<cv::Vec3d*> cloudMapper;
+
+    // Result cloud -> updated by bundle adjuster
+    std::list<cv::Vec3d> cloud3D;
+
+    // Result cloud colors -> not updated
+    std::list<cv::Vec3b> cloudRGB;
+
+    // Registered views and projections for each cloud point
+    std::vector<CloudTrack> cloudTracks;
+    
+    void addCloudPoint(const cv::Point2f projPosition2D, const cv::Vec3d cloudPoint3D, const cv::Vec3b cloudPointRGB, const size_t cameraIdx) {
+        cloud3D.push_back(cloudPoint3D);
+        cloudRGB.push_back(cloudPointRGB);
+
+        // create and register cloud view
+        cloudTracks.push_back(CloudTrack(&*cloud3D.rbegin(), projPosition2D, cameraIdx));
+
+        // map to cloud to enable random access
+        cloudMapper.push_back(&*cloud3D.rbegin());
+    }
+
+    void registerCloudView(const size_t cloudPointIdx, const cv::Point2f projPosition2D, const size_t cameraIdx) {
+        cloudTracks[cloudPointIdx].addTrack(projPosition2D, cameraIdx);
+    }
+};
 
 struct SnavelyReprojectionError {
     SnavelyReprojectionError(double observed_x, double observed_y)
@@ -69,9 +121,9 @@ private:
 public:
     Reconstruction(const std::string triangulateMethod, const std::string baMethod, const double baMaxRMSE, const float minDistance, const float maxDistance, const float maxProjectionError, const bool useNormalizePts);
 
-    void triangulateCloud(Camera camera, const std::vector<cv::Point2f> prevPts, const std::vector<cv::Point2f> currPts, const cv::Mat colorImage, std::vector<cv::Vec3d>& points3D, std::vector<cv::Vec3b>& pointsRGB, std::vector<bool>& mask, const cv::Matx34d prevPose, const cv::Matx34d currPose, RecoveryPose& recPose);
+    void triangulateCloud(Camera camera, const std::vector<cv::Point2f> prevPts, const std::vector<cv::Point2f> currPts, const cv::Mat colorImage, std::vector<cv::Vec3d>& points3D, std::vector<cv::Vec3b>& pointsRGB, std::vector<bool>& mask, const cv::Matx34d prevPose, const cv::Matx34d currPose, cv::Matx33d& R, cv::Matx31d& t);
 
-    void adjustBundle(Camera& camera, std::vector<cv::Vec3d>& pCloud, std::vector<CloudTrack>& pCloudTracks, std::list<cv::Matx34d>& camPoses);
+    void adjustBundle(Camera& camera, std::list<cv::Matx34d>& camPoses, PointCloud& pointCloud);
 };
 
 #endif //RECONSTRUCTION_H

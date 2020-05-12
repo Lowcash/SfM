@@ -262,7 +262,7 @@ void AppSolver::run() {
             composeExtrinsicMat(m_tracking.R, m_tracking.t, _currPose);
             m_tracking.addCamPose(_currPose);
 
-            reconstruction.triangulateCloud(camera, ofPrevView.corners, ofCurrView.corners, ofCurrView.viewPtr->imColor, _points3D, _pointsRGB, _mask, _prevPose, _currPose, recPose);
+            reconstruction.triangulateCloud(camera, ofPrevView.corners, ofCurrView.corners, ofCurrView.viewPtr->imColor, _points3D, _pointsRGB, _mask, _prevPose, _currPose, recPose.R, recPose.t);
 
             if (!userInput.usrClickedPts2D.empty() && isPtAdded) {
                 std::vector<cv::Point2f> _newPts2D;
@@ -271,14 +271,14 @@ void AppSolver::run() {
                 userInput.detachPointsFromMove(_newPts2D, ofCurrView.corners, userInput.usrClickedPts2D.size());
                 userInput.detachPointsFromReconstruction(_newPts3D, _points3D, _pointsRGB, _mask, userInput.usrClickedPts2D.size());
 
-                userInput.addPoints(_newPts2D, _newPts3D, m_tracking.cloud3D, m_tracking.cloudRGB, m_tracking.cloudTracks, m_tracking.trackViews.size());
+                userInput.addPoints(_newPts2D, _newPts3D, m_tracking.pointCloud, m_tracking.trackViews.size());
                 
                 userInput.usrClickedPts2D.clear();
                 
                 visVTK.addPoints(_newPts3D);
             }
 
-            userInput.recoverPoints(imOutUsrInp, m_tracking.cloud3D, camera.K, cv::Mat(m_tracking.R), cv::Mat(m_tracking.t));
+            userInput.recoverPoints(imOutUsrInp, m_tracking.pointCloud, camera.K, cv::Mat(m_tracking.R), cv::Mat(m_tracking.t));
 
             visVTK.updateCameras(m_tracking.camPoses, camera.K);
             //visVTK.addCamera();
@@ -296,7 +296,7 @@ void AppSolver::run() {
 
             if (iteration != 1) {
                 if (iteration % params.baProcIt == 1)
-                    reconstruction.adjustBundle(camera, m_tracking.cloud3D, m_tracking.cloudTracks, m_tracking.camPoses);
+                    reconstruction.adjustBundle(camera, m_tracking.camPoses, m_tracking.pointCloud);
 
                 if (ofPrevView.corners.size() < optFlow.additionalSettings.minFeatures) {
                     ofPrevView.setView(viewContainer.getLastOneItem());
@@ -405,12 +405,12 @@ void AppSolver::run() {
                 _currPts.insert(_currPts.end(), _newPts2D.begin(), _newPts2D.end());
             }
 
-            reconstruction.triangulateCloud(camera, _prevPts, _currPts, ofCurrView.viewPtr->imColor, _points3D, _pointsRGB, _mask, _prevPose, _currPose, recPose);
+            reconstruction.triangulateCloud(camera, _prevPts, _currPts, ofCurrView.viewPtr->imColor, _points3D, _pointsRGB, _mask, _prevPose, _currPose, recPose.R, recPose.t);
 
             if (!userInput.usrClickedPts2D.empty() && isPtAdded) {       
                 userInput.detachPointsFromReconstruction(_newPts3D, _points3D, _pointsRGB, _mask, userInput.usrClickedPts2D.size());
 
-                userInput.addPoints(_newPts2D, _newPts3D, m_tracking.cloud3D, m_tracking.cloudRGB, m_tracking.cloudTracks, m_tracking.trackViews.size());
+                userInput.addPoints(_newPts2D, _newPts3D, m_tracking.pointCloud, m_tracking.trackViews.size());
                 
                 userInput.usrClickedPts2D.clear();
                 
@@ -418,11 +418,11 @@ void AppSolver::run() {
                 visPCL.addPoints(_newPts3D);
             }
 
-            userInput.recoverPoints(imOutUsrInp, m_tracking.cloud3D, camera.K, cv::Mat(m_tracking.R), cv::Mat(m_tracking.t));
+            userInput.recoverPoints(imOutUsrInp, m_tracking.pointCloud, camera.K, cv::Mat(m_tracking.R), cv::Mat(m_tracking.t));
 
             if (m_tracking.addTrackView(featCurrView.viewPtr, _mask, _currPts, _points3D, _pointsRGB, featCurrView.keyPts, featCurrView.descriptor, cloudMap, _currIdx)) {
                 //visVTK.updatePointCloud(m_tracking.cloud3D, m_tracking.cloudRGB);
-                visPCL.updatePointCloud(m_tracking.cloud3D, m_tracking.cloudRGB);
+                visPCL.updatePointCloud(m_tracking.pointCloud.cloud3D, m_tracking.pointCloud.cloudRGB);
 
                 //visVTK.updateCameras(m_tracking.camPoses, camera.K);
                 //visVTK.visualize(params.bVisEnable);

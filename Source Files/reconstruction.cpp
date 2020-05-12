@@ -29,7 +29,7 @@ void Reconstruction::pointsToRGBCloud(Camera camera, cv::Mat imgColor, cv::Mat R
     }
 }
 
-void Reconstruction::triangulateCloud(Camera camera, const std::vector<cv::Point2f> prevPts, const std::vector<cv::Point2f> currPts, const cv::Mat colorImage, std::vector<cv::Vec3d>& points3D, std::vector<cv::Vec3b>& pointsRGB, std::vector<bool>& mask, const cv::Matx34d prevPose, const cv::Matx34d currPose, RecoveryPose& recPose) {
+void Reconstruction::triangulateCloud(Camera camera, const std::vector<cv::Point2f> prevPts, const std::vector<cv::Point2f> currPts, const cv::Mat colorImage, std::vector<cv::Vec3d>& points3D, std::vector<cv::Vec3b>& pointsRGB, std::vector<bool>& mask, const cv::Matx34d prevPose, const cv::Matx34d currPose, cv::Matx33d& R, cv::Matx31d& t) {
     cv::Mat _prevPtsN; cv::undistort(prevPts, _prevPtsN, camera.K33d, cv::Mat());
     cv::Mat _currPtsN; cv::undistort(currPts, _currPtsN, camera.K33d, cv::Mat());
 
@@ -58,13 +58,13 @@ void Reconstruction::triangulateCloud(Camera camera, const std::vector<cv::Point
         cv::convertPointsFromHomogeneous(_homogPts.t(), _pts3D);
     }
 
-    pointsToRGBCloud(camera, colorImage, cv::Mat(recPose.R), cv::Mat(recPose.t), _pts3D, _currPtsMat.t(), points3D, pointsRGB, m_minDistance, m_maxDistance, m_maxProjectionError, mask);
+    pointsToRGBCloud(camera, colorImage, cv::Mat(R), cv::Mat(t), _pts3D, _currPtsMat.t(), points3D, pointsRGB, m_minDistance, m_maxDistance, m_maxProjectionError, mask);
 }
 
-void Reconstruction::adjustBundle(Camera& camera, std::vector<cv::Vec3d>& pCloud, std::vector<CloudTrack>& pCloudTracks, std::list<cv::Matx34d>& camPoses) {
+void Reconstruction::adjustBundle(Camera& camera, std::list<cv::Matx34d>& camPoses, PointCloud& pointCloud) {
     std::cout << "Bundle adjustment...\n" << std::flush;
 
-    if (pCloud.empty()) {
+    if (pointCloud.cloudTracks.empty()) {
         std::cout << "Empty cloud -> interrupting bundle adjustment!" << "\n";
 
         return;
@@ -101,12 +101,29 @@ void Reconstruction::adjustBundle(Camera& camera, std::vector<cv::Vec3d>& pCloud
         ));
     }
 
-    std::vector<cv::Vec3d> _cloudBackUp(pCloud);
+    const std::list<cv::Vec3d> _cloudBackUp(pointCloud.cloud3D);
 
     ceres::Problem problem;
 
     bool isCameraLocked = false;
-    for (auto [c, ct, cEnd, ctEnd] = std::tuple{pCloud.begin(), pCloudTracks.begin(), pCloud.end(), pCloudTracks.end()}; c != cEnd && ct != ctEnd; ++c, ++ct) {
+    for (auto& p : pointCloud.cloudTracks) {
+        for (auto [c, ct, cEnd, ctEnd] = std::tuple{p.projKeys.begin(), p.extrinsicsIdxs.begin(), p.projKeys.end(), p.extrinsicsIdxs.end()}; c != cEnd && ct != ctEnd; ++c, ++ct) {
+            cv::Point2f p2d = *c;
+            cv::Matx16d* ext = &extrinsics6d[*ct];
+
+            ceres::CostFunction* costFunc = SnavelyReprojectionError::Create(p2d.x, p2d.y);
+
+            problem.AddResidualBlock(costFunc, NULL, intrinsics4d.val, ext->val, p.ptrPoint3D->val);
+
+            if (!isCameraLocked) {
+                problem.SetParameterBlockConstant(ext->val);
+
+                isCameraLocked = true;
+            }
+        }
+    }
+
+    /*for (auto [c, ct, cEnd, ctEnd] = std::tuple{pCloud.begin(), pCloudTracks.begin(), pCloud.end(), pCloudTracks.end()}; c != cEnd && ct != ctEnd; ++c, ++ct) {
         for (size_t idx = 0; idx < ct->numTracks; ++idx) {
             cv::Point2f p2d = ct->projKeys[idx];
             cv::Matx16d* ext = &extrinsics6d[ct->extrinsicsIdxs[idx]];
@@ -121,7 +138,7 @@ void Reconstruction::adjustBundle(Camera& camera, std::vector<cv::Vec3d>& pCloud
                 isCameraLocked = true;
             }
         }
-    }
+    }*/
 
     problem.SetParameterBlockConstant(&intrinsics4d(0));
 
@@ -147,7 +164,7 @@ void Reconstruction::adjustBundle(Camera& camera, std::vector<cv::Vec3d>& pCloud
     if (!summary.IsSolutionUsable()) {
 		std::cout << "Bundle Adjustment failed -> recovering from back up!" << "\n";
 
-        std::swap(_cloudBackUp, pCloud);
+        pointCloud.cloud3D = _cloudBackUp;
 
         return;
 	} else {
@@ -167,7 +184,7 @@ void Reconstruction::adjustBundle(Camera& camera, std::vector<cv::Vec3d>& pCloud
         if (finalRMSE > initialRMSE || finalRMSE > m_baMaxRMSE) {
             std::cout << "Bundle Adjustment failed -> recovering from back up!" << "\n";
 
-            std::swap(_cloudBackUp, pCloud);
+            pointCloud.cloud3D = _cloudBackUp;
 
             return;
         }

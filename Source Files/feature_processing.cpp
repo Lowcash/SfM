@@ -7,20 +7,21 @@ FeatureDetector::FeatureDetector(std::string method, bool isUsingCUDA) {
         c = ::toupper(c);
     });
 
-    if (method == "ORB")
-        m_detectorType = DetectorType::ORB;
-    else if (method == "FAST")
-        m_detectorType = DetectorType::FAST;
-    else if (method == "STAR")
-        m_detectorType = DetectorType::STAR;
-    else if (method == "SIFT")
-        m_detectorType = DetectorType::SIFT;
-    else if (method == "SURF")
-        m_detectorType = DetectorType::SURF;
-    else if (method == "KAZE")
-        m_detectorType = DetectorType::KAZE;
-    else if (method == "BRISK")
-        m_detectorType = DetectorType::BRISK;
+    // std::string to Enum mapping by Mark Ransom
+    // https://stackoverflow.com/questions/7163069/c-string-to-enum
+    static std::unordered_map<std::string, DetectorType> const table = { 
+        {"ORB", DetectorType::ORB}, 
+        {"FAST", DetectorType::FAST},  
+        {"STAR", DetectorType::STAR},
+        {"SIFT", DetectorType::SIFT}, 
+        {"SURF", DetectorType::SURF}, 
+        {"KAZE", DetectorType::KAZE}, 
+        {"BRISK", DetectorType::BRISK}, 
+        {"AKAZE", DetectorType::AKAZE}
+    };
+
+    if (auto it = table.find(method); it != table.end())
+        m_detectorType = it->second;
     else
         m_detectorType = DetectorType::AKAZE;
 
@@ -174,7 +175,7 @@ DescriptorMatcher::DescriptorMatcher(std::string method, const float ratioThresh
     std::for_each(method.begin(), method.end(), [](char& c){
         c = ::toupper(c);
     });
-    
+
     if (method == "BRUTEFORCE_HAMMING")
         matcher = cv::DescriptorMatcher::create(cv::DescriptorMatcher::MatcherType::BRUTEFORCE_HAMMING);
     else if (method == "BRUTEFORCE_SL2")
