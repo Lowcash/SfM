@@ -154,12 +154,7 @@ void Reconstruction::adjustBundle(Camera& camera, std::list<cv::Matx34d>& camPos
     options.minimizer_progress_to_stdout = true;
     options.eta = 1e-2;
     options.num_threads = std::thread::hardware_concurrency();
-    options.max_num_iterations = 100;
-
-    // options.use_nonmonotonic_steps = true;
-    // options.preconditioner_type = ceres::SCHUR_JACOBI;
-    // options.linear_solver_type = ceres::ITERATIVE_SCHUR;
-    // options.use_inner_iterations = true;
+    options.max_num_iterations = 150;
 
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);

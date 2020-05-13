@@ -27,14 +27,14 @@
               "-ofMinKPts=333", "-ofWinSize=30", "-ofMaxLevel=5", "-ofMaxItCt=250", "-ofItEps=0.01", "-ofMaxError=10.0", "-ofMaxCorn=2000", "-ofQualLvl=0.1", "-ofMinDist=1",
               
               //--------------------------- POSE ESTIMATION ---------------------------//
-              "-peMethod=RANSAC", "-peProb=0.99", "-peThresh=0.5", "-peMinInl=10", "-peMinMatch=50", "-pePMetrod=SOLVEPNP_EPNP", "-peExGuess=false", "-peNumIteR=1000",
+              "-peMethod=RANSAC", "-peProb=0.99", "-peThresh=0.5", "-peMinInl=10", "-peMinMatch=50", "-pePMetrod=SOLVEPNP_P3P", "-peExGuess=false", "-peNumIteR=1000",
               //"-peMethod=RANSAC", "-peProb=0.99", "-peThresh=1.0", "-peMinInl=25", "-peMinMatch=50", "-pePMetrod=SOLVEPNP_P3P", "-peExGuess=false", "-peNumIteR=250",
               
               //-------------------------- BUNDLE ADJUSTMENT --------------------------//
               "-baMethod=SPARSE_NORMAL_CHOLESKY", "-baMaxRMSE=10.0", "-baProcIt=5",
 
               //---------------------------- TRIANGULATION ----------------------------//
-              "-tMethod=DLT", "-tMinDist=0.0001", "-tMaxDist=150", "-tMaxPErr=1"
+              "-tMethod=ITERATIVE", "-tMinDist=0.0001", "-tMaxDist=250", "-tMaxPErr=5"
             ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",

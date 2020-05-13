@@ -49,7 +49,7 @@ int main(int argc, char** argv) {
         "{ tMethod   | DLT         | triangulation method ITERATIVE/DLT }"
         "{ tMinDist  | 0.0001      | triangulation points min distance }"
         "{ tMaxDist  | 250         | triangulation points max distance }"
-        "{ tMaxPErr  | 1.0         | triangulation points max reprojection error }"
+        "{ tMaxPErr  | 3.0         | triangulation points max reprojection error }"
     );
 
     //  Show help info
