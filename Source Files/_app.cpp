@@ -10,46 +10,46 @@ int main(int argc, char** argv) {
 		"{ help h ?  |             | help }"
         "{ bSource   | .           | source video file [.mp4, .avi ...] }"
 		"{ bcalib    | .           | camera intrics parameters file path }"
-        "{ bDownSamp | 1           | downsampling of input source images }"
-        "{ bWinWidth | 1024        | debug windows width }"
-        "{ bWinHeight| 768         | debug windows height }"
-        "{ bUseMethod| KLT         | method to use KLT/VO/PNP }"
+        "{ bDownSamp | 0.5         | downsampling of input source images }"
+        "{ bWinWidth | 960         | debug windows width }"
+        "{ bWinHeight| 540         | debug windows height }"
+        "{ bUseMethod| PNP         | method to use KLT/VO/PNP }"
         "{ bMaxSkFram| 10          | max number of skipped frames to swap }"
-        "{ bVisEnable| true        | is visualization by VTK, PCL enabled }"
-        "{ bUseCuda  | false       | is nVidia CUDA used }"
+        "{ bDebugVisE| true        | enable debug point cloud visualization by VTK, PCL }"
+        "{ bDebugMatE| false       | enable debug matching visualization by GTK/... }"
 
         "{ fDecType  | AKAZE       | used detector type }"
-        "{ fMatchType| BRUTEFORCE  | used matcher type }"
-        "{ fKnnRatio | 0.75        | knn ration match }"
+        "{ fMatchType| BRUTEFORCE_HAMMING  | used matcher type }"
+        "{ fKnnRatio | 0.5        | knn ration match }"
 
-        "{ ofMinKPts | 500         | optical flow min descriptor to generate new one }"
-        "{ ofWinSize | 21          | optical flow window size }"
-        "{ ofMaxLevel| 3           | optical flow max pyramid level }"
-        "{ ofMaxItCt | 30          | optical flow max iteration count }"
-        "{ ofItEps   | 0.1         | optical flow iteration epsilon }"
-        "{ ofMaxError| 0           | optical flow max error }"
-        "{ ofMaxCorn | 500         | optical flow max generated corners }"
+        "{ ofMinKPts | 333         | optical flow min descriptor to generate new one }"
+        "{ ofWinSize | 30          | optical flow window size }"
+        "{ ofMaxLevel| 5           | optical flow max pyramid level }"
+        "{ ofMaxItCt | 250         | optical flow max iteration count }"
+        "{ ofItEps   | 0.0         | optical flow iteration epsilon }"
+        "{ ofMaxError| 10.0        | optical flow max error }"
+        "{ ofMaxCorn | 2000        | optical flow max generated corners }"
         "{ ofQualLvl | 0.1         | optical flow generated corners quality level }"
-        "{ ofMinDist | 25.0        | optical flow generated corners min distance }"
+        "{ ofMinDist | 5           | optical flow generated corners min distance }"
 
         "{ peMethod  | RANSAC      | pose estimation fundamental matrix computation method [RANSAC/LMEDS] }"
-        "{ peProb    | 0.999       | pose estimation confidence/probability }"
-        "{ peThresh  | 1.0         | pose estimation threshold }"
-        "{ peMinInl  | 50          | pose estimation in number of homography inliers user for reconstruction }"
+        "{ peProb    | 0.99        | pose estimation confidence/probability }"
+        "{ peThresh  | 0.5         | pose estimation threshold }"
+        "{ peMinInl  | 10          | pose estimation in number of homography inliers user for reconstruction }"
         "{ peMinMatch| 50          | pose estimation min matches to break }"
        
-        "{ pePMetrod | SOLVEPNP_P3P| pose estimation method ITERATIVE/SOLVEPNP_P3P/SOLVEPNP_AP3P }"
+        "{ pePMetrod | SOLVEPNP_P3P| pose estimation method ITERATIVE/SOLVEPNP_P3P/SOLVEPNP_AP3P/SOLVEPNP_EPNP }"
         "{ peExGuess | false       | pose estimation use extrinsic guess }"
-        "{ peNumIteR | 250         | pose estimation max iteration }"
+        "{ peNumIteR | 500         | pose estimation max iteration }"
 
-        "{ baMethod  | DENSE_SCHUR | bundle adjustment solver type DENSE_SCHUR/SPARSE_NORMAL_CHOLESKY }"
-        "{ baMaxRMSE | 1.0         | bundle adjustment max RMSE error to recover from back up }"
-        "{ baProcIt  | 1           | bundle adjustment process each %d iteration }"
+        "{ baMethod  | SPARSE_NORMAL_CHOLESKY | bundle adjustment solver type DENSE_SCHUR/SPARSE_NORMAL_CHOLESKY }"
+        "{ baMaxRMSE | 10.0        | bundle adjustment max RMSE error to recover from back up }"
+        "{ baProcIt  | 5           | bundle adjustment process each %d iteration }"
 
-        "{ tMethod   | ITERATIVE   | triangulation method ITERATIVE/DLT }"
+        "{ tMethod   | DLT         | triangulation method ITERATIVE/DLT }"
         "{ tMinDist  | 0.0001      | triangulation points min distance }"
-        "{ tMaxDist  | 250.0       | triangulation points max distance }"
-        "{ tMaxPErr  | 5.0         | triangulation points max reprojection error }"
+        "{ tMaxDist  | 250         | triangulation points max distance }"
+        "{ tMaxPErr  | 1.0         | triangulation points max reprojection error }"
     );
 
     //  Show help info
@@ -66,8 +66,8 @@ int main(int argc, char** argv) {
     const int bWinHeight = parser.get<int>("bWinHeight");
     const std::string bUseMethod = parser.get<std::string>("bUseMethod");
     const int bMaxSkFram = parser.get<int>("bMaxSkFram");
-    const bool bVisEnable = parser.get<bool>("bVisEnable");
-    const bool bUseCuda = parser.get<bool>("bUseCuda");
+    const bool bDebugVisE = parser.get<bool>("bDebugVisE");
+    const bool bDebugMatE = parser.get<bool>("bDebugMatE");
 
     //------------------------------- FEATURES ------------------------------//
     const std::string fDecType = parser.get<std::string>("fDecType");
@@ -107,23 +107,6 @@ int main(int argc, char** argv) {
     const float tMaxDist = parser.get<float>("tMaxDist");
     const float tMaxPErr = parser.get<float>("tMaxPErr");
 
-    bool useCUDA = false;
-
-#pragma ifdef OPENCV_CORE_CUDA_HPP
-    //  Use CUDA if availiable and selected
-    if (bUseCuda) {
-        if (cv::cuda::getCudaEnabledDeviceCount() > 0) {
-            std::cout << " with CUDA support\n";
-
-            cv::cuda::setDevice(0);
-            cv::cuda::printShortCudaDeviceInfo(0);
-
-            useCUDA = true;
-        }
-        else
-            std::cout << "\nCannot use nVidia CUDA -> no devices" << "\n"; 
-    }
-#pragma endif
     //  Read camera calibration script
     const cv::FileStorage fs(bcalib, cv::FileStorage::READ);
     cv::Mat cameraK; fs["camera_matrix"] >> cameraK;
@@ -135,7 +118,7 @@ int main(int argc, char** argv) {
     const std::string recPoseWinName = "Recovery pose";
     const std::string matchesWinName = "Matches";
 
-    AppSolver solver(AppSolverDataParams(bUseMethod, ptCloudWinName, usrInpWinName, recPoseWinName, matchesWinName, bSource, bDownSamp, bMaxSkFram, cv::Size(bWinWidth, bWinHeight), bVisEnable, useCUDA, fDecType, fMatchType, fKnnRatio, ofMinKPts, ofWinSize, ofMaxLevel, ofMaxItCt, ofItEps, ofMaxError, ofMaxCorn, ofQualLvl, ofMinDist, peMethod, peProb, peThresh, peMinInl, peMinMatch, pePMetrod, peExGuess, peNumIteR, baMethod, baMaxRMSE, baProcIt, tMethod, tMinDist, tMaxDist, tMaxPErr, cameraK, distCoeffs));
+    AppSolver solver(AppSolverDataParams(bUseMethod, ptCloudWinName, usrInpWinName, recPoseWinName, matchesWinName, bSource, bDownSamp, bMaxSkFram, cv::Size(bWinWidth, bWinHeight), bDebugVisE, bDebugMatE, fDecType, fMatchType, fKnnRatio, ofMinKPts, ofWinSize, ofMaxLevel, ofMaxItCt, ofItEps, ofMaxError, ofMaxCorn, ofQualLvl, ofMinDist, peMethod, peProb, peThresh, peMinInl, peMinMatch, pePMetrod, peExGuess, peNumIteR, baMethod, baMaxRMSE, baProcIt, tMethod, tMinDist, tMaxDist, tMaxPErr, cameraK, distCoeffs));
 
 #pragma endregion INIT 
     std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();

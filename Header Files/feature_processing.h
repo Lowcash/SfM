@@ -3,9 +3,9 @@
 #pragma once
 
 #include "pch.h"
-#include "cuda_usable.h"
 #include "view.h"
-class FeatureDetector : protected CUDAUsable {
+
+class FeatureDetector {
 private:
     enum DetectorType { AKAZE = 0, ORB, FAST, STAR, SIFT, SURF, KAZE, BRISK };
 
@@ -13,28 +13,35 @@ private:
 public:
     cv::Ptr<cv::FeatureDetector> detector, extractor;
 
-    FeatureDetector(std::string method, bool isUsingCUDA = false);
+    FeatureDetector(std::string method);
 
     /** 
      *  Generate features for triangulation
+     * 
      *  It uses AKAZE, FAST, STAR, SIFT, SURF, KAZE, BRISK detector
      */
     void generateFeatures(cv::Mat& imGray, std::vector<cv::KeyPoint>& keyPts, cv::Mat& descriptor);
 
     /** 
      *  Generate features for flow tracking
+     * 
      *  It uses Shi-Tomasi corner detector
      */
     void generateFlowFeatures(cv::Mat& imGray, std::vector<cv::Point2f>& corners, int maxCorners, double qualityLevel, double minDistance);
 };
 
-class DescriptorMatcher : protected CUDAUsable {
+class DescriptorMatcher {
+private:
+    void drawMatches(const cv::Mat prevFrame, const cv::Mat currFrame, cv::Mat& outFrame, std::vector<cv::KeyPoint> prevKeyPts, std::vector<cv::KeyPoint> currKeyPts, std::vector<cv::DMatch> matches, const std::string matchType);
+
 public:
+    const bool m_isVisDebug;
+
     const float m_ratioThreshold;
 
     cv::Ptr<cv::DescriptorMatcher> matcher;
 
-    DescriptorMatcher(std::string method, const float ratioThreshold, bool isUsingCUDA = false);
+    DescriptorMatcher(std::string method, const float ratioThreshold, const bool isVisDebug = false);
 
     /** 
      * Knn ratio match by threshold
@@ -44,7 +51,7 @@ public:
     /** 
      * Robust matching by knn match, crossmatching, epipolar filter
      */
-    void findRobustMatches(std::vector<cv::KeyPoint> prevKeyPts, std::vector<cv::KeyPoint> currKeyPts, cv::Mat prevDesc, cv::Mat currAligPts, std::vector<cv::Point2f>& prevAligPts, std::vector<cv::Point2f>& currPts, std::vector<cv::DMatch>& matches, std::vector<int>& prevPtsToKeyIdx, std::vector<int>& currPtsToKeyIdx, cv::Mat prevFrame, cv::Mat currFrame, bool showMatch = false);
+    void findRobustMatches(std::vector<cv::KeyPoint> prevKeyPts, std::vector<cv::KeyPoint> currKeyPts, cv::Mat prevDesc, cv::Mat currAligPts, std::vector<cv::Point2f>& prevAligPts, std::vector<cv::Point2f>& currPts, std::vector<cv::DMatch>& matches, std::vector<int>& prevPtsToKeyIdx, std::vector<int>& currPtsToKeyIdx, cv::Mat debugPrevFrame, cv::Mat debugCurrFrame);
 };
 
 class OptFlowAddSettings {
@@ -63,16 +70,15 @@ public:
     void setMinFeatures(uint minFeatures) { this->minFeatures = minFeatures; }
 };
 
-class OptFlow : protected CUDAUsable {
+class OptFlow {
 public:
     cv::Ptr<cv::SparsePyrLKOpticalFlow> optFlow;
-    cv::Ptr<cv::cuda::SparsePyrLKOpticalFlow> d_optFlow;
 
     OptFlowAddSettings additionalSettings;
 
     std::vector<uchar> statusMask;
 
-    OptFlow(cv::TermCriteria termcrit, int winSize, int maxLevel, float maxError, uint maxCorners, float qualityLevel, float minCornersDistance, uint minFeatures, bool isUsingCUDA = false);
+    OptFlow(cv::TermCriteria termcrit, int winSize, int maxLevel, float maxError, uint maxCorners, float qualityLevel, float minCornersDistance, uint minFeatures);
 
     /** 
      *  Compute optical flow between grayscale images

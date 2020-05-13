@@ -1,8 +1,6 @@
 #include "feature_processing.h"
 
-FeatureDetector::FeatureDetector(std::string method, bool isUsingCUDA) {
-    m_isUsingCUDA = isUsingCUDA;
-
+FeatureDetector::FeatureDetector(std::string method) {
     std::for_each(method.begin(), method.end(), [](char& c){
         c = ::toupper(c);
     });
@@ -27,42 +25,30 @@ FeatureDetector::FeatureDetector(std::string method, bool isUsingCUDA) {
 
     switch (m_detectorType) {
         case DetectorType::AKAZE: {
-            m_isUsingCUDA = false;
-
             detector = extractor = cv::AKAZE::create();
 
             break;
         }
         case DetectorType::STAR: {
-            m_isUsingCUDA = false;
-
             detector = cv::xfeatures2d::StarDetector::create();
             extractor = cv::xfeatures2d::BriefDescriptorExtractor::create();
 
             break;
         }
         case DetectorType::SIFT: {
-            m_isUsingCUDA = false;
-
             detector = extractor = cv::xfeatures2d::SIFT::create();
 
             break;
         }
 
         case DetectorType::ORB: {
-            if (m_isUsingCUDA)
-                detector = extractor = cv::cuda::ORB::create();
-            else 
-                detector = extractor = cv::ORB::create();
+            detector = extractor = cv::ORB::create();
 
             break;
         }
         
         case DetectorType::FAST: {
-            if (m_isUsingCUDA)
-                detector = cv::cuda::FastFeatureDetector::create();
-            else 
-                detector = cv::FastFeatureDetector::create();
+            detector = cv::FastFeatureDetector::create();
 
             extractor = cv::xfeatures2d::BriefDescriptorExtractor::create();
 
@@ -70,21 +56,16 @@ FeatureDetector::FeatureDetector(std::string method, bool isUsingCUDA) {
         }
         
         case DetectorType::SURF: {
-            if (!m_isUsingCUDA)
-                detector = extractor = cv::xfeatures2d::SURF::create(400);
+            detector = extractor = cv::xfeatures2d::SURF::create();
 
             break;
         }
         case DetectorType::KAZE: {
-            m_isUsingCUDA = false;
-
             detector = extractor = cv::KAZE::create();
 
             break;
         }
         case DetectorType::BRISK: {
-            m_isUsingCUDA = false;
-
             detector = extractor = cv::BRISK::create();
             
             break;
@@ -93,74 +74,22 @@ FeatureDetector::FeatureDetector(std::string method, bool isUsingCUDA) {
 }
 
 void FeatureDetector::generateFeatures(cv::Mat& imGray, std::vector<cv::KeyPoint>& keyPts, cv::Mat& descriptor) {
-    //  SURF CUDA not working properly
-    //  possible solution -> use CUDA keypoints and descriptors for matching as GpuMat
-    if (m_isUsingCUDA && m_detectorType != DetectorType::SURF) {
-        //  Upload from host to device
-        cv::cuda::GpuMat d_imGray; d_imGray.upload(imGray);
-
-        //std::cout << "Generating CUDA features..." << std::flush;
-        /*if(m_detectorType == DetectorType::SURF){
-            cv::cuda::SURF_CUDA d_surf;
-            cv::cuda::GpuMat d_keyPts, d_descriptor;
-            std::vector<float> _descriptor;
-
-            d_surf(d_imGray, cv::cuda::GpuMat(), d_keyPts, d_descriptor);
-            d_surf.downloadKeypoints(d_keyPts, keyPts);
-            d_surf.downloadDescriptors(d_descriptor, _descriptor);
-
-            descriptor = cv::Mat(_descriptor);
-        } */
-
-        //  detectAndCompute is faster than detect/compute
-        //  use detectAndCompute if same detector and extractor
-        if (detector != extractor){
-            detector->detect(d_imGray, keyPts);
-            extractor->compute(imGray, keyPts, descriptor);
-        } else {
-            cv::cuda::GpuMat d_descriptor;
-            detector->detectAndCompute(d_imGray, cv::noArray(), keyPts, d_descriptor);
-            d_descriptor.download(descriptor);
-        }
-
-        //  Download from device to host (clear memory)
-        d_imGray.download(imGray);
-        // std::cout << "[DONE]";
-    } else {
-        //  detectAndCompute is faster than detect/compute
-        //  use detectAndCompute if same detector and extractor
-        if (detector != extractor){
-            detector->detect(imGray, keyPts);
-            extractor->compute(imGray, keyPts, descriptor);
-        } else
-            detector->detectAndCompute(imGray, cv::noArray(), keyPts, descriptor);
-    }
+    //  detectAndCompute is faster than detect/compute
+    //  use detectAndCompute if same detector and extractor
+    if (detector != extractor){
+        detector->detect(imGray, keyPts);
+        extractor->compute(imGray, keyPts, descriptor);
+    } else
+        detector->detectAndCompute(imGray, cv::noArray(), keyPts, descriptor);
 }
 
 void FeatureDetector::generateFlowFeatures(cv::Mat& imGray, std::vector<cv::Point2f>& corners, int maxCorners, double qualityLevel, double minDistance) {
     std::vector<cv::Point2f> _corners;
 
-    if (m_isUsingCUDA) {
-        std::cout << "Generating CUDA flow features..." << std::flush;
+    std::cout << "Generating flow features..." << std::flush;
 
-        //  Upload from host to device
-        cv::cuda::GpuMat d_imGray, d_corners;
-        d_imGray.upload(imGray);
-
-        //  Use Shi-Tomasi corner detector
-        cv::Ptr<cv::cuda::CornersDetector> cudaCornersDetector = cv::cuda::createGoodFeaturesToTrackDetector(d_imGray.type(), maxCorners, qualityLevel, minDistance);
-
-        cudaCornersDetector->detect(d_imGray, d_corners);
-
-        //  Download from device to host (clear memory)
-        d_corners.download(_corners);
-        d_imGray.download(imGray);
-    } else {
-        std::cout << "Generating flow features..." << std::flush;
-
-        //  Use Shi-Tomasi corner detector
-        cv::goodFeaturesToTrack(imGray, _corners, maxCorners, qualityLevel, minDistance);
-    }
+    //  Use Shi-Tomasi corner detector
+    cv::goodFeaturesToTrack(imGray, _corners, maxCorners, qualityLevel, minDistance);
 
     // Add new points at the end. Do not remove good points
     corners.insert(corners.end(), _corners.begin(), _corners.end());
@@ -168,9 +97,8 @@ void FeatureDetector::generateFlowFeatures(cv::Mat& imGray, std::vector<cv::Poin
     std::cout << "[DONE]";
 }
 
-DescriptorMatcher::DescriptorMatcher(std::string method, const float ratioThreshold, bool isUsingCUDA)
-    : m_ratioThreshold(ratioThreshold) {
-    m_isUsingCUDA = isUsingCUDA;
+DescriptorMatcher::DescriptorMatcher(std::string method, const float ratioThreshold, const bool isVisDebug)
+    : m_ratioThreshold(ratioThreshold), m_isVisDebug(isVisDebug) {
 
     std::for_each(method.begin(), method.end(), [](char& c){
         c = ::toupper(c);
@@ -200,33 +128,34 @@ void DescriptorMatcher::ratioMaches(const cv::Mat lDesc, const cv::Mat rDesc, st
     }
 }
 
-void DescriptorMatcher::findRobustMatches(std::vector<cv::KeyPoint> prevKeyPts, std::vector<cv::KeyPoint> currKeyPts, cv::Mat prevDesc, cv::Mat currDesc, std::vector<cv::Point2f>& prevAligPts, std::vector<cv::Point2f>& currAligPts, std::vector<cv::DMatch>& matches, std::vector<int>& prevPtsToKeyIdx, std::vector<int>& currPtsToKeyIdx, cv::Mat prevFrame, cv::Mat currFrame, bool showMatch) {
+void DescriptorMatcher::drawMatches(const cv::Mat prevFrame, const cv::Mat currFrame, cv::Mat& outFrame, std::vector<cv::KeyPoint> prevKeyPts, std::vector<cv::KeyPoint> currKeyPts, std::vector<cv::DMatch> matches, const std::string matchType) {
+    cv::drawMatches(prevFrame, prevKeyPts, currFrame, currKeyPts, matches, outFrame, CV_RGB(255,255,0));
+
+    const std::string headedText = matchType;
+    const std::string matchesText = "# Matches: " + std::to_string(matches.size());
+
+    cv::rectangle(outFrame, cv::Rect(10, 20, 300, 100), cv::Scalar(75,75,75), cv::FILLED);
+
+    cv::putText(outFrame, headedText, cv::Point(10,50), cv::FONT_HERSHEY_COMPLEX, 1.0, CV_RGB(255, 255, 255), 2);
+    cv::putText(outFrame, matchesText, cv::Point(10,100), cv::FONT_HERSHEY_COMPLEX, 1.0, CV_RGB(255, 255, 255));
+}
+
+void DescriptorMatcher::findRobustMatches(std::vector<cv::KeyPoint> prevKeyPts, std::vector<cv::KeyPoint> currKeyPts, cv::Mat prevDesc, cv::Mat currDesc, std::vector<cv::Point2f>& prevAligPts, std::vector<cv::Point2f>& currAligPts, std::vector<cv::DMatch>& matches, std::vector<int>& prevPtsToKeyIdx, std::vector<int>& currPtsToKeyIdx, cv::Mat debugPrevFrame, cv::Mat debugCurrFrame) {
     std::vector<cv::DMatch> fMatches, bMatches;
 
     // knn matches
     ratioMaches(prevDesc, currDesc, fMatches);
     ratioMaches(currDesc, prevDesc, bMatches);
-
-    auto fontFace = cv::FONT_HERSHEY_COMPLEX;
-    float fontScale = 1.0;
-
-    cv::Size textSize(15,15);
-    cv::Rect boxCoords(10, 20, 300, 100);
         
-    if (showMatch) {
-        cv::Mat out;
-        cv::drawMatches(prevFrame, prevKeyPts, currFrame, currKeyPts, fMatches, out, CV_RGB(255,255,0));
+    if (m_isVisDebug && (!debugPrevFrame.empty() && !debugCurrFrame.empty())) {
+        const std::string _matchHeader = "Knn Match";
+        cv::Mat _imKnnMatch;
 
-        const std::string headedText = "Knn match";
-        const std::string matchesText = "# Matches: " + std::to_string(fMatches.size());
+        drawMatches(debugPrevFrame, debugCurrFrame, _imKnnMatch, prevKeyPts, currKeyPts, fMatches, _matchHeader);
 
-        cv::rectangle(out, boxCoords, cv::Scalar(75,75,75), cv::FILLED);
+        cv::imshow(_matchHeader, _imKnnMatch);
 
-        cv::putText(out, headedText, cv::Point(10,50), fontFace, fontScale, CV_RGB(255, 255, 255), 2);
-        cv::putText(out, matchesText, cv::Point(10,100), fontFace, fontScale, CV_RGB(255, 255, 255));
-
-        cv::imshow("Matches", out);
-        //cv::waitKey();
+        cv::waitKey(29);
     }
 
     // crossmatching
@@ -249,20 +178,15 @@ void DescriptorMatcher::findRobustMatches(std::vector<cv::KeyPoint> prevKeyPts, 
         if (isFound) { continue; }
     }
 
-    if (showMatch) {
-        cv::Mat out;
-        cv::drawMatches(prevFrame, prevKeyPts, currFrame, currKeyPts, matches, out, CV_RGB(255,255,0));
+    if (m_isVisDebug && (!debugPrevFrame.empty() && !debugCurrFrame.empty())) {
+        const std::string _matchHeader = "CrossMatching";
+        cv::Mat _imCrossMatching;
 
-        const std::string headedText = "Crossmatching";
-        const std::string matchesText = "# Matches: " + std::to_string(matches.size());
+        drawMatches(debugPrevFrame, debugCurrFrame, _imCrossMatching, prevKeyPts, currKeyPts, matches, _matchHeader);
 
-       cv::rectangle(out, boxCoords, cv::Scalar(75,75,75), cv::FILLED);
+        cv::imshow(_matchHeader, _imCrossMatching);
 
-        cv::putText(out, headedText, cv::Point(10,50), fontFace, fontScale, CV_RGB(255, 255, 255), 2);
-        cv::putText(out, matchesText, cv::Point(10,100), fontFace, fontScale, CV_RGB(255, 255, 255));
-
-        cv::imshow("Matches", out);
-        //cv::waitKey();
+        cv::waitKey(29);
     }
 
     if (prevAligPts.empty() || currAligPts.empty()) { return; }
@@ -287,20 +211,15 @@ void DescriptorMatcher::findRobustMatches(std::vector<cv::KeyPoint> prevKeyPts, 
         }
     }
 
-    if (showMatch) {
-        cv::Mat out;
-        cv::drawMatches(prevFrame, prevKeyPts, currFrame, currKeyPts, _epipolarMatch, out, CV_RGB(255,255,0));
+    if (m_isVisDebug && (!debugPrevFrame.empty() && !debugCurrFrame.empty())) {
+        const std::string _matchHeader = "Epipolar filter";
+        cv::Mat _imEpipolarFilter;
 
-        const std::string headedText = "Epipolar filter";
-        const std::string matchesText = "# Matches: " + std::to_string(_epipolarMatch.size());
+        drawMatches(debugPrevFrame, debugCurrFrame, _imEpipolarFilter, prevKeyPts, currKeyPts, _epipolarMatch, _matchHeader);
 
-        cv::rectangle(out, boxCoords, cv::Scalar(75,75,75), cv::FILLED);
+        cv::imshow(_matchHeader, _imEpipolarFilter);
 
-        cv::putText(out, headedText, cv::Point(10,50), fontFace, fontScale, CV_RGB(255, 255, 255), 2);
-        cv::putText(out, matchesText, cv::Point(10,100), fontFace, fontScale, CV_RGB(255, 255, 255));
-
-        cv::imshow("Matches", out);
-        //cv::waitKey();
+        cv::waitKey(29);
     }
     
     //  update informations to output structures
@@ -309,13 +228,8 @@ void DescriptorMatcher::findRobustMatches(std::vector<cv::KeyPoint> prevKeyPts, 
     std::swap(currAligPts, _epipolarCurrPts);
 }
 
-OptFlow::OptFlow(cv::TermCriteria termcrit, int winSize, int maxLevel, float maxError, uint maxCorners, float qualityLevel, float minCornersDistance, uint minFeatures, bool isUsingCUDA) {
-    m_isUsingCUDA = isUsingCUDA;
-
-    if (m_isUsingCUDA)
-        d_optFlow = cv::cuda::SparsePyrLKOpticalFlow::create(cv::Size(winSize, winSize), maxLevel, termcrit.MAX_ITER);
-    else
-        optFlow = cv::SparsePyrLKOpticalFlow::create(cv::Size(winSize, winSize), maxLevel, termcrit);
+OptFlow::OptFlow(cv::TermCriteria termcrit, int winSize, int maxLevel, float maxError, uint maxCorners, float qualityLevel, float minCornersDistance, uint minFeatures) {
+    optFlow = cv::SparsePyrLKOpticalFlow::create(cv::Size(winSize, winSize), maxLevel, termcrit);
 
     additionalSettings.setMaxError(maxError);
     additionalSettings.setMaxCorners(maxCorners);
@@ -327,30 +241,7 @@ OptFlow::OptFlow(cv::TermCriteria termcrit, int winSize, int maxLevel, float max
 void OptFlow::computeFlow(cv::Mat imPrevGray, cv::Mat imCurrGray, std::vector<cv::Point2f>& prevPts, std::vector<cv::Point2f>& currPts, std::vector<uchar>& statusMask, bool useBoundaryCorrection, bool useErrorCorrection) {
     std::vector<float> err;
 
-    if (m_isUsingCUDA) {
-        cv::cuda::GpuMat d_imPrevGray, d_imCurrGray;
-        cv::cuda::GpuMat d_prevPts, d_currPts;
-        cv::cuda::GpuMat d_statusMask, d_err;
-
-        //  Upload from host to device
-        d_imPrevGray.upload(imPrevGray);
-        d_imCurrGray.upload(imCurrGray);
-
-        d_prevPts.upload(prevPts);
-
-        // Calculate sparse Lucas-Kanade optical flow
-        d_optFlow->calc(d_imPrevGray, d_imCurrGray, d_prevPts, d_currPts, d_statusMask, d_err);
-
-        //  Download from device to host (clear memory)
-        d_imPrevGray.download(imPrevGray);
-        d_imCurrGray.download(imCurrGray);
-
-        d_prevPts.download(prevPts);
-        d_currPts.download(currPts);
-        d_statusMask.download(statusMask);
-        d_err.download(err);
-    } else 
-        optFlow->calc(imPrevGray, imCurrGray, prevPts, currPts, statusMask, err);
+    optFlow->calc(imPrevGray, imCurrGray, prevPts, currPts, statusMask, err);
     
     //  Image boundary filter
     cv::Rect boundary(cv::Point(), imCurrGray.size());

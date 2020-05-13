@@ -3,13 +3,16 @@
 Reconstruction::Reconstruction(const std::string triangulateMethod, const std::string baMethod, const double baMaxRMSE, const float minDistance, const float maxDistance, const float maxProjectionError, const bool useNormalizePts)
     : m_triangulateMethod(triangulateMethod), m_baMethod(baMethod), m_baMaxRMSE(baMaxRMSE), m_minDistance(minDistance), m_maxDistance(maxDistance), m_maxProjectionError(maxProjectionError), m_useNormalizePts(useNormalizePts) {}
 
-void Reconstruction::pointsToRGBCloud(Camera camera, cv::Mat imgColor, cv::Mat R, cv::Mat t, cv::Mat points3D, cv::Mat inputPts2D, std::vector<cv::Vec3d>& cloud3D, std::vector<cv::Vec3b>& cloudRGB, float minDist, float maxDist, float maxProjErr, std::vector<bool>& mask) {
+void Reconstruction::pointsToRGBCloud(Camera camera, cv::Mat imgColor, cv::Matx33d R, cv::Matx31d t, cv::Mat points3D, cv::Mat inputPts2D, std::vector<cv::Vec3d>& cloud3D, std::vector<cv::Vec3b>& cloudRGB, float minDist, float maxDist, float maxProjErr, std::vector<bool>& mask) {
     //  Project 3D points back to image plane for validation
-    cv::Mat _pts2D; cv::projectPoints(points3D, R, t, camera.K, cv::Mat(), _pts2D);
+    cv::Mat _pts2D; cv::projectPoints(points3D, cv::Mat(R), cv::Mat(t), camera.K, cv::Mat(), _pts2D);
 
     cloud3D.clear();
     cloudRGB.clear();
     
+    cv::Matx34d cameraPose; composeExtrinsicMat(R, t, cameraPose);
+    const cv::Matx34d cameraProjMat = camera.K33d * cameraPose;
+
     for(size_t i = 0; i < points3D.rows; ++i) {
         const cv::Vec3d point3D = m_useNormalizePts ? 
             points3D.at<cv::Vec3d>(i) : (cv::Vec3d)points3D.at<cv::Vec3f>(i);
@@ -24,8 +27,17 @@ void Reconstruction::pointsToRGBCloud(Camera camera, cv::Mat imgColor, cv::Mat R
         cloud3D.push_back( point3D );
         cloudRGB.push_back( imPoint2D );
 
+        // transfer point from world space to camera space
+        const cv::Matx31d pCameraSpace = cameraProjMat * cv::Matx41d(
+            point3D[0],
+            point3D[1],
+            point3D[2],
+            1.0
+        );
+
         //  set mask to filter bad projected points, points behind camera and points far away from camera
-        mask.push_back( err <  maxProjErr && point3D[2] > minDist && point3D[2] < maxDist );
+        mask.push_back( err <  maxProjErr && pCameraSpace(2) > minDist && pCameraSpace(2) < maxDist );
+        //mask.push_back( err <  maxProjErr);
     }
 }
 
@@ -58,7 +70,7 @@ void Reconstruction::triangulateCloud(Camera camera, const std::vector<cv::Point
         cv::convertPointsFromHomogeneous(_homogPts.t(), _pts3D);
     }
 
-    pointsToRGBCloud(camera, colorImage, cv::Mat(R), cv::Mat(t), _pts3D, _currPtsMat.t(), points3D, pointsRGB, m_minDistance, m_maxDistance, m_maxProjectionError, mask);
+    pointsToRGBCloud(camera, colorImage, R, t, _pts3D, _currPtsMat.t(), points3D, pointsRGB, m_minDistance, m_maxDistance, m_maxProjectionError, mask);
 }
 
 void Reconstruction::adjustBundle(Camera& camera, std::list<cv::Matx34d>& camPoses, PointCloud& pointCloud) {
@@ -70,6 +82,7 @@ void Reconstruction::adjustBundle(Camera& camera, std::list<cv::Matx34d>& camPos
         return;
     }
 
+    // parse camera intrinsic parameters
     cv::Matx14d intrinsics4d (
         camera.focal.x,
         camera.focal.y,
@@ -77,6 +90,7 @@ void Reconstruction::adjustBundle(Camera& camera, std::list<cv::Matx34d>& camPos
         camera.pp.y
     );
 
+    // parse camera extrinsics parameters
     std::vector<cv::Matx16d> extrinsics6d;
 
     for (auto [c, cEnd, it] = std::tuple{camPoses.cbegin(), camPoses.cend(), 0}; c != cEnd; ++c, ++it) {
@@ -101,6 +115,7 @@ void Reconstruction::adjustBundle(Camera& camera, std::list<cv::Matx34d>& camPos
         ));
     }
 
+    // make cloud backup to prevent worse optimalization result
     const std::list<cv::Vec3d> _cloudBackUp(pointCloud.cloud3D);
 
     ceres::Problem problem;
@@ -113,8 +128,12 @@ void Reconstruction::adjustBundle(Camera& camera, std::list<cv::Matx34d>& camPos
 
             ceres::CostFunction* costFunc = SnavelyReprojectionError::Create(p2d.x, p2d.y);
 
+            // create problem to solve using residual blocks
+            // cloud 3D point positions will be updated
             problem.AddResidualBlock(costFunc, NULL, intrinsics4d.val, ext->val, p.ptrPoint3D->val);
 
+            // lock to the first camera to prevent cloud scaling
+            // first camera extrinsics will not be updated
             if (!isCameraLocked) {
                 problem.SetParameterBlockConstant(ext->val);
 
@@ -123,23 +142,8 @@ void Reconstruction::adjustBundle(Camera& camera, std::list<cv::Matx34d>& camPos
         }
     }
 
-    /*for (auto [c, ct, cEnd, ctEnd] = std::tuple{pCloud.begin(), pCloudTracks.begin(), pCloud.end(), pCloudTracks.end()}; c != cEnd && ct != ctEnd; ++c, ++ct) {
-        for (size_t idx = 0; idx < ct->numTracks; ++idx) {
-            cv::Point2f p2d = ct->projKeys[idx];
-            cv::Matx16d* ext = &extrinsics6d[ct->extrinsicsIdxs[idx]];
-            
-            ceres::CostFunction* costFunc = SnavelyReprojectionError::Create(p2d.x, p2d.y);
-
-            problem.AddResidualBlock(costFunc, NULL, intrinsics4d.val, ext->val, c->val);
-
-            if (!isCameraLocked) {
-                problem.SetParameterBlockConstant(ext->val);
-
-                isCameraLocked = true;
-            }
-        }
-    }*/
-
+    // lock to the camera intinsics to prevent cloud scaling
+    // camera intinsics will not be updated
     problem.SetParameterBlockConstant(&intrinsics4d(0));
 
     ceres::Solver::Options options;
@@ -161,6 +165,7 @@ void Reconstruction::adjustBundle(Camera& camera, std::list<cv::Matx34d>& camPos
     ceres::Solve(options, &problem, &summary);
     std::cout << summary.FullReport() << "\n";
     
+    // check minimalization result -> if it is bad, then restore from backup
     if (!summary.IsSolutionUsable()) {
 		std::cout << "Bundle Adjustment failed -> recovering from back up!" << "\n";
 
@@ -171,7 +176,7 @@ void Reconstruction::adjustBundle(Camera& camera, std::list<cv::Matx34d>& camPos
         double initialRMSE = std::sqrt(summary.initial_cost / summary.num_residuals);
         double finalRMSE = std::sqrt(summary.final_cost / summary.num_residuals);
 
-		// Display statistics about the minimization
+		// Display minimization result stats
 		std::cout << std::endl
 			<< "Bundle Adjustment statistics (approximated RMSE):\n"
 			<< " #views: " << camPoses.size() << "\n"
@@ -190,6 +195,7 @@ void Reconstruction::adjustBundle(Camera& camera, std::list<cv::Matx34d>& camPos
         }
 	}
 
+    // update camera extrinsics parameters
     for (auto [c, cEnd, c6, c6End, it] = std::tuple{camPoses.begin(), camPoses.end(), extrinsics6d.begin(), extrinsics6d.end(), 0}; c != cEnd && c6 != c6End; ++c, ++c6, ++it) {
         cv::Matx34d& cam = (cv::Matx34d&)*c;
         cv::Matx16d& cam6 = (cv::Matx16d&)*c6;

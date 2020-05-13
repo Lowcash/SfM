@@ -20,7 +20,8 @@ RecoveryPose::RecoveryPose(std::string recPoseMethod, const double prob, const d
     static std::unordered_map<std::string, cv::SolvePnPMethod> const tablePnP = { 
         {"ITERATIVE", cv::SolvePnPMethod::SOLVEPNP_ITERATIVE}, 
         {"SOLVEPNP_P3P", cv::SolvePnPMethod::SOLVEPNP_P3P},  
-        {"SOLVEPNP_AP3P", cv::SolvePnPMethod::SOLVEPNP_AP3P}
+        {"SOLVEPNP_AP3P", cv::SolvePnPMethod::SOLVEPNP_AP3P},
+        {"SOLVEPNP_EPNP", cv::SolvePnPMethod::SOLVEPNP_EPNP}
     };
 
     if (auto it = tablePnP.find(poseEstMethod); it != tablePnP.end())

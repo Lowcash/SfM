@@ -100,11 +100,11 @@ void AppSolver::run() {
     // initialize structures
     Camera camera(params.cameraK, params.distCoeffs, params.bDownSamp);
 
-    FeatureDetector featDetector(params.fDecType, params.useCUDA);
-    DescriptorMatcher descMatcher(params.fMatchType, params.fKnnRatio, params.useCUDA);
+    FeatureDetector featDetector(params.fDecType);
+    DescriptorMatcher descMatcher(params.fMatchType, params.fKnnRatio, params.bDebugMatE);
     
     cv::TermCriteria flowTermCrit(cv::TermCriteria::COUNT + cv::TermCriteria::EPS, params.ofMaxItCt, params.ofItEps);
-    OptFlow optFlow(flowTermCrit, params.ofWinSize, params.ofMaxLevel, params.ofMaxError, params.ofMaxCorn, params.ofQualLvl, params.ofMinDist, params.ofMinKPts, params.useCUDA);
+    OptFlow optFlow(flowTermCrit, params.ofWinSize, params.ofMaxLevel, params.ofMaxError, params.ofMaxCorn, params.ofQualLvl, params.ofMinDist, params.ofMinKPts);
 
     RecoveryPose recPose(params.peMethod, params.peProb, params.peThresh, params.peMinInl, params.pePMetrod, params.peExGuess, params.peNumIteR);
 
@@ -282,7 +282,7 @@ void AppSolver::run() {
 
             visVTK.updateCameras(m_tracking.camPoses, camera.K);
             //visVTK.addCamera();
-            visVTK.visualize(params.bVisEnable);
+            visVTK.visualize(params.bDebugVisE);
 
             cv::imshow(params.usrInpWinName, imOutUsrInp);
 
@@ -364,7 +364,7 @@ void AppSolver::run() {
             std::vector<cv::DMatch> _matches;
             std::vector<int> _prevIdx, _currIdx;
 
-            descMatcher.findRobustMatches(featPrevView.keyPts, featCurrView.keyPts, featPrevView.descriptor, featCurrView.descriptor, _prevPts, _currPts, _matches, _prevIdx, _currIdx, featPrevView.viewPtr->imColor, featCurrView.viewPtr->imColor, true);
+            descMatcher.findRobustMatches(featPrevView.keyPts, featCurrView.keyPts, featPrevView.descriptor, featCurrView.descriptor, _prevPts, _currPts, _matches, _prevIdx, _currIdx, featPrevView.viewPtr->imColor, featCurrView.viewPtr->imColor);
 
             std::cout << "Matches count: " << _matches.size() << "\n";
 
@@ -431,7 +431,7 @@ void AppSolver::run() {
                 //visPCL.visualize(params.bVisEnable);
 
                 //visVTK.visualize(params.bVisEnable);
-                visPCL.visualize(params.bVisEnable);
+                visPCL.visualize(params.bDebugVisE);
             }
 
             cv::imshow(params.usrInpWinName, imOutUsrInp);
@@ -447,7 +447,7 @@ void AppSolver::run() {
     }
 
     if (m_usedMethod == Method::PNP) {
-        visVTK.visualize(params.bVisEnable, true);
-        visPCL.visualize(params.bVisEnable, true);
+        visVTK.visualize(params.bDebugVisE, true);
+        visPCL.visualize(params.bDebugVisE, true);
     }
 }
