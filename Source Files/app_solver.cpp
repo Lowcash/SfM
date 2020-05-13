@@ -143,6 +143,7 @@ void AppSolver::run() {
 #pragma endregion INIT
 
     for (uint iteration = 1; ; ++iteration) {
+        // use if statements instead of switch due to loop breaks
         if (m_usedMethod == Method::KLT) {
             bool isPtAdded = false;
 
@@ -318,6 +319,7 @@ void AppSolver::run() {
             bool isPtAdded = false;
 
             if (iteration != 1) {
+                // do bundle adjust after loop iteration to avoid "continue" statement
                 if (iteration % params.baProcIt == 1 || params.baProcIt == 1)
                     reconstruction.adjustBundle(camera, m_tracking.camPoses, m_tracking.pointCloud);
 
@@ -328,12 +330,15 @@ void AppSolver::run() {
                 }
             }
             
+            // attach user clicked points at the end of prev flow corners stack
+            // prepare points to move
             if (!userInput.usrClickedPts2D.empty()) {
                 userInput.attachPointsToMove(userInput.usrClickedPts2D, ofPrevView.corners);
 
                 isPtAdded = true;
             }
 
+            // find good image pair by optical flow and essential matrix
             ImageFindState state = (ImageFindState)findGoodImages(cap, viewContainer, featDetector, optFlow, camera,recPose, ofPrevView, ofCurrView);
             
             if (state == ImageFindState::SOURCE_LOST) { break; }
@@ -348,6 +353,7 @@ void AppSolver::run() {
                 continue;
             }
 
+            // prepare flow view images for debug draw
             ofPrevView.setView(viewContainer.getLastButOneItem());
             ofCurrView.setView(viewContainer.getLastOneItem());
 
@@ -364,6 +370,7 @@ void AppSolver::run() {
 
             cv::Matx34d _prevPose, _currPose; 
 
+            // prepare feature view images for generate features
             featPrevView.setView(viewContainer.getLastButOneItem());
             featCurrView.setView(viewContainer.getLastOneItem());
 
@@ -371,12 +378,9 @@ void AppSolver::run() {
                 featDetector.generateFeatures(featPrevView.viewPtr->imGray, featPrevView.keyPts, featPrevView.descriptor);
             }
 
+            // prepare features
             featDetector.generateFeatures(featCurrView.viewPtr->imGray, featCurrView.keyPts, featCurrView.descriptor);
 
-            /*cv::Mat _tmpImg; ofCurrView.viewPtr->imColor.copyTo(_tmpImg);
-            cv::drawKeypoints(_tmpImg, featCurrView.keyPts, _tmpImg, CV_RGB(109, 17, 214));
-            cv::imshow("Reconstruction key points", _tmpImg);
-            cv::waitKey();*/
             if (featPrevView.keyPts.empty() || featCurrView.keyPts.empty()) { 
                 std::cerr << "None keypoints to match, skip matching/triangulation!\n";
 
@@ -387,6 +391,7 @@ void AppSolver::run() {
             std::vector<cv::DMatch> _matches;
             std::vector<int> _prevIdx, _currIdx;
 
+            // match features
             descMatcher.findRobustMatches(featPrevView.keyPts, featCurrView.keyPts, featPrevView.descriptor, featCurrView.descriptor, _prevPts, _currPts, _matches, _prevIdx, _currIdx, featPrevView.viewPtr->imColor, featCurrView.viewPtr->imColor);
 
             std::cout << "Matches count: " << _matches.size() << "\n";
@@ -397,9 +402,10 @@ void AppSolver::run() {
                 continue; 
             }
 
-            std::map<std::pair<float, float>, size_t> cloudMap;
+            // recover camera pose and get a mapping to the cloud points that were used as 3D points to recover pose
+            std::map<std::pair<float, float>, size_t> cloudMapping;
 
-            if(!m_tracking.findRecoveredCameraPose(descMatcher, params.peMinMatch, camera, featCurrView, recPose, cloudMap)) {
+            if(!m_tracking.findRecoveredCameraPose(descMatcher, params.peMinMatch, camera, featCurrView, recPose, cloudMapping)) {
                 std::cout << "Recovering camera fail, skip current reconstruction iteration!\n";
     
                 std::swap(ofPrevView, ofCurrView);
@@ -408,6 +414,8 @@ void AppSolver::run() {
                 continue;
             }
 
+            // prepare previous and current camera poses for triangulation
+            // previous camera pose is last camera pose in scene, current is from camera estimation
             if (m_tracking.camPoses.empty())
                 composeExtrinsicMat(cv::Matx33d::eye(), cv::Matx31d::eye(), _prevPose);
             else
@@ -419,17 +427,19 @@ void AppSolver::run() {
             std::vector<cv::Point2f> _newPts2D;
             std::vector<cv::Vec3d> _newPts3D;
 
+            // detach user clicked points from optical flow and attach them to feature points to triangulate
             if (!userInput.usrClickedPts2D.empty() && isPtAdded) {
                 userInput.detachPointsFromMove(_prevPts, ofPrevView.corners, userInput.usrClickedPts2D.size());
-
                 
                 userInput.detachPointsFromMove(_newPts2D, ofCurrView.corners, userInput.usrClickedPts2D.size());
 
                 _currPts.insert(_currPts.end(), _newPts2D.begin(), _newPts2D.end());
             }
 
+            // triangulate feature points and user clicked points
             reconstruction.triangulateCloud(camera, _prevPts, _currPts, ofCurrView.viewPtr->imColor, _points3D, _pointsRGB, _mask, _prevPose, _currPose, recPose.R, recPose.t);
 
+            // get triangulated user clicked points and visualize in point cloud
             if (!userInput.usrClickedPts2D.empty() && isPtAdded) {       
                 userInput.detachPointsFromReconstruction(_newPts3D, _points3D, _pointsRGB, _mask, userInput.usrClickedPts2D.size());
 
@@ -441,9 +451,11 @@ void AppSolver::run() {
                 visPCL.addPoints(_newPts3D);
             }
 
+            // draw moved points
             userInput.recoverPoints(imOutUsrInp, m_tracking.pointCloud, camera.K, cv::Mat(m_tracking.R), cv::Mat(m_tracking.t));
 
-            if (m_tracking.addTrackView(featCurrView.viewPtr, _mask, _currPts, _points3D, _pointsRGB, featCurrView.keyPts, featCurrView.descriptor, cloudMap, _currIdx)) {
+            // try to register track for PnP 2D-3D matching and point cloud
+            if (m_tracking.addTrackView(featCurrView.viewPtr, _mask, _currPts, _points3D, _pointsRGB, featCurrView.keyPts, featCurrView.descriptor, cloudMapping, _currIdx)) {
                 //visVTK.updatePointCloud(m_tracking.cloud3D, m_tracking.cloudRGB);
                 visPCL.updatePointCloud(m_tracking.pointCloud.cloud3D, m_tracking.pointCloud.cloudRGB);
 
@@ -455,12 +467,10 @@ void AppSolver::run() {
 
                 //visVTK.visualize(params.bVisEnable);
                 visPCL.visualize(params.bDebugVisE);
-            }
+            } else 
+                m_tracking.camPoses.pop_back();
 
             cv::imshow(params.usrInpWinName, imOutUsrInp);
-
-            if (iteration == 1)
-                cv::waitKey();
                 
             std::cout << "Iteration: " << iteration << "\n"; cv::waitKey(29);
 
