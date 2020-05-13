@@ -11,7 +11,7 @@
             "program": "${workspaceFolder}/SfM_App.out",
             "args": [
             //--------------------------------- BASE --------------------------------//
-              "-bSource=/home/lowcash/Documents/SfM_Resources/Video/vid_mobile_6_cut.mp4", 
+              "-bSource=/home/lowcash/Documents/SfM_Resources/Video/vid_mobile_1.mp4", 
               //"-bSource=https://192.168.1.100:8080/video", 
               "-bcalib=/home/lowcash/Documents/SfM_Resources/Calibration/calib_mobile_0.yml", 
               //"-bcalib=/home/lowcash/Documents/SfM_Resources/Calibration/calib_KITTI_0.yml", 
@@ -20,21 +20,21 @@
               //------------------------------- FEATURES ------------------------------//
               "-fDecType=AKAZE", "-fMatchType=BRUTEFORCE_HAMMING", "-fKnnRatio=0.5",
               //"-fDecType=FAST", "-fMatchType=BRUTEFORCE_HAMMING", "-fKnnRatio=0.5",
-              //"-fDecType=SIFT", "-fMatchType=FLANNBASED", "-fKnnRatio=0.75",
+              //"-fDecType=SIFT", "-fMatchType=FLANNBASED", "-fKnnRatio=0.5",
               //"-fDecType=SURF", "-fMatchType=FLANNBASED", "-fKnnRatio=0.5",
 
               //----------------------------- OPTICAL FLOW ----------------------------//
               "-ofMinKPts=333", "-ofWinSize=30", "-ofMaxLevel=5", "-ofMaxItCt=250", "-ofItEps=0.01", "-ofMaxError=10.0", "-ofMaxCorn=2000", "-ofQualLvl=0.1", "-ofMinDist=1",
               
               //--------------------------- POSE ESTIMATION ---------------------------//
-              "-peMethod=RANSAC", "-peProb=0.99", "-peThresh=0.5", "-peMinInl=10", "-peMinMatch=50", "-pePMetrod=SOLVEPNP_P3P", "-peExGuess=false", "-peNumIteR=1000",
+              "-peMethod=RANSAC", "-peProb=0.99", "-peThresh=0.5", "-peMinInl=10", "-peMinMatch=50", "-pePMetrod=SOLVEPNP_EPNP", "-peExGuess=false", "-peNumIteR=1000",
               //"-peMethod=RANSAC", "-peProb=0.99", "-peThresh=1.0", "-peMinInl=25", "-peMinMatch=50", "-pePMetrod=SOLVEPNP_P3P", "-peExGuess=false", "-peNumIteR=250",
               
               //-------------------------- BUNDLE ADJUSTMENT --------------------------//
               "-baMethod=SPARSE_NORMAL_CHOLESKY", "-baMaxRMSE=10.0", "-baProcIt=5",
 
               //---------------------------- TRIANGULATION ----------------------------//
-              "-tMethod=ITERATIVE", "-tMinDist=0.0001", "-tMaxDist=250", "-tMaxPErr=5"
+              "-tMethod=DLT", "-tMinDist=0.0001", "-tMaxDist=250", "-tMaxPErr=5"
             ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",

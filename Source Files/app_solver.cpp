@@ -146,25 +146,32 @@ void AppSolver::run() {
         if (m_usedMethod == Method::KLT) {
             bool isPtAdded = false;
 
+            // in the first iteration, the image is not ready yet -> cannot generate features
+            // generate features first, to avoid loss of user point in corners stack
             if (iteration != 1 && ofPrevView.corners.size() < optFlow.additionalSettings.minFeatures) {
                 ofPrevView.setView(viewContainer.getLastOneItem());
 
                 featDetector.generateFlowFeatures(ofPrevView.viewPtr->imGray, ofPrevView.corners, optFlow.additionalSettings.maxCorn, optFlow.additionalSettings.qualLvl, optFlow.additionalSettings.minDist);
             }
             
+            // attach user clicked points at the end of prev flow corners stack
+            // prepare points for movement
             if (!userInput.usrClickedPts2D.empty()) {
                 userInput.attachPointsToMove(userInput.usrClickedPts2D, ofPrevView.corners);
 
                 isPtAdded = true;
             }
 
+            // attach user saved points at the end of prev flow corners stack after clicked points
+            // prepare points for movement
             if (!userInput.usrPts2D.empty()) {
                 userInput.attachPointsToMove(userInput.usrPts2D, ofPrevView.corners);
             }
 
             if (findGoodImages(cap, viewContainer) == ImageFindState::SOURCE_LOST) 
                 break;
-
+            
+            // 
             ofPrevView.setView(viewContainer.getLastButOneItem());
             ofCurrView.setView(viewContainer.getLastOneItem());
 
