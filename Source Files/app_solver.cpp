@@ -171,7 +171,7 @@ void AppSolver::run() {
             if (findGoodImages(cap, viewContainer) == ImageFindState::SOURCE_LOST) 
                 break;
             
-            // prepare flow view images for flow computing
+            // prepare flow view images for flow computing and debug draw
             ofPrevView.setView(viewContainer.getLastButOneItem());
             ofCurrView.setView(viewContainer.getLastOneItem());
 
@@ -240,6 +240,7 @@ void AppSolver::run() {
                 isPtAdded = true;
             }
 
+            // find good image pair by optical flow and essential matrix
             ImageFindState state = (ImageFindState)findGoodImages(cap, viewContainer, featDetector, optFlow, camera,recPose, ofPrevView, ofCurrView);
             
             if (state == ImageFindState::SOURCE_LOST) { break; }
@@ -254,6 +255,7 @@ void AppSolver::run() {
                 continue;
             }
 
+            // prepare flow view images for debug draw
             ofPrevView.setView(viewContainer.getLastButOneItem());
             ofCurrView.setView(viewContainer.getLastOneItem());
 
@@ -272,14 +274,17 @@ void AppSolver::run() {
 
             composeExtrinsicMat(m_tracking.R, m_tracking.t, _prevPose);
 
+            // move camera position by computed R a t from optical flow and essential matrix
             m_tracking.t = m_tracking.t + (m_tracking.R * recPose.t);
             m_tracking.R = m_tracking.R * recPose.R;
 
             composeExtrinsicMat(m_tracking.R, m_tracking.t, _currPose);
             m_tracking.addCamPose(_currPose);
 
+            // triangulate corners and user clicked points
             reconstruction.triangulateCloud(camera, ofPrevView.corners, ofCurrView.corners, ofCurrView.viewPtr->imColor, _points3D, _pointsRGB, _mask, _prevPose, _currPose, recPose.R, recPose.t);
 
+            // get triangulated clicked user points 
             if (!userInput.usrClickedPts2D.empty() && isPtAdded) {
                 std::vector<cv::Point2f> _newPts2D;
                 std::vector<cv::Vec3d> _newPts3D;
@@ -294,6 +299,7 @@ void AppSolver::run() {
                 visVTK.addPoints(_newPts3D);
             }
 
+            // draw moved points
             userInput.recoverPoints(imOutUsrInp, m_tracking.pointCloud, camera.K, cv::Mat(m_tracking.R), cv::Mat(m_tracking.t));
 
             visVTK.updateCameras(m_tracking.camPoses, camera.K);
@@ -304,6 +310,7 @@ void AppSolver::run() {
 
             std::cout << "Iteration: " << iteration << "\n"; cv::waitKey(29);
 
+            // prepare views to load new frame
             std::swap(ofPrevView, ofCurrView);
             std::swap(featPrevView, featCurrView);
         }
@@ -311,7 +318,7 @@ void AppSolver::run() {
             bool isPtAdded = false;
 
             if (iteration != 1) {
-                if (iteration % params.baProcIt == 1)
+                if (iteration % params.baProcIt == 1 || params.baProcIt == 1)
                     reconstruction.adjustBundle(camera, m_tracking.camPoses, m_tracking.pointCloud);
 
                 if (ofPrevView.corners.size() < optFlow.additionalSettings.minFeatures) {
