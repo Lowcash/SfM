@@ -73,15 +73,15 @@ bool Tracking::addTrackView(ViewData* view, const std::vector<bool>& mask, const
         }    
     }
 
+    _trackView.setView(view);
+
+    trackViews.push_back(_trackView);
+
     //  Min points filter
     if (_trackView.keyPoints.size() > 7 && _trackView.cloudIdxs.size() > 7) {
         std::cout << "New points were added to cloud: " << newPtsAdded << "; Total points: " << pointCloud.cloud3D.size() << "\n";
-
-        _trackView.setView(view);
-
-        trackViews.push_back(_trackView);
     } else {
-        std::cout << "Points were not added to cloud!!" << "\n";
+        std::cout << "No points were added to cloud!!" << "\n";
 
         return false;
     }

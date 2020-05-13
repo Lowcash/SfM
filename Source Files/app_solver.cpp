@@ -422,7 +422,6 @@ void AppSolver::run() {
                 _prevPose = m_tracking.camPoses.back();
 
             composeExtrinsicMat(recPose.R, recPose.t, _currPose);
-            m_tracking.addCamPose(_currPose);
 
             std::vector<cv::Point2f> _newPts2D;
             std::vector<cv::Vec3d> _newPts3D;
@@ -455,20 +454,22 @@ void AppSolver::run() {
             userInput.recoverPoints(imOutUsrInp, m_tracking.pointCloud, camera.K, cv::Mat(m_tracking.R), cv::Mat(m_tracking.t));
 
             // try to register track for PnP 2D-3D matching and point cloud
-            if (m_tracking.addTrackView(featCurrView.viewPtr, _mask, _currPts, _points3D, _pointsRGB, featCurrView.keyPts, featCurrView.descriptor, cloudMapping, _currIdx)) {
-                //visVTK.updatePointCloud(m_tracking.cloud3D, m_tracking.cloudRGB);
-                visPCL.updatePointCloud(m_tracking.pointCloud.cloud3D, m_tracking.pointCloud.cloudRGB);
+            m_tracking.addTrackView(featCurrView.viewPtr, _mask, _currPts, _points3D, _pointsRGB, featCurrView.keyPts, featCurrView.descriptor, cloudMapping, _currIdx);
 
-                //visVTK.updateCameras(m_tracking.camPoses, camera.K);
-                //visVTK.visualize(params.bVisEnable);
-                
-                visPCL.updateCameras(m_tracking.camPoses);
-                //visPCL.visualize(params.bVisEnable);
+            // if the track was successfully registered, confirm camera pose and add it to stack
+            m_tracking.addCamPose(_currPose);
 
-                //visVTK.visualize(params.bVisEnable);
-                visPCL.visualize(params.bDebugVisE);
-            } else 
-                m_tracking.camPoses.pop_back();
+            //visVTK.updatePointCloud(m_tracking.cloud3D, m_tracking.cloudRGB);
+            visPCL.updatePointCloud(m_tracking.pointCloud.cloud3D, m_tracking.pointCloud.cloudRGB);
+
+            //visVTK.updateCameras(m_tracking.camPoses, camera.K);
+            //visVTK.visualize(params.bVisEnable);
+            
+            visPCL.updateCameras(m_tracking.camPoses);
+            //visPCL.visualize(params.bVisEnable);
+
+            //visVTK.visualize(params.bVisEnable);
+            visPCL.visualize(params.bDebugVisE);
 
             cv::imshow(params.usrInpWinName, imOutUsrInp);
                 

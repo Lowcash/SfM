@@ -152,7 +152,7 @@ void Reconstruction::adjustBundle(Camera& camera, std::list<cv::Matx34d>& camPos
         ceres::LinearSolverType::DENSE_SCHUR : ceres::LinearSolverType::SPARSE_NORMAL_CHOLESKY;
 
     options.minimizer_progress_to_stdout = true;
-    options.eta = 1e-3;
+    options.eta = 1e-2;
     options.num_threads = std::thread::hardware_concurrency();
     options.max_num_iterations = 150;
 
