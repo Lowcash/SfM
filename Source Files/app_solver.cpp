@@ -155,7 +155,7 @@ void AppSolver::run() {
             }
             
             // attach user clicked points at the end of prev flow corners stack
-            // prepare points for movement
+            // prepare points to move
             if (!userInput.usrClickedPts2D.empty()) {
                 userInput.attachPointsToMove(userInput.usrClickedPts2D, ofPrevView.corners);
 
@@ -163,7 +163,7 @@ void AppSolver::run() {
             }
 
             // attach user saved points at the end of prev flow corners stack after clicked points
-            // prepare points for movement
+            // prepare points to move
             if (!userInput.usrPts2D.empty()) {
                 userInput.attachPointsToMove(userInput.usrPts2D, ofPrevView.corners);
             }
@@ -171,7 +171,7 @@ void AppSolver::run() {
             if (findGoodImages(cap, viewContainer) == ImageFindState::SOURCE_LOST) 
                 break;
             
-            // 
+            // prepare flow view images for flow computing
             ofPrevView.setView(viewContainer.getLastButOneItem());
             ofCurrView.setView(viewContainer.getLastOneItem());
 
@@ -179,10 +179,12 @@ void AppSolver::run() {
             ofCurrView.viewPtr->imColor.copyTo(imOutUsrInp);
 
             if (!ofPrevView.corners.empty()) {
+                // move user points and corners
                 optFlow.computeFlow(ofPrevView.viewPtr->imGray, ofCurrView.viewPtr->imGray, ofPrevView.corners, ofCurrView.corners, optFlow.statusMask, true, false);
 
                 optFlow.drawOpticalFlow(imOutRecPose, imOutRecPose, ofPrevView.corners, ofCurrView.corners, optFlow.statusMask);
 
+                // get saved user points from the end of the stack first
                 if (!userInput.usrPts2D.empty()) {
                     std::vector<cv::Point2f> _newPts2D;
                     userInput.detachPointsFromMove(_newPts2D, ofCurrView.corners, userInput.usrPts2D.size());
@@ -190,6 +192,7 @@ void AppSolver::run() {
                     userInput.filterPoints(_newPts2D, cv::Rect(cv::Point(), ofCurrView.viewPtr->imColor.size()), 10);
                 }
 
+                // get clicked user points from the end of the stack after saved points
                 if (!userInput.usrClickedPts2D.empty() && isPtAdded) {
                     std::vector<cv::Point2f> _newPts2D;
                     userInput.detachPointsFromMove(_newPts2D, ofCurrView.corners, userInput.usrClickedPts2D.size());
@@ -199,6 +202,7 @@ void AppSolver::run() {
                     userInput.usrClickedPts2D.clear();
                 }
 
+                // draw moved points
                 userInput.recoverPoints(imOutUsrInp);
             }
 
@@ -213,18 +217,23 @@ void AppSolver::run() {
 
             std::cout << "Iteration: " << iteration << "\n"; cv::waitKey(29);
 
+            // prepare views to load new frame
             std::swap(ofPrevView, ofCurrView);
             std::swap(featPrevView, featCurrView);
         }
         if (m_usedMethod == Method::VO) {
             bool isPtAdded = false;
 
+            // in the first iteration, the image is not ready yet -> cannot generate features
+            // generate features first, to avoid loss of user point in corners stack
             if (iteration != 1 && ofPrevView.corners.size() < optFlow.additionalSettings.minFeatures) {
                 ofPrevView.setView(viewContainer.getLastOneItem());
 
                 featDetector.generateFlowFeatures(ofPrevView.viewPtr->imGray, ofPrevView.corners, optFlow.additionalSettings.maxCorn, optFlow.additionalSettings.qualLvl, optFlow.additionalSettings.minDist);
             }
             
+            // attach user clicked points at the end of prev flow corners stack
+            // prepare points to move
             if (!userInput.usrClickedPts2D.empty()) {
                 userInput.attachPointsToMove(userInput.usrClickedPts2D, ofPrevView.corners);
 
