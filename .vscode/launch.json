@@ -11,7 +11,7 @@
             "program": "${workspaceFolder}/SfM_App.out",
             "args": [
             //--------------------------------- BASE --------------------------------//
-              "-bSource=/home/lowcash/Documents/SfM_Resources/Video/vid_mobile_6.mp4", 
+              "-bSource=/home/lowcash/Documents/SfM_Resources/Video/vid_mobile_6_cut.mp4", 
               //"-bSource=https://192.168.1.100:8080/video", 
               "-bcalib=/home/lowcash/Documents/SfM_Resources/Calibration/calib_mobile_0.yml", 
               //"-bcalib=/home/lowcash/Documents/SfM_Resources/Calibration/calib_KITTI_0.yml", 
@@ -27,11 +27,11 @@
               "-ofMinKPts=333", "-ofWinSize=30", "-ofMaxLevel=5", "-ofMaxItCt=250", "-ofItEps=0.01", "-ofMaxError=10.0", "-ofMaxCorn=2000", "-ofQualLvl=0.1", "-ofMinDist=5",
               
               //--------------------------- POSE ESTIMATION ---------------------------//
-              "-peMethod=RANSAC", "-peProb=0.95", "-peThresh=1.0", "-peMinInl=5", "-peMinMatch=25", "-pePMetrod=SOLVEPNP_EPNP", "-peExGuess=false", "-peNumIteR=500",
+              "-peMethod=RANSAC", "-peProb=0.95", "-peThresh=1.0", "-peMinInl=5", "-peMinMatch=10", "-pePMetrod=SOLVEPNP_EPNP", "-peExGuess=false", "-peNumIteR=500",
               //"-peMethod=RANSAC", "-peProb=0.99", "-peThresh=1.0", "-peMinInl=25", "-peMinMatch=50", "-pePMetrod=SOLVEPNP_P3P", "-peExGuess=false", "-peNumIteR=250",
               
               //-------------------------- BUNDLE ADJUSTMENT --------------------------//
-              "-baMethod=SPARSE_NORMAL_CHOLESKY", "-baMaxRMSE=10.0", "-baProcIt=5",
+              "-baMethod=SPARSE_NORMAL_CHOLESKY", "-baMaxRMSE=10.0", "-baProcIt=2",
 
               //---------------------------- TRIANGULATION ----------------------------//
               "-tMethod=DLT", "-tMinDist=0.0001", "-tMaxDist=250", "-tMaxPErr=3"

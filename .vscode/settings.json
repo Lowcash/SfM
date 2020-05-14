@@ -68,7 +68,9 @@
         "shared_mutex": "cpp",
         "core": "cpp",
         "polynomials": "cpp",
-        "*.txx": "cpp"
+        "*.txx": "cpp",
+        "geometry": "cpp",
+        "lu": "cpp"
     },
     "git.ignoreLimitWarning": true
 }

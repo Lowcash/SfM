@@ -67,10 +67,10 @@ public:
 
     PointCloud pointCloud;
 
-    cv::Matx33d R; cv::Matx31d t;
+    cv::Matx33d actualR; cv::Matx31d actualT;
 
     Tracking()
-        : R(cv::Matx33d::eye()), t(cv::Matx31d::eye()) {}
+        : actualR(cv::Matx33d::eye()), actualT(cv::Matx31d::eye()) {}
 
     void addTrackView(ViewData* view, const std::vector<bool>& mask, const std::vector<cv::Point2f>& points2D, const std::vector<cv::Vec3d> points3D, const std::vector<cv::Vec3b>& pointsRGB, const std::vector<cv::KeyPoint>& keyPoints, const cv::Mat& descriptor, std::map<std::pair<float, float>, size_t>& cloudMap, const std::vector<int>& ptsToKeyIdx = std::vector<int>());
 
@@ -89,7 +89,7 @@ public:
     bool addCamPose(const cv::Matx34d camPose) { 
         camPoses.push_back(camPose);
 
-        decomposeExtrinsicMat(camPose, R, t);
+        decomposeExtrinsicMat(camPose, actualR, actualT);
     }
 };
 

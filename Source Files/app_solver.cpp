@@ -273,13 +273,13 @@ void AppSolver::run() {
 
             cv::Matx34d _prevPose, _currPose;
 
-            composeExtrinsicMat(m_tracking.R, m_tracking.t, _prevPose);
+            composeExtrinsicMat(m_tracking.actualR, m_tracking.actualT, _prevPose);
 
             // move camera position by computed R a t from optical flow and essential matrix
-            m_tracking.t = m_tracking.t + (m_tracking.R * recPose.t);
-            m_tracking.R = m_tracking.R * recPose.R;
+            m_tracking.actualT = m_tracking.actualT + (m_tracking.actualR * recPose.t);
+            m_tracking.actualR = m_tracking.actualR * recPose.R;
 
-            composeExtrinsicMat(m_tracking.R, m_tracking.t, _currPose);
+            composeExtrinsicMat(m_tracking.actualR, m_tracking.actualT, _currPose);
             m_tracking.addCamPose(_currPose);
 
             // triangulate corners and user clicked points
@@ -301,7 +301,7 @@ void AppSolver::run() {
             }
 
             // draw moved points
-            userInput.recoverPoints(imOutUsrInp, m_tracking.pointCloud, camera.K, cv::Mat(m_tracking.R), cv::Mat(m_tracking.t));
+            userInput.recoverPoints(imOutUsrInp, m_tracking.pointCloud, camera.K, cv::Mat(m_tracking.actualR), cv::Mat(m_tracking.actualT));
 
             visVTK.updateCameras(m_tracking.camPoses, camera.K);
             //visVTK.addCamera();
@@ -357,8 +357,8 @@ void AppSolver::run() {
             ofPrevView.setView(viewContainer.getLastButOneItem());
             ofCurrView.setView(viewContainer.getLastOneItem());
 
-            ofPrevView.viewPtr->imColor.copyTo(imOutRecPose);
-            ofPrevView.viewPtr->imColor.copyTo(imOutUsrInp);
+            ofCurrView.viewPtr->imColor.copyTo(imOutRecPose);
+            ofCurrView.viewPtr->imColor.copyTo(imOutUsrInp);
 
             recPose.drawRecoveredPose(imOutRecPose, imOutRecPose, ofPrevView.corners, ofCurrView.corners, recPose.mask);
 
@@ -450,14 +450,14 @@ void AppSolver::run() {
                 visPCL.addPoints(_newPts3D);
             }
 
-            // draw moved points
-            userInput.recoverPoints(imOutUsrInp, m_tracking.pointCloud, camera.K, cv::Mat(m_tracking.R), cv::Mat(m_tracking.t));
-
             // register tracks for PnP 2D-3D matching and point cloud
             m_tracking.addTrackView(featCurrView.viewPtr, _mask, _currPts, _points3D, _pointsRGB, featCurrView.keyPts, featCurrView.descriptor, cloudMapping, _currIdx);
 
             // confirm camera pose and add it to stack
             m_tracking.addCamPose(_currPose);
+
+            // draw moved points
+            userInput.recoverPoints(imOutUsrInp, m_tracking.pointCloud, camera.K, cv::Mat(m_tracking.actualR), cv::Mat(m_tracking.actualT));
 
             //visVTK.updatePointCloud(m_tracking.cloud3D, m_tracking.cloudRGB);
             visPCL.updatePointCloud(m_tracking.pointCloud.cloud3D, m_tracking.pointCloud.cloudRGB);
