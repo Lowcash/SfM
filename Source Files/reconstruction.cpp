@@ -14,11 +14,8 @@ void Reconstruction::pointsToRGBCloud(Camera camera, cv::Mat imgColor, cv::Matx3
     const cv::Matx34d cameraProjMat = camera.K33d * cameraPose;
 
     for(size_t i = 0; i < points3D.rows; ++i) {
-        const cv::Vec3d point3D = m_useNormalizePts ? 
-            points3D.at<cv::Vec3d>(i) : (cv::Vec3d)points3D.at<cv::Vec3f>(i);
-        const cv::Vec2d _point2D = m_useNormalizePts ? 
-            _pts2D.at<cv::Vec2d>(i) : (cv::Vec2d)_pts2D.at<cv::Vec2f>(i);
-        
+        const cv::Vec2d _point2D = _pts2D.at<cv::Vec2d>(i);
+        const cv::Vec3d point3D = points3D.at<cv::Vec3d>(i);
         const cv::Vec2d point2D = inputPts2D.at<cv::Vec2d>(i);
         const cv::Vec3b imPoint2D = imgColor.at<cv::Vec3b>(cv::Point(point2D));
 
@@ -37,7 +34,6 @@ void Reconstruction::pointsToRGBCloud(Camera camera, cv::Mat imgColor, cv::Matx3
 
         //  set mask to filter bad projected points, points behind camera and points far away from camera
         mask.push_back( err <  maxProjErr && pCameraSpace(2) > minDist && pCameraSpace(2) < maxDist );
-        //mask.push_back( err <  maxProjErr);
     }
 }
 
