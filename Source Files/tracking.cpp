@@ -115,7 +115,7 @@ bool Tracking::findRecoveredCameraPose(DescriptorMatcher matcher, int minMatches
 
     cv::Mat _R, _t, _inliers;
 
-    for (auto t = trackViews.rbegin(); t != trackViews.rend(); ++t) {
+    for (auto t = trackViews.begin(); t != trackViews.end(); ++t) {
         if (t->keyPoints.empty() || featView.keyPts.empty()) { continue; }
 
         std::vector<cv::Point2f> _prevPts, _currPts;

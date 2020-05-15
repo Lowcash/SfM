@@ -469,10 +469,15 @@ void AppSolver::run() {
             //visPCL.visualize(params.bVisEnable);
 
             //visVTK.visualize(params.bVisEnable);
-            visPCL.visualize(params.bDebugVisE);
-
+            
             cv::imshow(params.usrInpWinName, imOutUsrInp);
-                
+
+            if (iteration == 2) {
+                visPCL.visualize(params.bDebugVisE, true);
+                cv::waitKey();
+            } else
+                visPCL.visualize(params.bDebugVisE);
+
             std::cout << "Iteration: " << iteration << "\n"; cv::waitKey(29);
 
             std::swap(ofPrevView, ofCurrView);

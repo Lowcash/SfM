@@ -20,7 +20,7 @@ int main(int argc, char** argv) {
 
         "{ fDecType  | AKAZE       | used detector type }"
         "{ fMatchType| BRUTEFORCE_HAMMING  | used matcher type }"
-        "{ fKnnRatio | 0.5        | knn ration match }"
+        "{ fKnnRatio | 0.5         | knn ration match }"
 
         "{ ofMinKPts | 333         | optical flow min descriptor to generate new one }"
         "{ ofWinSize | 30          | optical flow window size }"

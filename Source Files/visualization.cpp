@@ -13,7 +13,7 @@ boost::shared_ptr<pcl::visualization::PCLVisualizer> VisPCL::getNewViewer(const 
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr pointCloud(new pcl::PointCloud<pcl::PointXYZRGB>);
 
     viewer->addPointCloud<pcl::PointXYZRGB>(pointCloud);
-    viewer->setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 1);
+    //viewer->setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 1);
     viewer->setBackgroundColor(bColor.val[0], bColor.val[1], bColor.val[2]);
     viewer->initCameraParameters();
     viewer->setCameraPosition(0, 0, -50, 0, -1, 0);
@@ -46,7 +46,7 @@ void VisPCL::addPoints(const std::vector<cv::Vec3d> points3D) {
     for (const auto& p : points3D) {
         pcl::PointXYZ pclPose(p.val[0], p.val[1], p.val[2]);
 
-        m_viewer->addSphere(pclPose, 1.5, 128, 0, 128, "point_" + std::to_string(m_numPoints));
+        m_viewer->addSphere(pclPose, 1.0, 128, 0, 128, "point_" + std::to_string(m_numPoints));
 
         m_numPoints++;
     }
@@ -59,11 +59,11 @@ void VisPCL::updateCameras(const std::list<cv::Matx34d> camPoses) {
         pcl::PointXYZ pclPose; cvPoseToInversePCLPose(c, pclPose);
         
         if (idx == m_numCams) {
-            m_viewer->addSphere(pclPose, 0.5, 255, 0, 0, "cam_pose_" + std::to_string(idx));
+            m_viewer->addSphere(pclPose, 1.5, 255, 0, 0, "cam_pose_" + std::to_string(idx));
             m_numCams++;
         }
         else
-            m_viewer->updateSphere(pclPose, 0.25, 255, 165, 0, "cam_pose_" + std::to_string(idx));
+            m_viewer->updateSphere(pclPose, 0.75, 255, 165, 0, "cam_pose_" + std::to_string(idx));
     }
 }
 
@@ -114,7 +114,7 @@ void VisVTK::updatePointCloud(const std::list<cv::Vec3d>& points3D, const std::l
 
 void VisVTK::addPoints(const std::vector<cv::Vec3d> points3D) {
     for (const auto& p : points3D) {
-        const cv::viz::WSphere _point(cv::Point3d(), 1.5, 20, cv::viz::Color::purple());
+        const cv::viz::WSphere _point(cv::Point3d(), 1.0, 20, cv::viz::Color::purple());
 
         m_viewer.showWidget("point_" + std::to_string(m_numPoints), _point, cv::Affine3d(cv::Vec3d(), p));
 
