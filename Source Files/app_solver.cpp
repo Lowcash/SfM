@@ -136,10 +136,8 @@ void AppSolver::run() {
     
     // initialize visualization windows VTK, PCL
     VisPCL visPCL(params.ptCloudWinName + " PCL", params.winSize);
-    std::thread visPCLThread(&VisPCL::visualize, &visPCL);
 
-    VisVTK visVTK(params.ptCloudWinName + " VTK", params.winSize);
-    //std::thread visVTKThread(&VisVTK::visualize, &visVTK);
+    //VisVTK visVTK(params.ptCloudWinName + " VTK", params.winSize);
 #pragma endregion INIT
 
     for (uint iteration = 1; ; ++iteration) {
@@ -297,16 +295,14 @@ void AppSolver::run() {
                 
                 userInput.usrClickedPts2D.clear();
                 
-                visVTK.addPoints(_newPts3D);
+                //visVTK.addPoints(_newPts3D);
             }
 
             // draw moved points
             userInput.recoverPoints(imOutUsrInp, m_tracking.pointCloud, camera.K, cv::Mat(m_tracking.actualR), cv::Mat(m_tracking.actualT));
 
-            visVTK.updateCameras(m_tracking.camPoses, camera.K);
+            //visVTK.updateCameras(m_tracking.camPoses, camera.K);
             //visVTK.addCamera();
-            //visVTK.visualize(params.bDebugVisE);
-            visVTK.visualize();
 
             cv::imshow(params.usrInpWinName, imOutUsrInp);
 
