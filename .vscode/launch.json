@@ -11,18 +11,18 @@
             "program": "${workspaceFolder}/SfM_App.out",
             "args": [
             //--------------------------------- BASE --------------------------------//
-              "-bSource=/home/lowcash/Documents/SfM_Resources/Video/stul_noc.mp4", 
+              "-bSource=/home/lowcash/Documents/SfM_Resources/Video/stul_den.mp4", 
               //"-bSource=https://192.168.1.100:8080/video", 
-              "-bcalib=/home/lowcash/Documents/SfM_Resources/Calibration/calib_mobile_0.yml", 
+              "-bcalib=/home/lowcash/Documents/SfM_Resources/Calibration/calib_mobile.yml", 
               //"-bcalib=/home/lowcash/Documents/SfM_Resources/Calibration/calib_KITTI_0.yml", 
-              "-bDownSamp=0.5", "-bWinWidth=960", "-bWinHeight=540", "-bUseMethod=PNP", "-bMaxSkFram=15", "-bDebugVisE=true", "-bDebugMatE=false",
+              "-bDownSamp=2.0", "-bWinWidth=960", "-bWinHeight=540", "-bUseMethod=PNP", "-bMaxSkFram=15", "-bDebugVisE=true", "-bDebugMatE=false",
             
               //------------------------------- FEATURES ------------------------------//
               //"-fDecType=ORB", "-fMatchType=BRUTEFORCE_HAMMING", "-fKnnRatio=0.5",
-              //"-fDecType=AKAZE", "-fMatchType=BRUTEFORCE_HAMMING", "-fKnnRatio=0.5",
+              "-fDecType=AKAZE", "-fMatchType=BRUTEFORCE_HAMMING", "-fKnnRatio=0.5",
               //"-fDecType=FAST", "-fMatchType=BRUTEFORCE_HAMMING", "-fKnnRatio=0.5",
               //"-fDecType=SIFT", "-fMatchType=FLANNBASED", "-fKnnRatio=0.5",
-              "-fDecType=SURF", "-fMatchType=FLANNBASED", "-fKnnRatio=0.5",
+              //"-fDecType=SURF", "-fMatchType=FLANNBASED", "-fKnnRatio=0.5",
 
               //----------------------------- OPTICAL FLOW ----------------------------//
               "-ofMinKPts=333", "-ofWinSize=30", "-ofMaxLevel=5", "-ofMaxItCt=250", "-ofItEps=0.01", "-ofMaxError=10.0", "-ofMaxCorn=2000", "-ofQualLvl=0.1", "-ofMinDist=5",
@@ -35,7 +35,7 @@
               "-baMethod=SPARSE_NORMAL_CHOLESKY", "-baMaxRMSE=10.0", "-baProcIt=5",
 
               //---------------------------- TRIANGULATION ----------------------------//
-              "-tMethod=DLT", "-tMinDist=0.0001", "-tMaxDist=250", "-tMaxPErr=2"
+              "-tMethod=ITERATIVE", "-tMinDist=0.0001", "-tMaxDist=500", "-tMaxPErr=3"
             ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",

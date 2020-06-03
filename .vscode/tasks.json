@@ -17,8 +17,8 @@
                 "-o", "${workspaceFolder}/SfM_App.out",
                 "-I", "/usr/local/include/opencv4",
                 "-I", "/usr/local/include/ceres",
-                "-I", "/usr/local/include/pcl-1.10",
-                "-I", "/usr/local/include/vtk-8.1",
+                "-I", "/usr/include/pcl-1.10",
+                "-I", "/usr/include/vtk-7.1",
                 "-I", "/usr/include/eigen3",
                 "-I", "${workspaceFolder}/Header Files",
                 "-I", "${workspaceFolder}/Source Files",
@@ -26,7 +26,7 @@
                 
                 "-lpthread",
 
-                "-lopencv_core", "-lopencv_imgproc", "-lopencv_imgcodecs", "-lopencv_flann", "-lopencv_highgui", "-lopencv_calib3d", "-lopencv_sfm", "-lopencv_videoio", "-lopencv_video", "-lopencv_features2d", "-lopencv_xfeatures2d", "-lopencv_viz", 
+                "-lopencv_core", "-lopencv_imgproc", "-lopencv_imgcodecs", "-lopencv_flann", "-lopencv_highgui", "-lopencv_calib3d", "-lopencv_videoio", "-lopencv_video", "-lopencv_features2d", "-lopencv_xfeatures2d", "-lopencv_viz", 
                 "-lopencv_tracking",
 
                 "-lceres", "-lglog",
@@ -35,7 +35,7 @@
 
                 "-lpcl_io", "-lpcl_visualization", "-lpcl_common", 
                 
-                "-lvtkRenderingCore-8.1", "-lvtkRenderingLOD-8.1", "-lvtkFiltersSources-8.1", "-lvtkCommonExecutionModel-8.1", "-lvtkCommonDataModel-8.1", "-lvtkCommonMath-8.1", "-lvtkCommonCore-8.1", 
+                "-lvtkRenderingCore-7.1", "-lvtkRenderingLOD-7.1", "-lvtkFiltersSources-7.1", "-lvtkCommonExecutionModel-7.1", "-lvtkCommonDataModel-7.1", "-lvtkCommonMath-7.1", "-lvtkCommonCore-7.1", 
             ],
             "group": {
                 "kind": "build",

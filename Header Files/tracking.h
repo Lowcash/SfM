@@ -90,6 +90,8 @@ public:
         camPoses.push_back(camPose);
 
         decomposeExtrinsicMat(camPose, actualR, actualT);
+
+        return true;
     }
 };
 

@@ -13,7 +13,7 @@ public:
 
     virtual void addPoints(const std::vector<cv::Vec3d> points3D) = 0;
 
-    virtual void visualize(const bool isEnabled, const bool isInfinite) = 0;
+    //virtual void visualize(const bool isEnabled, const bool isInfinite) = 0;
 };
 
 #endif //IVISUALIZABLE_H

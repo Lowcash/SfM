@@ -1,11 +1,11 @@
 #include "visualization.h"
 
 VisPCL::VisPCL(const std::string windowName, const cv::Size windowSize, const cv::viz::Color backgroundColor) {
-    m_viewer = getNewViewer(windowName, windowSize, backgroundColor);
+    // m_viewer = getNewViewer(windowName, windowSize, backgroundColor);
 
-    m_numClouds = 0;
-    m_numCams = 0;
-    m_numPoints = 0;
+    // m_numClouds = 0;
+    // m_numCams = 0;
+    // m_numPoints = 0;
 }
 
 boost::shared_ptr<pcl::visualization::PCLVisualizer> VisPCL::getNewViewer(const std::string windowName, const cv::Size windowSize, const cv::viz::Color bColor) {
@@ -39,7 +39,11 @@ void VisPCL::updatePointCloud(const std::list<cv::Vec3d>& points3D, const std::l
         pointCloud->push_back(rgbPoint);
     }
 
+    m_visMutex.lock();
+
     m_viewer->updatePointCloud(pointCloud);
+
+    m_visMutex.unlock();
 }
 
 void VisPCL::addPoints(const std::vector<cv::Vec3d> points3D) {
@@ -67,12 +71,28 @@ void VisPCL::updateCameras(const std::list<cv::Matx34d> camPoses) {
     }
 }
 
-void VisPCL::visualize(const bool isEnabled, const bool isInfinite) {
+/*void VisPCL::visualize(const bool isEnabled, const bool isInfinite) {
     if (isEnabled) {
         if (isInfinite)
             m_viewer->spin();
         else
             m_viewer->spinOnce(1, true);
+    }
+}*/
+
+void VisPCL::visualize() {
+    m_viewer = getNewViewer("PCL", cv::Size(920, 640), cv::viz::Color::black());
+
+    m_numClouds = 0;
+    m_numCams = 0;
+    m_numPoints = 0;
+
+    while (!m_viewer->wasStopped()) {
+        m_visMutex.lock();
+
+        m_viewer->spinOnce(29, true);
+
+        m_visMutex.unlock();
     }
 }
 
@@ -155,11 +175,15 @@ void VisVTK::addCamera(const std::list<cv::Matx34d> camPoses, const cv::Matx33d 
     m_numCams++;
 }
 
-void VisVTK::visualize(const bool isEnabled, const bool isInfinite) {
+/*void VisVTK::visualize(const bool isEnabled, const bool isInfinite) {
     if (isEnabled) {
         if (isInfinite)
             m_viewer.spin();
         else
             m_viewer.spinOnce(1, true);
     }
+}*/
+
+void VisVTK::visualize() {
+    m_viewer.spinOnce(1, true);
 }

@@ -46,7 +46,7 @@ int main(int argc, char** argv) {
         "{ baMaxRMSE | 10.0        | bundle adjustment max RMSE error to recover from back up }"
         "{ baProcIt  | 5           | bundle adjustment process each %d iteration }"
 
-        "{ tMethod   | DLT         | triangulation method ITERATIVE/DLT }"
+        "{ tMethod   | ITERATIVE   | triangulation method ITERATIVE/DLT }"
         "{ tMinDist  | 0.0001      | triangulation points min distance }"
         "{ tMaxDist  | 250         | triangulation points max distance }"
         "{ tMaxPErr  | 3.0         | triangulation points max reprojection error }"

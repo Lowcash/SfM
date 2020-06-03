@@ -7,7 +7,7 @@ int AppSolver::prepareImage(cv::VideoCapture& cap, cv::Mat& imColor, cv::Mat& im
         return ImageFindState::SOURCE_LOST;
 
     if (params.bDownSamp != 1.0f)
-        cv::resize(imColor, imColor, cv::Size(imColor.cols*params.bDownSamp, imColor.rows*params.bDownSamp));
+        cv::resize(imColor, imColor, cv::Size(imColor.cols/params.bDownSamp, imColor.rows/params.bDownSamp));
 
     cv::cvtColor(imColor, imGray, cv::COLOR_BGR2GRAY);
 
@@ -133,10 +133,10 @@ void AppSolver::run() {
     UserInputDataParams mouseUsrDataParams(&userInput);
 
     cv::setMouseCallback(params.usrInpWinName, onUsrWinClick, (void*)&mouseUsrDataParams);
-
+    
     // initialize visualization windows VTK, PCL
     VisPCL visPCL(params.ptCloudWinName + " PCL", params.winSize);
-    //std::thread visPCLThread(&VisPCL::visualize, &visPCL);
+    std::thread visPCLThread(&VisPCL::visualize, &visPCL);
 
     VisVTK visVTK(params.ptCloudWinName + " VTK", params.winSize);
     //std::thread visVTKThread(&VisVTK::visualize, &visVTK);
@@ -305,7 +305,8 @@ void AppSolver::run() {
 
             visVTK.updateCameras(m_tracking.camPoses, camera.K);
             //visVTK.addCamera();
-            visVTK.visualize(params.bDebugVisE);
+            //visVTK.visualize(params.bDebugVisE);
+            visVTK.visualize();
 
             cv::imshow(params.usrInpWinName, imOutUsrInp);
 
@@ -446,8 +447,8 @@ void AppSolver::run() {
                 
                 userInput.usrClickedPts2D.clear();
                 
-                visVTK.addPoints(_newPts3D);
-                visPCL.addPoints(_newPts3D);
+                //visVTK.addPoints(_newPts3D);
+                //visPCL.addPoints(_newPts3D);
             }
 
             // register tracks for PnP 2D-3D matching and point cloud
@@ -465,18 +466,15 @@ void AppSolver::run() {
             //visVTK.updateCameras(m_tracking.camPoses, camera.K);
             //visVTK.visualize(params.bVisEnable);
             
-            visPCL.updateCameras(m_tracking.camPoses);
+            //visPCL.updateCameras(m_tracking.camPoses);
             //visPCL.visualize(params.bVisEnable);
 
             //visVTK.visualize(params.bVisEnable);
             
             cv::imshow(params.usrInpWinName, imOutUsrInp);
 
-            if (iteration == 2) {
-                visPCL.visualize(params.bDebugVisE, true);
-                cv::waitKey();
-            } else
-                visPCL.visualize(params.bDebugVisE);
+            //visPCL.visualize(params.bDebugVisE);
+            //visPCL.visualize();
 
             std::cout << "Iteration: " << iteration << "\n"; cv::waitKey(29);
 
@@ -486,7 +484,7 @@ void AppSolver::run() {
     }
 
     if (m_usedMethod == Method::PNP) {
-        visVTK.visualize(params.bDebugVisE, true);
-        visPCL.visualize(params.bDebugVisE, true);
+        //visVTK.visualize(params.bDebugVisE, true);
+        //visPCL.visualize(params.bDebugVisE, true);
     }
 }

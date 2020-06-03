@@ -60,7 +60,7 @@ void Reconstruction::triangulateCloud(Camera camera, const std::vector<cv::Point
         _projMats.push_back(cv::Mat(camera.K33d * prevPose));
         _projMats.push_back(cv::Mat(camera.K33d * currPose));
 
-        cv::sfm::triangulatePoints(_pts, _projMats, _pts3D); _pts3D = _pts3D.t();
+        //cv::sfm::triangulatePoints(_pts, _projMats, _pts3D); _pts3D = _pts3D.t();
     } else {
         cv::triangulatePoints(camera.K33d * prevPose, camera.K33d * currPose, _prevPtsMat, _currPtsMat, _homogPts);
         cv::convertPointsFromHomogeneous(_homogPts.t(), _pts3D);
