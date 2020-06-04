@@ -25,18 +25,18 @@ public:
         this->K = K / downSample;
         this->K.at<double>(2,2) = 1.0;
 
-        std::cout << "\nCamera intrices: " << this->K << "\n";
-
         this->distCoeffs = distCoeffs;
 
-        K33d = cv::Matx33d(
+        this->K33d = cv::Matx33d(
             this->K.at<double>(0,0), this->K.at<double>(0,1), this->K.at<double>(0,2),
             this->K.at<double>(1,0), this->K.at<double>(1,1), this->K.at<double>(1,2), 
             this->K.at<double>(2,0), this->K.at<double>(2,1), this->K.at<double>(2,2)
         );
 
-        pp = cv::Point2d(this->K.at<double>(0, 2), this->K.at<double>(1, 2));
-        focal = cv::Point2d(this->K.at<double>(0, 0), this->K.at<double>(1, 1));
+        this->pp = cv::Point2d(this->K.at<double>(0, 2), this->K.at<double>(1, 2));
+        this->focal = cv::Point2d(this->K.at<double>(0, 0), this->K.at<double>(1, 1));
+
+        std::cout << "\nCamera intrices: " << this->K << "\n";
     }
 };
 

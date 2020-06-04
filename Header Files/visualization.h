@@ -34,7 +34,7 @@ public:
 
     ~VisPCL();
 
-    void updatePointCloud(const std::list<cv::Vec3d>& points3D, const std::list<cv::Vec3b>& pointsRGB);
+    void updatePointCloud(const std::list<cv::Vec3d>& points3D, const std::list<cv::Vec3b>& pointsRGB, const std::vector<bool>& pointsMask);
 
     void addPoints(const std::vector<cv::Vec3d> points3D);
     
@@ -74,7 +74,7 @@ public:
 
     ~VisVTK();
 
-    void updatePointCloud(const std::list<cv::Vec3d>& points3D, const std::list<cv::Vec3b>& pointsRGB);
+    void updatePointCloud(const std::list<cv::Vec3d>& points3D, const std::list<cv::Vec3b>& pointsRGB, const std::vector<bool>& pointsMask);
     
     void addPoints(const std::vector<cv::Vec3d> points3D);
 

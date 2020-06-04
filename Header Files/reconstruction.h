@@ -30,6 +30,9 @@ public:
 };
 
 class PointCloud {
+    const double m_clearRatio;
+
+    size_t m_numCloudPts;
 public:
     std::vector<cv::Vec3d*> cloudMapper;
 
@@ -39,23 +42,59 @@ public:
     // Result cloud colors -> not updated
     std::list<cv::Vec3b> cloudRGB;
 
+    // Cloud render/computing visibility mask
+    std::vector<bool> cloudMask;
+
     // Registered views and projections for each cloud point
     std::vector<CloudTrack> cloudTracks;
     
+    PointCloud(const double clearRatio = .5) 
+        : m_clearRatio(clearRatio), m_numCloudPts(0) {}
+
     void addCloudPoint(const cv::Point2f projPosition2D, const cv::Vec3d cloudPoint3D, const cv::Vec3b cloudPointRGB, const size_t cameraIdx) {
         cloud3D.push_back(cloudPoint3D);
         cloudRGB.push_back(cloudPointRGB);
+        cloudMask.push_back(true);
 
         // create and register cloud view
         cloudTracks.push_back(CloudTrack(&*cloud3D.rbegin(), projPosition2D, cameraIdx));
 
         // map to cloud to enable random access
         cloudMapper.push_back(&*cloud3D.rbegin());
+
+        m_numCloudPts++;
+    }
+
+    void removeCloudPoint(bool& cloudMaskPt) {
+        cloudMaskPt = false;
+
+        m_numCloudPts--;
     }
 
     void registerCloudView(const size_t cloudPointIdx, const cv::Point2f projPosition2D, const size_t cameraIdx) {
         cloudTracks[cloudPointIdx].addTrack(projPosition2D, cameraIdx);
     }
+
+    void clearCloud() {
+        size_t clearedTracks = 0;
+
+        for (auto [pMask, pMaskEnd, pTr, pTrEnd] = std::tuple{cloudMask.begin(), cloudMask.end(), cloudTracks.begin(), cloudTracks.end()}; pMask != pMaskEnd && pTr != pTrEnd; ++pMask, ++pTr) {
+            if ((bool)*pMask) {
+                if(pTr->extrinsicsIdxs.size() < 2) {
+                    clearedTracks++;
+
+                    *pMask = false;
+
+                    m_numCloudPts--;
+                    //removeCloudPoint((bool)&*pMask);
+                }
+            }
+        }
+
+        std::cout << "Cleared tracks: [" << clearedTracks << "/" << m_numCloudPts << "]\n"; 
+    }
+
+    size_t getNumCloudPoints() const { return m_numCloudPts; }
 };
 
 struct SnavelyReprojectionError {

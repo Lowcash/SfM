@@ -291,7 +291,7 @@ void AppSolver::run() {
                 userInput.detachPointsFromMove(_newPts2D, ofCurrView.corners, userInput.usrClickedPts2D.size());
                 userInput.detachPointsFromReconstruction(_newPts3D, _points3D, _pointsRGB, _mask, userInput.usrClickedPts2D.size());
 
-                userInput.addPoints(_newPts2D, _newPts3D, m_tracking.pointCloud, m_tracking.trackViews.size());
+                userInput.addPoints(_newPts2D, _newPts3D, m_tracking.pointCloud, m_tracking.getTrackViews().size());
                 
                 userInput.usrClickedPts2D.clear();
                 
@@ -317,8 +317,11 @@ void AppSolver::run() {
 
             if (iteration != 1) {
                 // do bundle adjust after loop iteration to avoid "continue" statement
-                if (iteration % params.baProcIt == 1 || params.baProcIt == 1)
-                    reconstruction.adjustBundle(camera, m_tracking.camPoses, m_tracking.pointCloud);
+                if (iteration % params.baProcIt == 1 || params.baProcIt == 1) {
+                    m_tracking.pointCloud.clearCloud();
+
+                    reconstruction.adjustBundle(camera, m_tracking.getCamPoses(), m_tracking.pointCloud);
+                }
 
                 if (ofPrevView.corners.size() < optFlow.additionalSettings.minFeatures) {
                     ofPrevView.setView(viewContainer.getLastOneItem());
@@ -413,10 +416,10 @@ void AppSolver::run() {
 
             // prepare previous and current camera poses for triangulation
             // previous camera pose is last camera pose in scene, current is from camera estimation
-            if (m_tracking.camPoses.empty())
+            if (m_tracking.getCamPoses().empty())
                 composeExtrinsicMat(cv::Matx33d::eye(), cv::Matx31d::eye(), _prevPose);
             else
-                _prevPose = m_tracking.camPoses.back();
+                _prevPose = m_tracking.getLastCam();
     
             composeExtrinsicMat(recPose.R, recPose.t, _currPose);
 
@@ -439,7 +442,7 @@ void AppSolver::run() {
             if (!userInput.usrClickedPts2D.empty() && isPtAdded) {       
                 userInput.detachPointsFromReconstruction(_newPts3D, _points3D, _pointsRGB, _mask, userInput.usrClickedPts2D.size());
 
-                userInput.addPoints(_newPts2D, _newPts3D, m_tracking.pointCloud, m_tracking.trackViews.size());
+                userInput.addPoints(_newPts2D, _newPts3D, m_tracking.pointCloud, m_tracking.getTrackViews().size());
                 
                 userInput.usrClickedPts2D.clear();
                 
@@ -456,31 +459,18 @@ void AppSolver::run() {
             // draw moved points
             userInput.recoverPoints(imOutUsrInp, m_tracking.pointCloud, camera.K, cv::Mat(m_tracking.actualR), cv::Mat(m_tracking.actualT));
 
-            //visVTK.updatePointCloud(m_tracking.cloud3D, m_tracking.cloudRGB);
-            visPCL.updatePointCloud(m_tracking.pointCloud.cloud3D, m_tracking.pointCloud.cloudRGB);
+            //visVTK.updatePointCloud(m_tracking.pointCloud.cloud3D, m_tracking.pointCloud.cloudRGB);
+            visPCL.updatePointCloud(m_tracking.pointCloud.cloud3D, m_tracking.pointCloud.cloudRGB, m_tracking.pointCloud.cloudMask);
 
-            //visVTK.updateCameras(m_tracking.camPoses, camera.K);
-            //visVTK.visualize(params.bVisEnable);
-            
-            //visPCL.updateCameras(m_tracking.camPoses);
-            //visPCL.visualize(params.bVisEnable);
-
-            //visVTK.visualize(params.bVisEnable);
+            //visVTK.updateCameras(m_tracking.getCamPoses(), camera.K);
+            visPCL.updateCameras(m_tracking.getCamPoses());
             
             cv::imshow(params.usrInpWinName, imOutUsrInp);
-
-            //visPCL.visualize(params.bDebugVisE);
-            //visPCL.visualize();
 
             std::cout << "Iteration: " << iteration << "\n"; cv::waitKey(29);
 
             std::swap(ofPrevView, ofCurrView);
             std::swap(featPrevView, featCurrView);
         }
-    }
-
-    if (m_usedMethod == Method::PNP) {
-        //visVTK.visualize(params.bDebugVisE, true);
-        //visPCL.visualize(params.bDebugVisE, true);
     }
 }

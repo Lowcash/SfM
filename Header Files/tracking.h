@@ -54,17 +54,16 @@ public:
 };
 
 class Tracking {
-public:
     // Good track used for matching
-    std::list<TrackView> trackViews;
+    std::list<TrackView> m_trackViews;
 
     // Result camera poses -> updated by bundle adjuster
-    std::list<cv::Matx34d> camPoses;
+    std::list<cv::Matx34d> m_camPoses;
 
     // CloudTracks same size as cloud3D
     // Cameras and 2D point projections which affect cloud
-    std::vector<CloudTrack> cloudTracks;
-
+    std::vector<CloudTrack> m_cloudTracks;
+public:
     PointCloud pointCloud;
 
     cv::Matx33d actualR; cv::Matx31d actualT;
@@ -87,12 +86,20 @@ public:
     bool findRecoveredCameraPose(DescriptorMatcher matcher, int minMatches, Camera camera, FeatureView& featView, RecoveryPose& recPose, std::map<std::pair<float, float>, size_t>& cloudMap);
 
     bool addCamPose(const cv::Matx34d camPose) { 
-        camPoses.push_back(camPose);
+        m_camPoses.push_back(camPose);
 
         decomposeExtrinsicMat(camPose, actualR, actualT);
 
         return true;
     }
+
+    std::list<cv::Matx34d>& getCamPoses() { return *&m_camPoses; }
+
+    cv::Matx34d getLastCam() { return m_camPoses.back(); }
+
+    std::list<TrackView>& getTrackViews() { return *&m_trackViews; }
+
+    TrackView getLastTrackView() { return m_trackViews.back(); }
 };
 
 #endif //TRACKING_H
