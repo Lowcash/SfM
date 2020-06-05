@@ -38,6 +38,8 @@ public:
 
     void addPoints(const std::vector<cv::Vec3d> points3D);
     
+    void addCamera(const cv::Matx34d camPose, const cv::Matx33d K33d);
+    
     void updateCameras(const std::list<cv::Matx34d> camPoses);
 
     void visualize(const std::string windowName, const cv::Size windowSize, const cv::viz::Color backgroundColor);
@@ -78,9 +80,9 @@ public:
     
     void addPoints(const std::vector<cv::Vec3d> points3D);
 
-    void updateCameras(const std::list<cv::Matx34d> camPoses, const cv::Matx33d K33d);
+    void addCamera(const cv::Matx34d camPose, const cv::Matx33d K33d);
 
-    void addCamera(const std::list<cv::Matx34d> camPoses, const cv::Matx33d K33d);
+    void updateCameras(const std::list<cv::Matx34d> camPoses, const cv::Matx33d K33d);
 
     void visualize(const std::string windowName, const cv::Size windowSize, const cv::viz::Color backgroundColor);
 };

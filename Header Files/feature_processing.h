@@ -39,9 +39,11 @@ public:
 
     const float m_ratioThreshold;
 
+    const cv::Size m_visDebugWinSize;
+
     cv::Ptr<cv::DescriptorMatcher> matcher;
 
-    DescriptorMatcher(std::string method, const float ratioThreshold, const bool isVisDebug = false);
+    DescriptorMatcher(std::string method, const float ratioThreshold, const bool isVisDebug = false, const cv::Size visDebugWinSize = cv::Size());
 
     /** 
      * Knn ratio match by threshold
@@ -71,6 +73,9 @@ public:
 };
 
 class OptFlow {
+private:
+    void filterComputedPoints(std::vector<cv::Point2f>& prevPts, std::vector<cv::Point2f>& currPts, std::vector<uchar>& statusMask, std::vector<float> err, cv::Rect boundary, bool useBoundaryCorrection, bool useErrorCorrection);
+
 public:
     cv::Ptr<cv::SparsePyrLKOpticalFlow> optFlow;
 
@@ -88,6 +93,16 @@ public:
      *  @param useErrorCorrection filter by optical flow error
      */
     void computeFlow(cv::Mat imPrevGray, cv::Mat imCurrGray, std::vector<cv::Point2f>& prevPts, std::vector<cv::Point2f>& currPts, std::vector<uchar>& statusMask, bool useBoundaryCorrection = false, bool useErrorCorrection = false);
+
+    /** 
+     *  Compute optical flow between grayscale images and move user points
+     *  It also filters bad points -> depending on the settings
+     *  
+     *  @param usrPts input/output vector of moved user points
+     *  @param useBoundaryCorrection filter by image boudary
+     *  @param useErrorCorrection filter by optical flow error
+     */
+    void computeFlow(cv::Mat imPrevGray, cv::Mat imCurrGray, std::vector<cv::Point2f>& prevPts, std::vector<cv::Point2f>& currPts, std::vector<cv::Point2f>& usrPts, std::vector<uchar>& statusMask, bool useBoundaryCorrection = false, bool useErrorCorrection = false);
 
     void drawOpticalFlow(cv::Mat inputImg, cv::Mat& outputImg, const std::vector<cv::Point2f> prevPts, const std::vector<cv::Point2f> currPts, std::vector<uchar> statusMask);
 };

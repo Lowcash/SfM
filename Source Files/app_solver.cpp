@@ -101,7 +101,7 @@ void AppSolver::run() {
     Camera camera(params.cameraK, params.distCoeffs, params.bDownSamp);
 
     FeatureDetector featDetector(params.fDecType);
-    DescriptorMatcher descMatcher(params.fMatchType, params.fKnnRatio, params.bDebugMatE);
+    DescriptorMatcher descMatcher(params.fMatchType, params.fKnnRatio, params.bDebugMatE, params.winSize);
     
     cv::TermCriteria flowTermCrit(cv::TermCriteria::COUNT + cv::TermCriteria::EPS, params.ofMaxItCt, params.ofItEps);
     OptFlow optFlow(flowTermCrit, params.ofWinSize, params.ofMaxLevel, params.ofMaxError, params.ofMaxCorn, params.ofQualLvl, params.ofMinDist, params.ofMinKPts);
@@ -179,7 +179,7 @@ void AppSolver::run() {
 
             if (!ofPrevView.corners.empty()) {
                 // move user points and corners
-                optFlow.computeFlow(ofPrevView.viewPtr->imGray, ofCurrView.viewPtr->imGray, ofPrevView.corners, ofCurrView.corners, optFlow.statusMask, true, false);
+                optFlow.computeFlow(ofPrevView.viewPtr->imGray, ofCurrView.viewPtr->imGray, ofPrevView.corners, ofCurrView.corners, optFlow.statusMask, true, true);
 
                 optFlow.drawOpticalFlow(imOutRecPose, imOutRecPose, ofPrevView.corners, ofCurrView.corners, optFlow.statusMask);
 
@@ -301,8 +301,7 @@ void AppSolver::run() {
             // draw moved points
             userInput.recoverPoints(imOutUsrInp, m_tracking.pointCloud, camera.K, cv::Mat(m_tracking.actualR), cv::Mat(m_tracking.actualT));
 
-            //visVTK.updateCameras(m_tracking.camPoses, camera.K);
-            //visVTK.addCamera();
+            visPCL.addCamera(m_tracking.getLastCam() , camera.K);
 
             cv::imshow(params.usrInpWinName, imOutUsrInp);
 
@@ -318,7 +317,7 @@ void AppSolver::run() {
             if (iteration != 1) {
                 // do bundle adjust after loop iteration to avoid "continue" statement
                 if (iteration % params.baProcIt == 1 || params.baProcIt == 1) {
-                    m_tracking.pointCloud.clearCloud();
+                    //m_tracking.pointCloud.clearCloud();
 
                     reconstruction.adjustBundle(camera, m_tracking.getCamPoses(), m_tracking.pointCloud);
                 }

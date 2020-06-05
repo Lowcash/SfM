@@ -25,7 +25,7 @@ FeatureDetector::FeatureDetector(std::string method) {
 
     switch (m_detectorType) {
         case DetectorType::AKAZE: {
-            detector = extractor = cv::AKAZE::create();
+            detector = extractor = cv::AKAZE::create(cv::AKAZE::DescriptorType::DESCRIPTOR_MLDB, 0, 3, 0.001f, 3, 3, cv::KAZE::DiffusivityType::DIFF_WEICKERT);
 
             break;
         }
@@ -97,8 +97,8 @@ void FeatureDetector::generateFlowFeatures(cv::Mat& imGray, std::vector<cv::Poin
     std::cout << "[DONE]";
 }
 
-DescriptorMatcher::DescriptorMatcher(std::string method, const float ratioThreshold, const bool isVisDebug)
-    : m_ratioThreshold(ratioThreshold), m_isVisDebug(isVisDebug) {
+DescriptorMatcher::DescriptorMatcher(std::string method, const float ratioThreshold, const bool isVisDebug, const cv::Size visDebugWinSize)
+    : m_ratioThreshold(ratioThreshold), m_isVisDebug(isVisDebug), m_visDebugWinSize(cv::Size(visDebugWinSize.width * 2, visDebugWinSize.height)) {
 
     std::for_each(method.begin(), method.end(), [](char& c){
         c = ::toupper(c);
@@ -153,6 +153,8 @@ void DescriptorMatcher::findRobustMatches(std::vector<cv::KeyPoint> prevKeyPts, 
 
         drawMatches(debugPrevFrame, debugCurrFrame, _imKnnMatch, prevKeyPts, currKeyPts, fMatches, _matchHeader);
 
+        cv::resize(_imKnnMatch, _imKnnMatch, m_visDebugWinSize);
+
         cv::imshow(_matchHeader, _imKnnMatch);
 
         cv::waitKey(29);
@@ -183,6 +185,8 @@ void DescriptorMatcher::findRobustMatches(std::vector<cv::KeyPoint> prevKeyPts, 
         cv::Mat _imCrossMatching;
 
         drawMatches(debugPrevFrame, debugCurrFrame, _imCrossMatching, prevKeyPts, currKeyPts, matches, _matchHeader);
+
+        cv::resize(_imCrossMatching, _imCrossMatching, m_visDebugWinSize);
 
         cv::imshow(_matchHeader, _imCrossMatching);
 
@@ -217,6 +221,8 @@ void DescriptorMatcher::findRobustMatches(std::vector<cv::KeyPoint> prevKeyPts, 
 
         drawMatches(debugPrevFrame, debugCurrFrame, _imEpipolarFilter, prevKeyPts, currKeyPts, _epipolarMatch, _matchHeader);
 
+        cv::resize(_imEpipolarFilter, _imEpipolarFilter, m_visDebugWinSize);
+
         cv::imshow(_matchHeader, _imEpipolarFilter);
 
         cv::waitKey(29);
@@ -239,13 +245,26 @@ OptFlow::OptFlow(cv::TermCriteria termcrit, int winSize, int maxLevel, float max
 }
 
 void OptFlow::computeFlow(cv::Mat imPrevGray, cv::Mat imCurrGray, std::vector<cv::Point2f>& prevPts, std::vector<cv::Point2f>& currPts, std::vector<uchar>& statusMask, bool useBoundaryCorrection, bool useErrorCorrection) {
+    std::vector<cv::Point2f> _emptyUsrPts;
+
+    computeFlow(imPrevGray, imCurrGray, prevPts, currPts, _emptyUsrPts, statusMask, useBoundaryCorrection, useErrorCorrection);
+}
+
+void OptFlow::computeFlow(cv::Mat imPrevGray, cv::Mat imCurrGray, std::vector<cv::Point2f>& prevPts, std::vector<cv::Point2f>& currPts, std::vector<cv::Point2f>& usrPts, std::vector<uchar>& statusMask, bool useBoundaryCorrection, bool useErrorCorrection) {
     std::vector<float> err;
+
+    // assign usrPts for flow computing
+    prevPts.insert(prevPts.end(), usrPts.begin(), usrPts.end());
 
     optFlow->calc(imPrevGray, imCurrGray, prevPts, currPts, statusMask, err);
     
     //  Image boundary filter
     cv::Rect boundary(cv::Point(), imCurrGray.size());
 
+    filterComputedPoints(prevPts, currPts, statusMask, err, boundary, useBoundaryCorrection, useErrorCorrection);
+}
+
+void OptFlow::filterComputedPoints(std::vector<cv::Point2f>& prevPts, std::vector<cv::Point2f>& currPts, std::vector<uchar>& statusMask, std::vector<float> err, cv::Rect boundary, bool useBoundaryCorrection, bool useErrorCorrection) {
     for (uint i = 0, idxCorrection = 0; i < statusMask.size() && i < err.size(); ++i) {
         cv::Point2f pt = currPts[i - idxCorrection];
 

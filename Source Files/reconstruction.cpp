@@ -118,7 +118,6 @@ void Reconstruction::adjustBundle(Camera& camera, std::list<cv::Matx34d>& camPos
 
     bool isCameraLocked = false;
     for (auto [pMask, pMaskEnd, p, pEnd] = std::tuple{pointCloud.cloudMask.begin(), pointCloud.cloudMask.end(), pointCloud.cloudTracks.begin(), pointCloud.cloudTracks.end()}; pMask != pMaskEnd && p != pEnd; ++pMask, ++p) {
-    //for (auto& p : pointCloud.cloudTracks) {
         if (!(bool)*pMask) { continue; }
         
         for (auto [c, ct, cEnd, ctEnd] = std::tuple{p->projKeys.begin(), p->extrinsicsIdxs.begin(), p->projKeys.end(), p->extrinsicsIdxs.end()}; c != cEnd && ct != ctEnd; ++c, ++ct) {
@@ -157,7 +156,7 @@ void Reconstruction::adjustBundle(Camera& camera, std::list<cv::Matx34d>& camPos
 
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
-    std::cout << summary.FullReport() << "\n";
+    //std::cout << summary.FullReport() << "\n";
     
     // check minimalization result -> if it is bad, then restore from backup
     if (!summary.IsSolutionUsable()) {

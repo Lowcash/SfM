@@ -68,6 +68,14 @@ void VisPCL::addPoints(const std::vector<cv::Vec3d> points3D) {
     m_visMutex.unlock();
 }
 
+void VisPCL::addCamera(const cv::Matx34d camPose, const cv::Matx33d K33d) {
+    pcl::PointXYZ pclPose; cvPoseToInversePCLPose(camPose, pclPose);
+
+    m_viewer->addSphere(pclPose, 1.0, 255, 255, 0, "cam_pose_" + std::to_string(m_numCams));
+
+    m_numCams++;
+}
+
 void VisPCL::updateCameras(const std::list<cv::Matx34d> camPoses) {
     m_visMutex.lock();
 
@@ -164,10 +172,10 @@ void VisVTK::updateCameras(const std::list<cv::Matx34d> camPoses, const cv::Matx
     m_numCams++;
 }
 
-void VisVTK::addCamera(const std::list<cv::Matx34d> camPoses, const cv::Matx33d K33d) {
+void VisVTK::addCamera(const cv::Matx34d camPose, const cv::Matx33d K33d) {
     const cv::viz::WCameraPosition _cam(K33d, -1, cv::viz::Color::orange());
 
-    cv::Affine3d vtkPose; cvPoseToInverseVTKPose(camPoses.back(), vtkPose);
+    cv::Affine3d vtkPose; cvPoseToInverseVTKPose(camPose, vtkPose);
 
     m_viewer.showWidget("cam_" + std::to_string(m_numCams), _cam, vtkPose);
 
