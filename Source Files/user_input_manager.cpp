@@ -1,20 +1,21 @@
 #include "user_input_manager.h"
 
 UserInput::UserInput(const std::string winName, cv::Mat* imageSource, const float maxRange, const int pointSize)
-    : m_winName(winName), m_inputImage(imageSource), m_maxRange(maxRange), m_pointSize(pointSize) {}
+    : m_winName(winName), m_inputImage(imageSource), m_maxRange(maxRange), m_pointSize(pointSize) {
+    usr2dPtsToMove.resize(2);
 
-void UserInput::addClickedPoint(const cv::Point point, bool forceRedraw) { 
-    usrClickedPts2D.push_back(point);
+    m_usrClickedPts = &usr2dPtsToMove[0];
+    m_usr2dPts = &usr2dPtsToMove[1];
+}
+
+void UserInput::addClickedPoint(const cv::Point point, bool forceRedraw) {
+    m_usrClickedPts->push_back(point);
 
     if (forceRedraw) {
         drawSelectedPoint(point);
 
         cv::imshow(m_winName, *m_inputImage);
     }
-}
-
-void UserInput::addPoints(const std::vector<cv::Point2f> pts2D) {
-    usrPts2D.insert(usrPts2D.end(), pts2D.begin(), pts2D.end());
 }
 
 void UserInput::addPoints(const std::vector<cv::Point2f> pts2D, const std::vector<cv::Vec3d> pts3D, PointCloud& pointCloud, uint iter) {
@@ -25,20 +26,28 @@ void UserInput::addPoints(const std::vector<cv::Point2f> pts2D, const std::vecto
     }
 }
 
-void UserInput::filterPoints(const std::vector<cv::Point2f> pts2D, const cv::Rect boundary, const uint offset) {
-    std::map<std::pair<float, float>, float> pointsDist;
+void UserInput::storeClickedPoints() const {
+    m_usr2dPts->insert(m_usr2dPts->end(), m_usrClickedPts->begin(), m_usrClickedPts->end());
+}
 
-    for (auto [it, end, idx] = std::tuple{pts2D.cbegin(), pts2D.cend(), 0}; it != end; ++it, ++idx) {
-        cv::Point2f p = (cv::Point2f)*it;
-        
-        usrPts2D[idx] = pts2D[idx];
-    }
+bool UserInput::anyClickedPoint() const {
+    return !m_usrClickedPts->empty();
+}
 
-    for (int i = 0, idxCorrection = 0; i < usrPts2D.size(); ++i) {
-        auto p = usrPts2D[i];
+bool UserInput::anyUserPoint() const {
+    return !m_usr2dPts->empty();
+}
+
+void UserInput::clearClickedPoints() const {
+    m_usrClickedPts->clear();
+}
+
+void UserInput::filterPointsByBoundary(const cv::Rect boundary, const uint offset) {
+    for (int i = 0, idxCorrection = 0; i < m_usr2dPts->size(); ++i) {
+        auto p = m_usr2dPts->at(i);
 
         if (p.x < boundary.x + offset || p.y < boundary.y + offset || p.x > boundary.width - offset || p.y > boundary.height - offset) {
-            usrPts2D.erase(usrPts2D.begin() + (i - idxCorrection));
+            m_usr2dPts->erase(m_usr2dPts->begin() + (i - idxCorrection));
 
             idxCorrection++;
         } 
@@ -46,7 +55,7 @@ void UserInput::filterPoints(const std::vector<cv::Point2f> pts2D, const cv::Rec
 }
 
 void UserInput::recoverPoints(cv::Mat& imOutUsr) {
-    for (const auto& p : usrPts2D) {
+    for (const auto& p : *m_usr2dPts) {
         //std::cout << "Point projected to: " << p << "\n";
         
         drawRecoveredPoint(p);

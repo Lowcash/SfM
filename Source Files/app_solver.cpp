@@ -143,28 +143,12 @@ void AppSolver::run() {
     for (uint iteration = 1; ; ++iteration) {
         // use if statements instead of switch due to loop breaks
         if (m_usedMethod == Method::KLT) {
-            bool isPtAdded = false;
-
             // in the first iteration, the image is not ready yet -> cannot generate features
             // generate features first, to avoid loss of user point in corners stack
             if (iteration != 1 && ofPrevView.corners.size() < optFlow.additionalSettings.minFeatures) {
                 ofPrevView.setView(viewContainer.getLastOneItem());
 
                 featDetector.generateFlowFeatures(ofPrevView.viewPtr->imGray, ofPrevView.corners, optFlow.additionalSettings.maxCorn, optFlow.additionalSettings.qualLvl, optFlow.additionalSettings.minDist);
-            }
-            
-            // attach user clicked points at the end of prev flow corners stack
-            // prepare points to move
-            if (!userInput.usrClickedPts2D.empty()) {
-                userInput.attachPointsToMove(userInput.usrClickedPts2D, ofPrevView.corners);
-
-                isPtAdded = true;
-            }
-
-            // attach user saved points at the end of prev flow corners stack after clicked points
-            // prepare points to move
-            if (!userInput.usrPts2D.empty()) {
-                userInput.attachPointsToMove(userInput.usrPts2D, ofPrevView.corners);
             }
 
             if (findGoodImages(cap, viewContainer) == ImageFindState::SOURCE_LOST) 
@@ -179,37 +163,18 @@ void AppSolver::run() {
 
             if (!ofPrevView.corners.empty()) {
                 // move user points and corners
-                optFlow.computeFlow(ofPrevView.viewPtr->imGray, ofCurrView.viewPtr->imGray, ofPrevView.corners, ofCurrView.corners, optFlow.statusMask, true, true);
+                optFlow.computeFlow(ofPrevView.viewPtr->imGray, ofCurrView.viewPtr->imGray, ofPrevView.corners, ofCurrView.corners, userInput.usr2dPtsToMove, optFlow.statusMask, true, true, true);
 
                 optFlow.drawOpticalFlow(imOutRecPose, imOutRecPose, ofPrevView.corners, ofCurrView.corners, optFlow.statusMask);
 
-                // get saved user points from the end of the stack first
-                if (!userInput.usrPts2D.empty()) {
-                    std::vector<cv::Point2f> _newPts2D;
-                    userInput.detachPointsFromMove(_newPts2D, ofCurrView.corners, userInput.usrPts2D.size());
-
-                    userInput.filterPoints(_newPts2D, cv::Rect(cv::Point(), ofCurrView.viewPtr->imColor.size()), 10);
-                }
-
-                // get clicked user points from the end of the stack after saved points
-                if (!userInput.usrClickedPts2D.empty() && isPtAdded) {
-                    std::vector<cv::Point2f> _newPts2D;
-                    userInput.detachPointsFromMove(_newPts2D, ofCurrView.corners, userInput.usrClickedPts2D.size());
-
-                    userInput.addPoints(_newPts2D);
-
-                    userInput.usrClickedPts2D.clear();
+                if (userInput.anyClickedPoint()) {      
+                    userInput.storeClickedPoints();
+                    userInput.clearClickedPoints();
                 }
 
                 // draw moved points
                 userInput.recoverPoints(imOutUsrInp);
             }
-
-            /*std::vector<cv::KeyPoint> _keyPts; cv::KeyPoint::convert(ofPrevView.corners, _keyPts);
-
-            cv::Mat _tmpImg; ofCurrView.viewPtr->imColor.copyTo(_tmpImg);
-            cv::drawKeypoints(_tmpImg, _keyPts, _tmpImg, CV_RGB(109, 17, 214));
-            cv::imshow("Optical flow key points", _tmpImg);*/
 
             cv::imshow(params.recPoseWinName, imOutRecPose);
             cv::imshow(params.usrInpWinName, imOutUsrInp);
@@ -220,7 +185,7 @@ void AppSolver::run() {
             std::swap(ofPrevView, ofCurrView);
             std::swap(featPrevView, featCurrView);
         }
-        if (m_usedMethod == Method::VO) {
+        /*if (m_usedMethod == Method::VO) {
             bool isPtAdded = false;
 
             // in the first iteration, the image is not ready yet -> cannot generate features
@@ -470,6 +435,6 @@ void AppSolver::run() {
 
             std::swap(ofPrevView, ofCurrView);
             std::swap(featPrevView, featCurrView);
-        }
+        }*/
     }
 }

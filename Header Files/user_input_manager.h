@@ -18,6 +18,9 @@ private:
 
     cv::Mat* m_inputImage;
 
+    std::vector<cv::Point2f>* m_usrClickedPts;
+    std::vector<cv::Point2f>* m_usr2dPts;
+
     std::vector<size_t> m_usrCloudPtsIdx;
 
     void drawSelectedPoint(const cv::Point point) {
@@ -30,26 +33,39 @@ private:
         cv::circle(*m_inputImage, point, m_pointSize, CV_RGB(150, 200, 0), cv::FILLED, cv::LINE_AA);
     }
 public:
-    std::vector<cv::Point2f> usrClickedPts2D, usrPts2D;
+    std::vector<std::vector<cv::Point2f>> usr2dPtsToMove;
 
     UserInput(const std::string winName, cv::Mat* imageSource, const float maxRange, const int pointSize = 5);
 
     void addClickedPoint(const cv::Point point, bool forceRedraw = false);
 
     /** 
-     * Add points to 2D
-     */
-    void addPoints(const std::vector<cv::Point2f> pts2D);
-
-    /** 
      * Add points to 3D
      */
     void addPoints(const std::vector<cv::Point2f> pts2D, const std::vector<cv::Vec3d> pts3D, PointCloud& pointCloud, uint iter);
 
+    void storeClickedPoints() const;
+    
+    /** 
+     * It returns if there are any clicked user points
+     */
+    bool anyClickedPoint() const;
+
+    /** 
+     * It returns if there are any stored user points
+     */
+    bool anyUserPoint() const;
+
+    /** 
+     * It clears clicker points buffer
+     * Usually after end of loop cycle iteration
+     */
+    void clearClickedPoints() const;
+
     /** 
      * Filter points by boundary
      */
-    void filterPoints(const std::vector<cv::Point2f> currPts2D, const cv::Rect boundary, const uint offset);
+    void filterPointsByBoundary(const cv::Rect boundary, const uint offset);
 
     /** 
      * Recover points from 2D
