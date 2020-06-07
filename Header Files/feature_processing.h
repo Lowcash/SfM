@@ -74,7 +74,7 @@ public:
 
 class OptFlow {
 private:
-    void filterComputedPoints(std::vector<cv::Point2f>& prevPts, std::vector<cv::Point2f>& currPts, std::vector<uchar>& statusMask, std::vector<float> err, cv::Rect boundary, bool useBoundaryCorrection, bool useErrorCorrection, bool useDistanceCorrection);
+    void filterComputedPoints(std::vector<cv::Point2f>& prevPts, std::vector<cv::Point2f>& currPts, std::vector<uchar>& statusMask, std::vector<float> err, cv::Rect boundary, bool useBoundaryCorrection, bool useErrorCorrection, bool useOutliersCorrection);
 
 public:
     cv::Ptr<cv::SparsePyrLKOpticalFlow> optFlow;
@@ -92,7 +92,7 @@ public:
      *  @param useBoundaryCorrection filter by image boudary
      *  @param useErrorCorrection filter by optical flow error
      */
-    void computeFlow(cv::Mat imPrevGray, cv::Mat imCurrGray, std::vector<cv::Point2f>& prevPts, std::vector<cv::Point2f>& currPts, std::vector<uchar>& statusMask, bool useBoundaryCorrection = false, bool useErrorCorrection = false, bool useDistanceCorrection = false);
+    void computeFlow(cv::Mat imPrevGray, cv::Mat imCurrGray, std::vector<cv::Point2f>& prevPts, std::vector<cv::Point2f>& currPts, std::vector<uchar>& statusMask, bool useBoundaryCorrection = false, bool useErrorCorrection = false, bool useOutliersCorrection = false);
 
     /** 
      *  Compute optical flow between grayscale images and move user points
@@ -102,7 +102,7 @@ public:
      *  @param useBoundaryCorrection filter by image boudary
      *  @param useErrorCorrection filter by optical flow error
      */
-    void computeFlow(cv::Mat imPrevGray, cv::Mat imCurrGray, std::vector<cv::Point2f>& prevPts, std::vector<cv::Point2f>& currPts, std::vector<std::vector<cv::Point2f>>& addPts, std::vector<uchar>& statusMask, bool useBoundaryCorrection = false, bool useErrorCorrection = false, bool useDistanceCorrection = false);
+    void computeFlow(cv::Mat imPrevGray, cv::Mat imCurrGray, std::vector<cv::Point2f>& prevPts, std::vector<cv::Point2f>& currPts, std::vector<std::vector<cv::Point2f>>& addPts, std::vector<uchar>& statusMask, bool useBoundaryCorrection = false, bool useErrorCorrection = false, bool useOutliersCorrection = false);
 
     void drawOpticalFlow(cv::Mat inputImg, cv::Mat& outputImg, const std::vector<cv::Point2f> prevPts, const std::vector<cv::Point2f> currPts, std::vector<uchar> statusMask);
 };

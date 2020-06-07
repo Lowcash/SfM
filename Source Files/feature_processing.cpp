@@ -244,13 +244,13 @@ OptFlow::OptFlow(cv::TermCriteria termcrit, int winSize, int maxLevel, float max
     additionalSettings.setMinFeatures(minFeatures);
 }
 
-void OptFlow::computeFlow(cv::Mat imPrevGray, cv::Mat imCurrGray, std::vector<cv::Point2f>& prevPts, std::vector<cv::Point2f>& currPts, std::vector<uchar>& statusMask, bool useBoundaryCorrection, bool useErrorCorrection, bool useDistanceCorrection) {
+void OptFlow::computeFlow(cv::Mat imPrevGray, cv::Mat imCurrGray, std::vector<cv::Point2f>& prevPts, std::vector<cv::Point2f>& currPts, std::vector<uchar>& statusMask, bool useBoundaryCorrection, bool useErrorCorrection, bool useOutliersCorrection) {
     std::vector<std::vector<cv::Point2f>> _emptyAddPts;
 
-    computeFlow(imPrevGray, imCurrGray, prevPts, currPts, _emptyAddPts, statusMask, useBoundaryCorrection, useErrorCorrection, useDistanceCorrection);
+    computeFlow(imPrevGray, imCurrGray, prevPts, currPts, _emptyAddPts, statusMask, useBoundaryCorrection, useErrorCorrection, useOutliersCorrection);
 }
 
-void OptFlow::computeFlow(cv::Mat imPrevGray, cv::Mat imCurrGray, std::vector<cv::Point2f>& prevPts, std::vector<cv::Point2f>& currPts, std::vector<std::vector<cv::Point2f>>& addPts, std::vector<uchar>& statusMask, bool useBoundaryCorrection, bool useErrorCorrection, bool useDistanceCorrection) {
+void OptFlow::computeFlow(cv::Mat imPrevGray, cv::Mat imCurrGray, std::vector<cv::Point2f>& prevPts, std::vector<cv::Point2f>& currPts, std::vector<std::vector<cv::Point2f>>& addPts, std::vector<uchar>& statusMask, bool useBoundaryCorrection, bool useErrorCorrection, bool useOutliersCorrection) {
     std::vector<float> _err;
     
     if (!addPts.empty()) {
@@ -286,7 +286,7 @@ void OptFlow::computeFlow(cv::Mat imPrevGray, cv::Mat imCurrGray, std::vector<cv
                     currPts.pop_back();
                 }
 
-                filterComputedPoints(p, _addMovedPts, _addStatusMask, _addErr, boundary, useBoundaryCorrection, useErrorCorrection, useDistanceCorrection);
+                filterComputedPoints(p, _addMovedPts, _addStatusMask, _addErr, boundary, useBoundaryCorrection, useErrorCorrection, useOutliersCorrection);
 
                 std::swap(p, _addMovedPts);
             }
@@ -295,17 +295,45 @@ void OptFlow::computeFlow(cv::Mat imPrevGray, cv::Mat imCurrGray, std::vector<cv
         std::reverse(addPts.begin(), addPts.end());
     }
 
-    filterComputedPoints(prevPts, currPts, statusMask, _err, boundary, useBoundaryCorrection, useErrorCorrection, useDistanceCorrection);
+    filterComputedPoints(prevPts, currPts, statusMask, _err, boundary, useBoundaryCorrection, useErrorCorrection, useOutliersCorrection);
 }
 
-void OptFlow::filterComputedPoints(std::vector<cv::Point2f>& prevPts, std::vector<cv::Point2f>& currPts, std::vector<uchar>& statusMask, std::vector<float> err, cv::Rect boundary, bool useBoundaryCorrection, bool useErrorCorrection, bool useDistanceCorrection) {
-    for (uint i = 0, idxCorrection = 0; i < statusMask.size() && i < err.size(); ++i) {
+void OptFlow::filterComputedPoints(std::vector<cv::Point2f>& prevPts, std::vector<cv::Point2f>& currPts, std::vector<uchar>& statusMask, std::vector<float> err, cv::Rect boundary, bool useBoundaryCorrection, bool useErrorCorrection, bool useOutliersCorrection) {
+    const size_t numPts = statusMask.size();
+
+    float dOutFence, uOutFence;
+
+    if (useOutliersCorrection) {
+        std::vector<float> dist(numPts);
+
+        for (size_t i = 0; i < numPts; ++i)
+            dist[i] = cv::norm(prevPts[i] - currPts[i]);
+
+        std::sort(dist.begin(), dist.end(), std::less<float>());
+
+        if (numPts > 3) {
+            uint quarter = (dist.size() / 4);
+
+            float Q1 = (dist[quarter * 1 - 1] + dist[quarter * 1]) / 2.0f;
+            float Q2 = (dist[quarter * 2 - 1] + dist[quarter * 2]) / 2.0f;
+            float Q3 = (dist[quarter * 3 - 1] + dist[quarter * 3]) / 2.0f;
+
+            float IQR = Q3 - Q1;
+
+            IQR *= 10;
+
+            dOutFence = Q1 - IQR;
+            uOutFence = Q3 + IQR;
+        }
+    }
+
+    for (uint i = 0, idxCorrection = 0; i < numPts; ++i) {
         cv::Point2f pt = currPts[i - idxCorrection];
 
         //  Filter by provided parameters
         bool isErrorOK = statusMask[i] == 1 && err[i] < additionalSettings.maxError;
         bool isBoundOK = boundary.contains(pt);
-
+        
         if (!isErrorOK || !isBoundOK) {
             if ((useErrorCorrection && !isErrorOK) || (useBoundaryCorrection && !isBoundOK)) {
                 //  Throw away bad points
@@ -317,10 +345,12 @@ void OptFlow::filterComputedPoints(std::vector<cv::Point2f>& prevPts, std::vecto
                 statusMask[i] = 0;
         }
 
-        bool isDistaOK = cv::norm(prevPts[i] - currPts[i]) < additionalSettings.maxError;
+        float dist = cv::norm(prevPts[i] - currPts[i]);
 
-        if(!isDistaOK) {
-            if ((useDistanceCorrection && !isDistaOK)) {
+        bool isOutliOK = numPts < 4 || (dist >= dOutFence && dist <= uOutFence);
+
+        if(!isOutliOK) {
+            if ((useOutliersCorrection && !isOutliOK)) {
                 currPts[i] = prevPts[i];
             }
         }
