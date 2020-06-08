@@ -286,7 +286,7 @@ void OptFlow::computeFlow(cv::Mat imPrevGray, cv::Mat imCurrGray, std::vector<cv
                     currPts.pop_back();
                 }
 
-                filterComputedPoints(p, _addMovedPts, _addStatusMask, _addErr, boundary, useBoundaryCorrection, useErrorCorrection, useOutliersCorrection);
+                filterComputedPoints(p, _addMovedPts, _addStatusMask, _addErr, boundary, useBoundaryCorrection, false, useOutliersCorrection);
 
                 std::swap(p, _addMovedPts);
             }
@@ -303,11 +303,17 @@ void OptFlow::filterComputedPoints(std::vector<cv::Point2f>& prevPts, std::vecto
 
     float dOutFence, uOutFence;
 
+    cv::Point2f medianMove;
+
     if (useOutliersCorrection) {
         std::vector<float> dist(numPts);
+        std::map<float, size_t> distIdxMap;
 
-        for (size_t i = 0; i < numPts; ++i)
+        for (size_t i = 0; i < numPts; ++i) {
             dist[i] = cv::norm(prevPts[i] - currPts[i]);
+
+            distIdxMap[dist[i]] = i;
+        }
 
         std::sort(dist.begin(), dist.end(), std::less<float>());
 
@@ -324,6 +330,8 @@ void OptFlow::filterComputedPoints(std::vector<cv::Point2f>& prevPts, std::vecto
 
             dOutFence = Q1 - IQR;
             uOutFence = Q3 + IQR;
+
+            medianMove = currPts[distIdxMap[dist[quarter * 2 - 1]]] - prevPts[distIdxMap[dist[quarter * 2 - 1]]];
         }
     }
 
@@ -345,13 +353,15 @@ void OptFlow::filterComputedPoints(std::vector<cv::Point2f>& prevPts, std::vecto
                 statusMask[i] = 0;
         }
 
-        float dist = cv::norm(prevPts[i] - currPts[i]);
+        // point distance
+        const float dist = cv::norm(prevPts[i] - currPts[i]);
 
+        //  Filter by provided parameters
         bool isOutliOK = numPts < 4 || (dist >= dOutFence && dist <= uOutFence);
 
         if(!isOutliOK) {
             if ((useOutliersCorrection && !isOutliOK)) {
-                currPts[i] = prevPts[i];
+                currPts[i] = prevPts[i] + medianMove;
 
                 //  Throw away bad points
                 //prevPts.erase(prevPts.begin() + (i - idxCorrection));

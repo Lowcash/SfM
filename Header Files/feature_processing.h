@@ -91,6 +91,7 @@ public:
      * 
      *  @param useBoundaryCorrection filter by image boudary
      *  @param useErrorCorrection filter by optical flow error
+     *  @param useOutliersCorrection filter by outliers
      */
     void computeFlow(cv::Mat imPrevGray, cv::Mat imCurrGray, std::vector<cv::Point2f>& prevPts, std::vector<cv::Point2f>& currPts, std::vector<uchar>& statusMask, bool useBoundaryCorrection = false, bool useErrorCorrection = false, bool useOutliersCorrection = false);
 
@@ -101,6 +102,7 @@ public:
      *  @param addPts input/output vector of additional points to move
      *  @param useBoundaryCorrection filter by image boudary
      *  @param useErrorCorrection filter by optical flow error
+     *  @param useOutliersCorrection filter by outliers
      */
     void computeFlow(cv::Mat imPrevGray, cv::Mat imCurrGray, std::vector<cv::Point2f>& prevPts, std::vector<cv::Point2f>& currPts, std::vector<std::vector<cv::Point2f>>& addPts, std::vector<uchar>& statusMask, bool useBoundaryCorrection = false, bool useErrorCorrection = false, bool useOutliersCorrection = false);
 
