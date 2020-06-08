@@ -1,7 +1,11 @@
 #include "user_input_manager.h"
 
-UserInput::UserInput(const std::string winName, cv::Mat* imageSource, const float maxRange, const int pointSize)
+UserInput::UserInput(const std::string winName, cv::Mat* imageSource, PointCloud* pointCloud, const float maxRange, const int pointSize)
     : m_winName(winName), m_inputImage(imageSource), m_maxRange(maxRange), m_pointSize(pointSize) {
+    m_isClickPtsLocked = false;
+    
+    m_pointCloud = pointCloud;
+
     usr2dPtsToMove.resize(2);
 
     m_usrClickedPts = &usr2dPtsToMove[0];
@@ -9,7 +13,10 @@ UserInput::UserInput(const std::string winName, cv::Mat* imageSource, const floa
 }
 
 void UserInput::addClickedPoint(const cv::Point point, bool forceRedraw) {
-    m_usrClickedPts->push_back(point);
+    if (m_isClickPtsLocked) 
+        m_tmpClickedPts.push_back(point);
+    else
+        m_usrClickedPts->push_back(point);
 
     if (forceRedraw) {
         drawSelectedPoint(point);
@@ -18,12 +25,20 @@ void UserInput::addClickedPoint(const cv::Point point, bool forceRedraw) {
     }
 }
 
-void UserInput::addPoints(const std::vector<cv::Point2f> pts2D, const std::vector<cv::Vec3d> pts3D, PointCloud& pointCloud, uint iter) {
+void UserInput::addPoints(const std::vector<cv::Point2f> pts2D, const std::vector<cv::Vec3d> pts3D, uint iter) {
     for (auto [p2d, p2dEnd, p3d, p3dEnd] = std::tuple{pts2D.cbegin(), pts2D.cend(), pts3D.cbegin(), pts3D.cend()}; p2d != p2dEnd && p3d != p3dEnd; ++p2d, ++p3d) {
-        m_usrCloudPtsIdx.push_back(pointCloud.cloudTracks.size());
+        m_usrCloudPtsIdx.push_back(m_pointCloud->getNumCloudPoints());
 
-        pointCloud.addCloudPoint(*p2d, *p3d, cv::Vec3b(), iter);
+        m_pointCloud->addCloudPoint(*p2d, *p3d, cv::Vec3b(), iter);
     }
+}
+
+void UserInput::lockClickPoints() { m_isClickPtsLocked = true; }
+
+void UserInput::unlockClickPoints() { m_isClickPtsLocked = false; }
+
+void UserInput::updateClickedPoints() { 
+    std::swap(m_tmpClickedPts, *m_usrClickedPts);
 }
 
 void UserInput::storeClickedPoints() const {
@@ -62,12 +77,12 @@ void UserInput::recoverPoints(cv::Mat& imOutUsr) {
     }
 }
 
-void UserInput::recoverPoints(cv::Mat& imOutUsr, PointCloud& pointCloud, cv::Mat cameraK, cv::Mat R, cv::Mat t) {
-    if (!pointCloud.cloud3D.empty() && !m_usrCloudPtsIdx.empty()) {
+void UserInput::recoverPoints(cv::Mat& imOutUsr, cv::Mat cameraK, cv::Mat R, cv::Mat t) {
+    if (!m_pointCloud->cloud3D.empty() && !m_usrCloudPtsIdx.empty()) {
         std::vector<cv::Vec3d> usrPts3D;
 
         for (const auto& idx : m_usrCloudPtsIdx) {
-            cv::Vec3d* cloudMapper = pointCloud.cloudMapper[idx];
+            cv::Vec3d* cloudMapper = m_pointCloud->cloudMapper[idx];
 
             usrPts3D.push_back(*cloudMapper);
         }

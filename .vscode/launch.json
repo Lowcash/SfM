@@ -11,11 +11,11 @@
             "program": "${workspaceFolder}/SfM_App.out",
             "args": [
             //--------------------------------- BASE --------------------------------//
-              "-bSource=/home/lowcash/Documents/SfM_Resources/Video/stul_den.mp4", 
-              //"-bSource=/home/lowcash/Documents/SfM_Resources/Video/matches.mkv", 
+              //"-bSource=/home/lowcash/Documents/SfM_Resources/Video/stul_den.mp4", 
+              "-bSource=/home/lowcash/Documents/SfM_Resources/Video/matches.mkv", 
               //"-bSource=https://192.168.1.100:8080/video", 
-              "-bcalib=/home/lowcash/Documents/SfM_Resources/Calibration/calib_mobile.yml",
-              //"-bcalib=/home/lowcash/Documents/SfM_Resources/Calibration/calib_blender.yml", 
+              //"-bcalib=/home/lowcash/Documents/SfM_Resources/Calibration/calib_mobile.yml",
+              "-bcalib=/home/lowcash/Documents/SfM_Resources/Calibration/calib_blender.yml", 
               //"-bcalib=/home/lowcash/Documents/SfM_Resources/Calibration/calib_KITTI_0.yml", 
               "-bDownSamp=2.0", "-bWinWidth=960", "-bWinHeight=540", "-bUseMethod=KLT", "-bMaxSkFram=15", "-bDebugVisE=true", "-bDebugMatE=false",
             

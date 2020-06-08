@@ -320,7 +320,7 @@ void OptFlow::filterComputedPoints(std::vector<cv::Point2f>& prevPts, std::vecto
 
             float IQR = Q3 - Q1;
 
-            IQR *= 10;
+            IQR *= 3;
 
             dOutFence = Q1 - IQR;
             uOutFence = Q3 + IQR;
@@ -352,6 +352,10 @@ void OptFlow::filterComputedPoints(std::vector<cv::Point2f>& prevPts, std::vecto
         if(!isOutliOK) {
             if ((useOutliersCorrection && !isOutliOK)) {
                 currPts[i] = prevPts[i];
+
+                //  Throw away bad points
+                //prevPts.erase(prevPts.begin() + (i - idxCorrection));
+                //currPts.erase(currPts.begin() + (i - idxCorrection));
             }
         }
     }

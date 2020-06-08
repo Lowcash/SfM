@@ -32,7 +32,7 @@ public:
 class PointCloud {
     const double m_clearRatio;
 
-    size_t m_numCloudPts;
+    size_t m_numCloudPts, m_numActiveCloudPts;
 public:
     std::vector<cv::Vec3d*> cloudMapper;
 
@@ -49,7 +49,7 @@ public:
     std::vector<CloudTrack> cloudTracks;
     
     PointCloud(const double clearRatio = .5) 
-        : m_clearRatio(clearRatio), m_numCloudPts(0) {}
+        : m_clearRatio(clearRatio), m_numActiveCloudPts(0) {}
 
     void addCloudPoint(const cv::Point2f projPosition2D, const cv::Vec3d cloudPoint3D, const cv::Vec3b cloudPointRGB, const size_t cameraIdx) {
         cloud3D.push_back(cloudPoint3D);
@@ -63,12 +63,13 @@ public:
         cloudMapper.push_back(&*cloud3D.rbegin());
 
         m_numCloudPts++;
+        m_numActiveCloudPts++;
     }
 
     void removeCloudPoint(bool& cloudMaskPt) {
         cloudMaskPt = false;
 
-        m_numCloudPts--;
+        m_numActiveCloudPts--;
     }
 
     void registerCloudView(const size_t cloudPointIdx, const cv::Point2f projPosition2D, const size_t cameraIdx) {
@@ -85,14 +86,16 @@ public:
 
                     *pMask = false;
 
-                    m_numCloudPts--;
+                    m_numActiveCloudPts--;
                     //removeCloudPoint((bool)&*pMask);
                 }
             }
         }
 
-        std::cout << "Cleared tracks: [" << clearedTracks << "/" << m_numCloudPts << "]\n"; 
+        std::cout << "Cleared tracks: [" << clearedTracks << "/" << m_numActiveCloudPts << "]\n"; 
     }
+
+    size_t getNumActiveCloudPoints() const { return m_numActiveCloudPts; }
 
     size_t getNumCloudPoints() const { return m_numCloudPts; }
 };

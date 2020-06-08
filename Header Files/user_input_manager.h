@@ -10,6 +10,8 @@
  */
 class UserInput {
 private:
+    bool m_isClickPtsLocked;
+
     const std::string m_winName;
 
     const float m_maxRange;
@@ -18,10 +20,14 @@ private:
 
     cv::Mat* m_inputImage;
 
+    std::vector<cv::Point2f> m_tmpClickedPts;
+
     std::vector<cv::Point2f>* m_usrClickedPts;
     std::vector<cv::Point2f>* m_usr2dPts;
 
     std::vector<size_t> m_usrCloudPtsIdx;
+
+    PointCloud* m_pointCloud;
 
     void drawSelectedPoint(const cv::Point point) {
         // draw red point to image
@@ -35,14 +41,14 @@ private:
 public:
     std::vector<std::vector<cv::Point2f>> usr2dPtsToMove;
 
-    UserInput(const std::string winName, cv::Mat* imageSource, const float maxRange, const int pointSize = 5);
+    UserInput(const std::string winName, cv::Mat* imageSource, PointCloud* pointCloud, const float maxRange, const int pointSize = 5);
 
     void addClickedPoint(const cv::Point point, bool forceRedraw = false);
 
     /** 
      * Add points to 3D
      */
-    void addPoints(const std::vector<cv::Point2f> pts2D, const std::vector<cv::Vec3d> pts3D, PointCloud& pointCloud, uint iter);
+    void addPoints(const std::vector<cv::Point2f> pts2D, const std::vector<cv::Vec3d> pts3D, uint iter);
 
     void storeClickedPoints() const;
     
@@ -50,6 +56,12 @@ public:
      * It returns if there are any clicked user points
      */
     bool anyClickedPoint() const;
+
+    void lockClickPoints();
+
+    void unlockClickPoints();
+
+    void updateClickedPoints();
 
     /** 
      * It returns if there are any stored user points
@@ -75,7 +87,7 @@ public:
     /** 
      * Recover points from 3D
      */
-    void recoverPoints(cv::Mat& imOutUsr, PointCloud& pointCloud, cv::Mat cameraK, cv::Mat R, cv::Mat t);
+    void recoverPoints(cv::Mat& imOutUsr, cv::Mat cameraK, cv::Mat R, cv::Mat t);
 
     /** 
      * Attach points, usually to optical flow

@@ -117,7 +117,7 @@ void AppSolver::run() {
 
     cv::Mat imOutUsrInp, imOutRecPose, imOutMatches;
     
-    UserInput userInput(params.usrInpWinName, &imOutUsrInp, params.ofMaxError);
+    UserInput userInput(params.usrInpWinName, &imOutUsrInp, &m_tracking.pointCloud, params.ofMaxError);
 
     // run windows in new thread -> avoid rendering white screen
     cv::startWindowThread();
@@ -154,6 +154,8 @@ void AppSolver::run() {
             if (findGoodImages(cap, viewContainer) == ImageFindState::SOURCE_LOST) 
                 break;
             
+            userInput.lockClickPoints();
+
             // prepare flow view images for flow computing and debug draw
             ofPrevView.setView(viewContainer.getLastButOneItem());
             ofCurrView.setView(viewContainer.getLastOneItem());
@@ -167,14 +169,15 @@ void AppSolver::run() {
 
                 optFlow.drawOpticalFlow(imOutRecPose, imOutRecPose, ofPrevView.corners, ofCurrView.corners, optFlow.statusMask);
 
-                if (userInput.anyClickedPoint()) {      
-                    userInput.storeClickedPoints();
-                    userInput.clearClickedPoints();
-                }
+                userInput.storeClickedPoints();
+                userInput.clearClickedPoints();
 
                 // draw moved points
                 userInput.recoverPoints(imOutUsrInp);
             }
+
+            userInput.unlockClickPoints();
+            userInput.updateClickedPoints();
 
             cv::imshow(params.recPoseWinName, imOutRecPose);
             cv::imshow(params.usrInpWinName, imOutUsrInp);
@@ -186,22 +189,12 @@ void AppSolver::run() {
             std::swap(featPrevView, featCurrView);
         }
         /*if (m_usedMethod == Method::VO) {
-            bool isPtAdded = false;
-
             // in the first iteration, the image is not ready yet -> cannot generate features
             // generate features first, to avoid loss of user point in corners stack
             if (iteration != 1 && ofPrevView.corners.size() < optFlow.additionalSettings.minFeatures) {
                 ofPrevView.setView(viewContainer.getLastOneItem());
 
                 featDetector.generateFlowFeatures(ofPrevView.viewPtr->imGray, ofPrevView.corners, optFlow.additionalSettings.maxCorn, optFlow.additionalSettings.qualLvl, optFlow.additionalSettings.minDist);
-            }
-            
-            // attach user clicked points at the end of prev flow corners stack
-            // prepare points to move
-            if (!userInput.usrClickedPts2D.empty()) {
-                userInput.attachPointsToMove(userInput.usrClickedPts2D, ofPrevView.corners);
-
-                isPtAdded = true;
             }
 
             // find good image pair by optical flow and essential matrix
@@ -248,25 +241,18 @@ void AppSolver::run() {
             // triangulate corners and user clicked points
             reconstruction.triangulateCloud(camera, ofPrevView.corners, ofCurrView.corners, ofCurrView.viewPtr->imColor, _points3D, _pointsRGB, _mask, _prevPose, _currPose, recPose.R, recPose.t);
 
-            // get triangulated clicked user points 
-            if (!userInput.usrClickedPts2D.empty() && isPtAdded) {
-                std::vector<cv::Point2f> _newPts2D;
-                std::vector<cv::Vec3d> _newPts3D;
-                
-                userInput.detachPointsFromMove(_newPts2D, ofCurrView.corners, userInput.usrClickedPts2D.size());
-                userInput.detachPointsFromReconstruction(_newPts3D, _points3D, _pointsRGB, _mask, userInput.usrClickedPts2D.size());
+            userInput.detachPointsFromReconstruction(_newPts3D, _points3D, _pointsRGB, _mask, userInput.usrClickedPts2D.size());
 
-                userInput.addPoints(_newPts2D, _newPts3D, m_tracking.pointCloud, m_tracking.getTrackViews().size());
-                
-                userInput.usrClickedPts2D.clear();
-                
-                //visVTK.addPoints(_newPts3D);
-            }
+            userInput.addPoints(_newPts2D, _newPts3D, m_tracking.getTrackViews().size());
+             
+            userInput.storeClickedPoints();
+            userInput.clearClickedPoints();
 
             // draw moved points
-            userInput.recoverPoints(imOutUsrInp, m_tracking.pointCloud, camera.K, cv::Mat(m_tracking.actualR), cv::Mat(m_tracking.actualT));
-
+            userInput.recoverPoints(imOutUsrInp, camera.K, cv::Mat(m_tracking.actualR), cv::Mat(m_tracking.actualT));
+        
             visPCL.addCamera(m_tracking.getLastCam() , camera.K);
+            //visPCL.addPoints();
 
             cv::imshow(params.usrInpWinName, imOutUsrInp);
 
