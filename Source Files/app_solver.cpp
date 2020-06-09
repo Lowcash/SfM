@@ -83,10 +83,6 @@ int AppSolver::findGoodImages(cv::VideoCapture& cap, ViewDataContainer& viewCont
     // complete the search for image pairs -> set flow views
     viewContainer.addItem(ViewData(_imColor, _imGray));
 
-    cv::imshow("a", viewContainer.getLastButOneItem()->imGray);
-    cv::imshow("b", viewContainer.getLastOneItem()->imGray);
-    cv::waitKey();
-
     ofPrevView.setCorners(_prevCorners);
     ofCurrView.setCorners(_currCorners);
 
@@ -357,7 +353,7 @@ void AppSolver::run() {
 
             userInput.lockClickedPoints();
 
-            if (!ofPrevView.corners.empty()) {
+            /*if (!ofPrevView.corners.empty()) {
                 userInput.attachPointsToMove(ofPrevView.corners, ofCurrView.corners, optFlow.statusMask, true, false);
 
                 // move user points and corners
@@ -369,7 +365,7 @@ void AppSolver::run() {
                 ProcesingAdds::correctPointsByMoveAnalyze(userInput.doneClickedPts, userInput.moveClickedPts, pointsMove);
 
                 optFlow.drawOpticalFlow(imOutRecPose, imOutRecPose, ofPrevView.corners, ofCurrView.corners, optFlow.statusMask);
-            }
+            }*/
 
             std::vector<cv::Vec3d> _points3D, _usrPoints3D;
             std::vector<cv::Vec3b> _pointsRGB, _usrPointsRGB;
@@ -401,6 +397,10 @@ void AppSolver::run() {
             // match features
             descMatcher.findRobustMatches(featPrevView.keyPts, featCurrView.keyPts, featPrevView.descriptor, featCurrView.descriptor, _prevPts, _currPts, _matches, _prevIdx, _currIdx, featPrevView.viewPtr->imColor, featCurrView.viewPtr->imColor);
 
+            cv::Mat out;
+            cv::drawMatches(featPrevView.viewPtr->imColor, featPrevView.keyPts, featCurrView.viewPtr->imColor, featCurrView.keyPts, _matches, out);
+            cv::imshow("Matches", out);
+            cv::waitKey();
             std::cout << "Matches count: " << _matches.size() << "\n";
 
             if (_prevPts.empty() || _currPts.empty()) { 

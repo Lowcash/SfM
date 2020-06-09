@@ -17,7 +17,7 @@
               "-bcalib=/home/lowcash/Documents/SfM_Resources/Calibration/calib_mobile.yml",
               //"-bcalib=/home/lowcash/Documents/SfM_Resources/Calibration/calib_blender.yml", 
               //"-bcalib=/home/lowcash/Documents/SfM_Resources/Calibration/calib_KITTI_0.yml", 
-              "-bDownSamp=1.0", "-bWinWidth=960", "-bWinHeight=540", "-bUseMethod=PNP", "-bMaxSkFram=15", "-bDebugVisE=true", "-bDebugMatE=false",
+              "-bDownSamp=2.0", "-bWinWidth=960", "-bWinHeight=540", "-bUseMethod=PNP", "-bMaxSkFram=15", "-bDebugVisE=true", "-bDebugMatE=false",
             
               //------------------------------- FEATURES ------------------------------//
               //"-fDecType=ORB", "-fMatchType=BRUTEFORCE_HAMMING", "-fKnnRatio=0.5",
@@ -29,7 +29,7 @@
               //"-fDecType=BRISK", "-fMatchType=BRUTEFORCE_HAMMING", "-fKnnRatio=0.5",
 
               //----------------------------- OPTICAL FLOW ----------------------------//
-              "-ofMinKPts=333", "-ofWinSize=30", "-ofMaxLevel=7", "-ofMaxItCt=500", "-ofItEps=0.01", "-ofMaxError=10.0", "-ofMaxCorn=2000", "-ofQualLvl=0.1", "-ofMinDist=5",
+              "-ofMinKPts=333", "-ofWinSize=30", "-ofMaxLevel=5", "-ofMaxItCt=250", "-ofItEps=0.01", "-ofMaxError=10.0", "-ofMaxCorn=2000", "-ofQualLvl=0.1", "-ofMinDist=5",
               
               //--------------------------- POSE ESTIMATION ---------------------------//
               "-peMethod=RANSAC", "-peProb=0.99", "-peThresh=1.0", "-peMinInl=10", "-peMinMatch=10", "-pePMetrod=SOLVEPNP_P3P", "-peExGuess=false", "-peNumIteR=500",
