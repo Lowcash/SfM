@@ -9,7 +9,7 @@ RecoveryPose::RecoveryPose(std::string recPoseMethod, const double prob, const d
         c = ::toupper(c);
     });
 
-    this->recPoseMethod = recPoseMethod == "RANSAC" ? cv::RANSAC : cv::LMEDS;
+    this->recPoseMethod = recPoseMethod.compare("RANSAC") ? cv::RANSAC : cv::LMEDS;
 
     std::for_each(poseEstMethod.begin(), poseEstMethod.end(), [](char& c){
         c = ::toupper(c);

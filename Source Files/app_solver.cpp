@@ -146,6 +146,8 @@ void AppSolver::run() {
 
     for (uint iteration = 1; ; ++iteration) {
         // use if statements instead of switch due to loop breaks
+#pragma region KLT Tracker
+
         if (m_usedMethod == Method::KLT) {
             // in the first iteration, the image is not ready yet -> cannot generate features
             // generate features first, to avoid loss of user point in corners stack
@@ -208,7 +210,11 @@ void AppSolver::run() {
             std::swap(ofPrevView, ofCurrView);
             std::swap(featPrevView, featCurrView);
         }
-        /*if (m_usedMethod == Method::VO) {
+        
+#pragma endregion KLT Tracker
+#pragma region Visual Odometry
+
+        if (m_usedMethod == Method::VO) {
             // in the first iteration, the image is not ready yet -> cannot generate features
             // generate features first, to avoid loss of user point in corners stack
             if (iteration != 1 && ofPrevView.corners.size() < optFlow.additionalSettings.minFeatures) {
@@ -243,36 +249,54 @@ void AppSolver::run() {
 
             cv::imshow(params.recPoseWinName, imOutRecPose);
 
-            std::vector<cv::Vec3d> _points3D;
-            std::vector<cv::Vec3b> _pointsRGB;
-            std::vector<bool> _mask;
+            userInput.lockClickedPoints();
+
+            if (!ofPrevView.corners.empty()) {
+                userInput.attachPointsToMove(ofPrevView.corners, ofCurrView.corners, optFlow.statusMask, true, false);
+
+                // move user points and corners
+                optFlow.computeFlow(ofPrevView.viewPtr->imGray, ofCurrView.viewPtr->imGray, ofPrevView.corners, ofCurrView.corners, optFlow.statusMask);
+
+                userInput.detachPointsFromMove(ofPrevView.corners, ofCurrView.corners, optFlow.statusMask, true, false);
+
+                PointsMove pointsMove; ProcesingAdds::analyzePointsMove(ofPrevView.corners, ofCurrView.corners, pointsMove);
+                ProcesingAdds::correctPointsByMoveAnalyze(userInput.doneClickedPts, userInput.moveClickedPts, pointsMove);
+
+                optFlow.drawOpticalFlow(imOutRecPose, imOutRecPose, ofPrevView.corners, ofCurrView.corners, optFlow.statusMask);
+            }
+
+            std::vector<cv::Vec3d> _points3D, _usrPoints3D;
+            std::vector<cv::Vec3b> _pointsRGB, _usrPointsRGB;
+            std::vector<bool> _mask, _usrMask;
 
             cv::Matx34d _prevPose, _currPose;
 
-            composeExtrinsicMat(m_tracking.actualR, m_tracking.actualT, _prevPose);
+            composeExtrinsicMat(tracking.actualR, tracking.actualT, _prevPose);
 
             // move camera position by computed R a t from optical flow and essential matrix
-            m_tracking.actualT = m_tracking.actualT + (m_tracking.actualR * recPose.t);
-            m_tracking.actualR = m_tracking.actualR * recPose.R;
+            tracking.actualT = tracking.actualT + (tracking.actualR * recPose.t);
+            tracking.actualR = tracking.actualR * recPose.R;
 
-            composeExtrinsicMat(m_tracking.actualR, m_tracking.actualT, _currPose);
-            m_tracking.addCamPose(_currPose);
+            composeExtrinsicMat(tracking.actualR, tracking.actualT, _currPose);
+            tracking.addCamPose(_currPose);
 
-            // triangulate corners and user clicked points
+            // triangulate corners
             reconstruction.triangulateCloud(camera, ofPrevView.corners, ofCurrView.corners, ofCurrView.viewPtr->imColor, _points3D, _pointsRGB, _mask, _prevPose, _currPose, recPose.R, recPose.t);
 
-            userInput.detachPointsFromReconstruction(_newPts3D, _points3D, _pointsRGB, _mask, userInput.usrClickedPts2D.size());
+            // triangulate user clicked points
+            reconstruction.triangulateCloud(camera, userInput.doneClickedPts, userInput.moveClickedPts, ofCurrView.viewPtr->imColor, _usrPoints3D, _usrPointsRGB, _usrMask, _prevPose, _currPose, recPose.R, recPose.t);
 
-            userInput.addPoints(_newPts2D, _newPts3D, m_tracking.getTrackViews().size());
+            userInput.addPoints(userInput.moveClickedPts, _usrPoints3D, tracking.getTrackViews().size());
              
-            userInput.storeClickedPoints();
             userInput.clearClickedPoints();
+            userInput.updateWaitingPoints();
+            userInput.unlockClickedPoints();
 
             // draw moved points
-            userInput.recoverPoints(imOutUsrInp, camera.K, cv::Mat(m_tracking.actualR), cv::Mat(m_tracking.actualT));
+            userInput.recoverPoints(imOutUsrInp, camera.K, cv::Mat(tracking.actualR), cv::Mat(tracking.actualT));
         
-            visPCL.addCamera(m_tracking.getLastCam() , camera.K);
-            //visPCL.addPoints();
+            visPCL.addCamera(tracking.getLastCam() , camera.K);
+            visPCL.addPoints(_usrPoints3D);
 
             cv::imshow(params.usrInpWinName, imOutUsrInp);
 
@@ -282,6 +306,10 @@ void AppSolver::run() {
             std::swap(ofPrevView, ofCurrView);
             std::swap(featPrevView, featCurrView);
         }
+
+#pragma endregion Visual Odometry
+#pragma region Perspective-n-Point
+
         /*if (m_usedMethod == Method::PNP) {
             bool isPtAdded = false;
 
@@ -442,5 +470,7 @@ void AppSolver::run() {
             std::swap(ofPrevView, ofCurrView);
             std::swap(featPrevView, featCurrView);
         }*/
+
+#pragma endregion Perspective-n-Point
     }
 }

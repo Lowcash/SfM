@@ -49,7 +49,7 @@ public:
     std::vector<CloudTrack> cloudTracks;
     
     PointCloud(const double clearRatio = .5) 
-        : m_clearRatio(clearRatio), m_numActiveCloudPts(0) {}
+        : m_clearRatio(clearRatio), m_numCloudPts(0), m_numActiveCloudPts(0) {}
 
     void addCloudPoint(const cv::Point2f projPosition2D, const cv::Vec3d cloudPoint3D, const cv::Vec3b cloudPointRGB, const size_t cameraIdx) {
         cloud3D.push_back(cloudPoint3D);

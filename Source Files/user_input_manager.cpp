@@ -48,6 +48,7 @@ bool UserInput::anyUserPoint() const {
 
 void UserInput::clearClickedPoints() {
     doneClickedPts.clear();
+    moveClickedPts.clear();
 }
 
 void UserInput::filterPointsByBoundary(const cv::Rect boundary, const uint offset) {

@@ -38,6 +38,8 @@ void Reconstruction::pointsToRGBCloud(Camera camera, cv::Mat imgColor, cv::Matx3
 }
 
 void Reconstruction::triangulateCloud(Camera camera, const std::vector<cv::Point2f> prevPts, const std::vector<cv::Point2f> currPts, const cv::Mat colorImage, std::vector<cv::Vec3d>& points3D, std::vector<cv::Vec3b>& pointsRGB, std::vector<bool>& mask, const cv::Matx34d prevPose, const cv::Matx34d currPose, cv::Matx33d& R, cv::Matx31d& t) {
+    if (prevPts.empty() || currPts.empty()) { return; }
+    
     cv::Mat _prevPtsN; cv::undistort(prevPts, _prevPtsN, camera.K33d, cv::Mat());
     cv::Mat _currPtsN; cv::undistort(currPts, _currPtsN, camera.K33d, cv::Mat());
 
