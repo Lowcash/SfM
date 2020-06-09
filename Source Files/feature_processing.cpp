@@ -104,11 +104,11 @@ DescriptorMatcher::DescriptorMatcher(std::string method, const float ratioThresh
         c = ::toupper(c);
     });
 
-    if (method.compare("BRUTEFORCE_HAMMING"))
+    if (method == "BRUTEFORCE_HAMMING")
         matcher = cv::DescriptorMatcher::create(cv::DescriptorMatcher::MatcherType::BRUTEFORCE_HAMMING);
-    else if (method.compare("BRUTEFORCE_SL2"))
+    else if (method == "BRUTEFORCE_SL2")
         matcher = cv::DescriptorMatcher::create(cv::DescriptorMatcher::MatcherType::BRUTEFORCE_SL2);
-    else if (method.compare("FLANNBASED"))
+    else if (method == "FLANNBASED")
         matcher = cv::DescriptorMatcher::create(cv::DescriptorMatcher::MatcherType::FLANNBASED);
     else 
         matcher = cv::DescriptorMatcher::create(cv::DescriptorMatcher::MatcherType::BRUTEFORCE);

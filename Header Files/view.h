@@ -7,16 +7,12 @@
 class ViewData {
 public:
     cv::Mat imColor, imGray;
-private:
-    void setView(const cv::Mat imColor, const cv::Mat imGray) {
-        imColor.copyTo(this->imColor);
-        imGray.copyTo(this->imGray);
-    }
-public:
+
     ViewData() {}
 
-    ViewData(const cv::Mat imColor, const cv::Mat imGray) {
-        setView(imColor, imGray);
+    ViewData(cv::Mat imColor, cv::Mat imGray) {
+        imColor.copyTo(this->imColor);
+        imGray.copyTo(this->imGray);
     }
 };
 
@@ -36,8 +32,8 @@ class ViewDataContainer {
 private:
     const uint m_containerBufferSize;
 
-    std::list<ViewData> m_dataContainer;
 public:
+    std::list<ViewData> m_dataContainer;
     /** ViewDataContainer constructor
      * 
      * @param containerBufferSize buffer size to clear memory
