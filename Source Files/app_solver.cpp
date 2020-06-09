@@ -68,7 +68,9 @@ int AppSolver::findGoodImages(cv::VideoCapture& cap, ViewDataContainer& viewCont
         _currCorners = ofCurrView.corners;
 
         // flow computing with boundary and error filtering
-        optFlow.computeFlow(viewContainer.getLastOneItem()->imGray, _viewData.imGray, _prevCorners, _currCorners, optFlow.statusMask, true, true);
+        optFlow.computeFlow(viewContainer.getLastOneItem()->imGray, _viewData.imGray, _prevCorners, _currCorners, optFlow.statusMask);
+        ProcesingAdds::filterPointsByStatusMask(_prevCorners, _currCorners, optFlow.statusMask);
+        ProcesingAdds::filterPointsByBoundary(_prevCorners, _currCorners, m_boundary);
 
         numSkippedFrames++;
 
@@ -77,7 +79,7 @@ int AppSolver::findGoodImages(cv::VideoCapture& cap, ViewDataContainer& viewCont
 
             return ImageFindState::NOT_FOUND;
         }
-    } while(!m_tracking.findCameraPose(recPose, _prevCorners, _currCorners, camera.K, recPose.minInliers, numHomInliers));
+    } while(!Tracking::findCameraPose(recPose, _prevCorners, _currCorners, camera.K, recPose.minInliers, numHomInliers));
 
     // complete the search for image pairs -> set flow views
     viewContainer.addItem(_viewData);
@@ -108,16 +110,18 @@ void AppSolver::run() {
 
     RecoveryPose recPose(params.peMethod, params.peProb, params.peThresh, params.peMinInl, params.pePMetrod, params.peExGuess, params.peNumIteR);
 
-    ViewDataContainer viewContainer(m_usedMethod == Method::KLT || m_usedMethod == Method::VO ? 100 : INT32_MAX);
+    ViewDataContainer viewContainer(params.bDebugMatE ? INT32_MAX : 100);
 
     FeatureView featPrevView, featCurrView;
     FlowView ofPrevView, ofCurrView; 
+
+    Tracking tracking;
 
     Reconstruction reconstruction(params.tMethod, params.baMethod, params.baMaxRMSE, params.tMinDist, params.tMaxDist, params.tMaxPErr, true);
 
     cv::Mat imOutUsrInp, imOutRecPose, imOutMatches;
     
-    UserInput userInput(params.usrInpWinName, &imOutUsrInp, &m_tracking.pointCloud, params.ofMaxError);
+    UserInput userInput(params.usrInpWinName, &imOutUsrInp, &tracking.pointCloud, params.ofMaxError);
 
     // run windows in new thread -> avoid rendering white screen
     cv::startWindowThread();
@@ -154,8 +158,6 @@ void AppSolver::run() {
             if (findGoodImages(cap, viewContainer) == ImageFindState::SOURCE_LOST) 
                 break;
             
-            userInput.lockClickPoints();
-
             // prepare flow view images for flow computing and debug draw
             ofPrevView.setView(viewContainer.getLastButOneItem());
             ofCurrView.setView(viewContainer.getLastOneItem());
@@ -163,21 +165,39 @@ void AppSolver::run() {
             ofCurrView.viewPtr->imColor.copyTo(imOutRecPose);
             ofCurrView.viewPtr->imColor.copyTo(imOutUsrInp);
 
+            userInput.lockClickedPoints();
+
             if (!ofPrevView.corners.empty()) {
+                userInput.attachPointsToMove(ofPrevView.corners, ofCurrView.corners, optFlow.statusMask, true, true);
+
                 // move user points and corners
-                optFlow.computeFlow(ofPrevView.viewPtr->imGray, ofCurrView.viewPtr->imGray, ofPrevView.corners, ofCurrView.corners, userInput.usr2dPtsToMove, optFlow.statusMask, true, true, true);
+                optFlow.computeFlow(ofPrevView.viewPtr->imGray, ofCurrView.viewPtr->imGray, ofPrevView.corners, ofCurrView.corners, optFlow.statusMask);
+
+                userInput.detachPointsFromMove(ofPrevView.corners, ofCurrView.corners, optFlow.statusMask, true, true);
+
+                ProcesingAdds::filterPointsByStatusMask(ofPrevView.corners, ofCurrView.corners, optFlow.statusMask);
+                ProcesingAdds::filterPointsByBoundary(ofPrevView.corners, ofCurrView.corners, m_boundary);
+
+                PointsMove pointsMove; ProcesingAdds::analyzePointsMove(ofPrevView.corners, ofCurrView.corners, pointsMove);
+                ProcesingAdds::correctPointsByMoveAnalyze(userInput.doneClickedPts, userInput.moveClickedPts, pointsMove);
+                ProcesingAdds::correctPointsByMoveAnalyze(userInput.doneUsrPts, userInput.moveUsrPts, pointsMove);
 
                 optFlow.drawOpticalFlow(imOutRecPose, imOutRecPose, ofPrevView.corners, ofCurrView.corners, optFlow.statusMask);
-
-                userInput.storeClickedPoints();
-                userInput.clearClickedPoints();
-
-                // draw moved points
-                userInput.recoverPoints(imOutUsrInp);
             }
 
-            userInput.unlockClickPoints();
-            userInput.updateClickedPoints();
+            std::swap(userInput.moveUsrPts, userInput.doneUsrPts);
+            userInput.moveUsrPts.clear();
+
+            ProcesingAdds::filterPointsByBoundary(userInput.doneUsrPts, m_boundary);
+            
+            userInput.storeClickedPoints();
+            userInput.clearClickedPoints();
+
+            userInput.updateWaitingPoints();
+            userInput.unlockClickedPoints();
+
+            // draw moved points
+            userInput.recoverPoints(imOutUsrInp);
 
             cv::imshow(params.recPoseWinName, imOutRecPose);
             cv::imshow(params.usrInpWinName, imOutUsrInp);
@@ -262,7 +282,7 @@ void AppSolver::run() {
             std::swap(ofPrevView, ofCurrView);
             std::swap(featPrevView, featCurrView);
         }
-        if (m_usedMethod == Method::PNP) {
+        /*if (m_usedMethod == Method::PNP) {
             bool isPtAdded = false;
 
             if (iteration != 1) {

@@ -244,130 +244,67 @@ OptFlow::OptFlow(cv::TermCriteria termcrit, int winSize, int maxLevel, float max
     additionalSettings.setMinFeatures(minFeatures);
 }
 
-void OptFlow::computeFlow(cv::Mat imPrevGray, cv::Mat imCurrGray, std::vector<cv::Point2f>& prevPts, std::vector<cv::Point2f>& currPts, std::vector<uchar>& statusMask, bool useBoundaryCorrection, bool useErrorCorrection, bool useOutliersCorrection) {
-    std::vector<std::vector<cv::Point2f>> _emptyAddPts;
-
-    computeFlow(imPrevGray, imCurrGray, prevPts, currPts, _emptyAddPts, statusMask, useBoundaryCorrection, useErrorCorrection, useOutliersCorrection);
-}
-
-void OptFlow::computeFlow(cv::Mat imPrevGray, cv::Mat imCurrGray, std::vector<cv::Point2f>& prevPts, std::vector<cv::Point2f>& currPts, std::vector<std::vector<cv::Point2f>>& addPts, std::vector<uchar>& statusMask, bool useBoundaryCorrection, bool useErrorCorrection, bool useOutliersCorrection) {
+void OptFlow::computeFlow(cv::Mat imPrevGray, cv::Mat imCurrGray, std::vector<cv::Point2f>& prevPts, std::vector<cv::Point2f>& currPts, std::vector<uchar>& statusMask) {
     std::vector<float> _err;
-    
-    if (!addPts.empty()) {
-        for (auto &p : addPts) {
-            if (!p.empty()) {
-                // assign additional points for flow computing
-                prevPts.insert(prevPts.end(), p.begin(), p.end());
-            }
-        }
 
-        std::reverse(addPts.begin(), addPts.end());
-    }
-    
     optFlow->calc(imPrevGray, imCurrGray, prevPts, currPts, statusMask, _err);
 
-    //  Image boundary filter
-    cv::Rect boundary(cv::Point(), imCurrGray.size());
+    const size_t numPoints = statusMask.size();
 
-    if (!addPts.empty()) {
-        for (auto& p : addPts) {
-            if (!p.empty()) {
-                std::vector<float> _addErr;
-                std::vector<uchar> _addStatusMask;
-                std::vector<cv::Point2f> _addMovedPts;
-
-                _addErr.insert(_addErr.end(), _err.end() - p.size(), _err.end());
-                _addStatusMask.insert(_addStatusMask.end(), statusMask.end() - p.size(), statusMask.end());
-                _addMovedPts.insert(_addMovedPts.end(), currPts.end() - p.size(), currPts.end());
-
-                for (int i = 0; i < p.size(); ++i) {
-                    _err.pop_back();
-                    statusMask.pop_back();
-                    currPts.pop_back();
-                }
-
-                filterComputedPoints(p, _addMovedPts, _addStatusMask, _addErr, boundary, useBoundaryCorrection, false, useOutliersCorrection);
-
-                std::swap(p, _addMovedPts);
-            }
-        }
-
-        std::reverse(addPts.begin(), addPts.end());
+    for (size_t i = 0; i < numPoints; ++i) {
+        if (_err[i] > additionalSettings.maxError) 
+            statusMask[i] = false;
     }
-
-    filterComputedPoints(prevPts, currPts, statusMask, _err, boundary, useBoundaryCorrection, useErrorCorrection, useOutliersCorrection);
 }
 
-void OptFlow::filterComputedPoints(std::vector<cv::Point2f>& prevPts, std::vector<cv::Point2f>& currPts, std::vector<uchar>& statusMask, std::vector<float> err, cv::Rect boundary, bool useBoundaryCorrection, bool useErrorCorrection, bool useOutliersCorrection) {
-    const size_t numPts = statusMask.size();
+void OptFlow::correctComputedPoints(std::vector<cv::Point2f>& prevPts, std::vector<cv::Point2f>& currPts) {
+    if (prevPts.size() != currPts.size()) {
+        std::cout << "The number of points is not the same!" << "\n";
 
-    float dOutFence, uOutFence;
-
-    cv::Point2f medianMove;
-
-    if (useOutliersCorrection) {
-        std::vector<float> dist(numPts);
-        std::map<float, size_t> distIdxMap;
-
-        for (size_t i = 0; i < numPts; ++i) {
-            dist[i] = cv::norm(prevPts[i] - currPts[i]);
-
-            distIdxMap[dist[i]] = i;
-        }
-
-        std::sort(dist.begin(), dist.end(), std::less<float>());
-
-        if (numPts > 3) {
-            uint quarter = (dist.size() / 4);
-
-            float Q1 = (dist[quarter * 1 - 1] + dist[quarter * 1]) / 2.0f;
-            float Q2 = (dist[quarter * 2 - 1] + dist[quarter * 2]) / 2.0f;
-            float Q3 = (dist[quarter * 3 - 1] + dist[quarter * 3]) / 2.0f;
-
-            float IQR = Q3 - Q1;
-
-            IQR *= 3;
-
-            dOutFence = Q1 - IQR;
-            uOutFence = Q3 + IQR;
-
-            medianMove = currPts[distIdxMap[dist[quarter * 2 - 1]]] - prevPts[distIdxMap[dist[quarter * 2 - 1]]];
-        }
+        return; 
     }
 
-    for (uint i = 0, idxCorrection = 0; i < numPts; ++i) {
-        cv::Point2f pt = currPts[i - idxCorrection];
-
-        //  Filter by provided parameters
-        bool isErrorOK = statusMask[i] == 1 && err[i] < additionalSettings.maxError;
-        bool isBoundOK = boundary.contains(pt);
+    if (prevPts.size() < 4) {
+        std::cout << "Not enough points for correction!" << "\n";
         
-        if (!isErrorOK || !isBoundOK) {
-            if ((useErrorCorrection && !isErrorOK) || (useBoundaryCorrection && !isBoundOK)) {
-                //  Throw away bad points
-                prevPts.erase(prevPts.begin() + (i - idxCorrection));
-                currPts.erase(currPts.begin() + (i - idxCorrection));
+        return; 
+    }
 
-                idxCorrection++;
-            } else
-                statusMask[i] = 0;
-        }
+    const size_t numPoints = prevPts.size();
 
+    std::vector<float> dist(numPoints);
+    std::map<float, size_t> distIdxMap;
+
+    for (size_t i = 0; i < numPoints; ++i) {
+        dist[i] = cv::norm(prevPts[i] - currPts[i]);
+
+        distIdxMap[dist[i]] = i;
+    }
+
+    std::sort(dist.begin(), dist.end(), std::less<float>());
+
+    const uint quarter = (dist.size() / 4);
+
+    const float Q1 = (dist[quarter * 1 - 1] + dist[quarter * 1]) / 2.0f;
+    const float Q2 = (dist[quarter * 2 - 1] + dist[quarter * 2]) / 2.0f;
+    const float Q3 = (dist[quarter * 3 - 1] + dist[quarter * 3]) / 2.0f;
+
+    const float IQR = (Q3 - Q1) * 3.0f;
+
+    const float dOutFence = Q1 - IQR;
+    const float uOutFence = Q3 + IQR;
+
+    const cv::Point2f medianMove = currPts[distIdxMap[dist[quarter * 2 - 1]]] - prevPts[distIdxMap[dist[quarter * 2 - 1]]];
+
+    for (size_t i = 0; i < numPoints; ++i) {
         // point distance
         const float dist = cv::norm(prevPts[i] - currPts[i]);
 
-        //  Filter by provided parameters
-        bool isOutliOK = numPts < 4 || (dist >= dOutFence && dist <= uOutFence);
+        // Correct by provided parameters
+        bool isOutliOK = numPoints < 4 || (dist >= dOutFence && dist <= uOutFence);
 
-        if(!isOutliOK) {
-            if ((useOutliersCorrection && !isOutliOK)) {
-                currPts[i] = prevPts[i] + medianMove;
-
-                //  Throw away bad points
-                //prevPts.erase(prevPts.begin() + (i - idxCorrection));
-                //currPts.erase(currPts.begin() + (i - idxCorrection));
-            }
-        }
+        if (!isOutliOK)
+            currPts[i] = prevPts[i] + medianMove;
     }
 }
 
@@ -385,5 +322,117 @@ void OptFlow::drawOpticalFlow(cv::Mat inputImg, cv::Mat& outputImg, const std::v
         //  Red arrow -> bad optical flow (mask, error)
         if (isUsingMask && statusMask[i] == 0)
             cv::arrowedLine(outputImg, currPts[i], currPts[i] + dir, CV_RGB(200,0,0),1, cv::LineTypes::LINE_AA);
+    }
+}
+
+void ProcesingAdds::filterPointsByBoundary(std::vector<cv::Point2f>& points, const cv::Rect boundary) {
+    std::vector<cv::Point2f> _emptyPoints;
+
+    filterPointsByBoundary(_emptyPoints, points, boundary);
+}
+
+void ProcesingAdds::filterPointsByStatusMask(std::vector<cv::Point2f>& points, const std::vector<uchar>& statusMask) {
+    std::vector<cv::Point2f> _emptyPoints;
+
+    filterPointsByStatusMask(_emptyPoints, points, statusMask);
+}
+
+void ProcesingAdds::filterPointsByBoundary(std::vector<cv::Point2f>& prevPts, std::vector<cv::Point2f>& currPts, const cv::Rect boundary) {
+    const size_t numPoints = currPts.size();
+
+    for (size_t i = 0, idxCorrection = 0; i < numPoints; ++i) {
+        cv::Point2f pt = currPts[i - idxCorrection];
+
+        if (!boundary.contains(pt)) {
+            currPts.erase(currPts.begin() + (i - idxCorrection));
+            
+            if (!prevPts.empty())
+                prevPts.erase(prevPts.begin() + (i - idxCorrection));
+        }
+    }
+}
+
+void ProcesingAdds::filterPointsByStatusMask(std::vector<cv::Point2f>& prevPts, std::vector<cv::Point2f>& currPts, const std::vector<uchar>& statusMask) {
+    const size_t numPoints = currPts.size();
+
+    for (size_t i = 0, idxCorrection = 0; i < numPoints; ++i) {
+        cv::Point2f pt = currPts[i - idxCorrection];
+
+        if (!statusMask[i]) {
+            currPts.erase(currPts.begin() + (i - idxCorrection));
+            
+            if (!prevPts.empty())
+                prevPts.erase(prevPts.begin() + (i - idxCorrection));
+        }
+    }
+}
+
+void ProcesingAdds::analyzePointsMove(std::vector<cv::Point2f>& inPrevPts, std::vector<cv::Point2f>& inCurrPts, PointsMove& outPointsMove) {
+    if (inPrevPts.size() != inCurrPts.size()) {
+        std::cout << "The number of points is not the same!" << "\n";
+
+        return; 
+    }
+
+    if (inPrevPts.size() < 4) {
+        std::cout << "Not enough points for correction!" << "\n";
+        
+        return; 
+    }
+
+    const size_t numPoints = inPrevPts.size();
+
+    std::vector<float> dist(numPoints);
+    std::map<float, size_t> distIdxMap;
+
+    for (size_t i = 0; i < numPoints; ++i) {
+        dist[i] = cv::norm(inPrevPts[i] - inCurrPts[i]);
+
+        distIdxMap[dist[i]] = i;
+    }
+
+    std::sort(dist.begin(), dist.end(), std::less<float>());
+
+    const uint quarter = (dist.size() / 4);
+
+    outPointsMove.Q1 = (dist[quarter * 1 - 1] + dist[quarter * 1]) / 2.0f;
+    outPointsMove.Q2 = (dist[quarter * 2 - 1] + dist[quarter * 2]) / 2.0f;
+    outPointsMove.Q3 = (dist[quarter * 3 - 1] + dist[quarter * 3]) / 2.0f;
+
+    const float IQR = (outPointsMove.Q3 - outPointsMove.Q1);
+
+    outPointsMove.lowerInFence = outPointsMove.Q1 - IQR * 1.5f;
+    outPointsMove.upperInFence = outPointsMove.Q3 + IQR * 1.5f;
+
+    outPointsMove.lowerOutFence = outPointsMove.Q1 - IQR * 3.0f;
+    outPointsMove.upperOutFence = outPointsMove.Q3 + IQR * 3.0f;
+
+    outPointsMove.medianMove = inCurrPts[distIdxMap[dist[quarter * 2 - 1]]] - inPrevPts[distIdxMap[dist[quarter * 2 - 1]]];
+}
+
+void ProcesingAdds::correctPointsByMoveAnalyze(std::vector<cv::Point2f>& prevPts, std::vector<cv::Point2f>& currPts, PointsMove& pointsMove) {
+    if (prevPts.size() != currPts.size()) {
+        //std::cout << "The number of points is not the same!" << "\n";
+
+        return; 
+    }
+
+    if (prevPts.size() < 4) {
+        //std::cout << "Not enough points for correction!" << "\n";
+        
+        return; 
+    }
+
+    const size_t numPoints = prevPts.size();
+
+    for (size_t i = 0; i < numPoints; ++i) {
+        // point distance
+        const float dist = cv::norm(prevPts[i] - currPts[i]);
+
+        // correct points by median move, if they are not inside fence range
+        if (!(numPoints < 4 || (dist >= pointsMove.lowerOutFence && dist <= pointsMove.upperOutFence))) {
+
+            currPts[i] = prevPts[i] + pointsMove.medianMove;
+        }
     }
 }

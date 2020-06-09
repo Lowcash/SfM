@@ -74,8 +74,7 @@ public:
 
 class OptFlow {
 private:
-    void filterComputedPoints(std::vector<cv::Point2f>& prevPts, std::vector<cv::Point2f>& currPts, std::vector<uchar>& statusMask, std::vector<float> err, cv::Rect boundary, bool useBoundaryCorrection, bool useErrorCorrection, bool useOutliersCorrection);
-
+    void correctComputedPoints(std::vector<cv::Point2f>& prevPts, std::vector<cv::Point2f>& currPts);
 public:
     cv::Ptr<cv::SparsePyrLKOpticalFlow> optFlow;
 
@@ -93,18 +92,9 @@ public:
      *  @param useErrorCorrection filter by optical flow error
      *  @param useOutliersCorrection filter by outliers
      */
-    void computeFlow(cv::Mat imPrevGray, cv::Mat imCurrGray, std::vector<cv::Point2f>& prevPts, std::vector<cv::Point2f>& currPts, std::vector<uchar>& statusMask, bool useBoundaryCorrection = false, bool useErrorCorrection = false, bool useOutliersCorrection = false);
+    void computeFlow(cv::Mat imPrevGray, cv::Mat imCurrGray, std::vector<cv::Point2f>& prevPts, std::vector<cv::Point2f>& currPts, std::vector<uchar>& statusMask);
 
-    /** 
-     *  Compute optical flow between grayscale images and move user points
-     *  It also filters bad points -> depending on the settings
-     *  
-     *  @param addPts input/output vector of additional points to move
-     *  @param useBoundaryCorrection filter by image boudary
-     *  @param useErrorCorrection filter by optical flow error
-     *  @param useOutliersCorrection filter by outliers
-     */
-    void computeFlow(cv::Mat imPrevGray, cv::Mat imCurrGray, std::vector<cv::Point2f>& prevPts, std::vector<cv::Point2f>& currPts, std::vector<std::vector<cv::Point2f>>& addPts, std::vector<uchar>& statusMask, bool useBoundaryCorrection = false, bool useErrorCorrection = false, bool useOutliersCorrection = false);
+    void filterPoints(std::vector<cv::Point2f>& prevPts, std::vector<cv::Point2f>& currPts, std::vector<uchar>& statusMask, cv::Rect boundary, bool useBoundaryCorrection, bool useErrorCorrection);
 
     void drawOpticalFlow(cv::Mat inputImg, cv::Mat& outputImg, const std::vector<cv::Point2f> prevPts, const std::vector<cv::Point2f> currPts, std::vector<uchar> statusMask);
 };
@@ -129,6 +119,30 @@ public:
 
         cv::KeyPoint::convert(this->keyPts, this->pts);
     }
+};
+
+struct PointsMove {
+    float Q1, Q2, Q3;
+
+    float lowerInFence, upperInFence;
+    float lowerOutFence, upperOutFence;
+
+    cv::Point2f medianMove;
+};
+
+class ProcesingAdds {
+public:
+    static void filterPointsByBoundary(std::vector<cv::Point2f>& points, const cv::Rect boundary);
+
+    static void filterPointsByStatusMask(std::vector<cv::Point2f>& points, const std::vector<uchar>& statusMask);
+
+    static void filterPointsByBoundary(std::vector<cv::Point2f>& prevPts, std::vector<cv::Point2f>& currPts, const cv::Rect boundary);
+
+    static void filterPointsByStatusMask(std::vector<cv::Point2f>& prevPts, std::vector<cv::Point2f>& currPts, const std::vector<uchar>& statusMask);
+
+    static void analyzePointsMove(std::vector<cv::Point2f>& inPrevPts, std::vector<cv::Point2f>& inCurrPts, PointsMove& outPointsMove);
+
+    static void correctPointsByMoveAnalyze(std::vector<cv::Point2f>& prevPts, std::vector<cv::Point2f>& currPts, PointsMove& pointsMove);
 };
 
 #endif //FEATURE_PROCESSING_H

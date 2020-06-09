@@ -109,6 +109,10 @@ int main(int argc, char** argv) {
 
     //  Read camera calibration script
     const cv::FileStorage fs(bcalib, cv::FileStorage::READ);
+
+    int cameraWidth; fs["image_width"] >> cameraWidth;
+    int cameraHeight; fs["image_height"] >> cameraHeight;
+
     cv::Mat cameraK; fs["camera_matrix"] >> cameraK;
 
     cv::Mat distCoeffs; fs["distortion_coefficients"] >> distCoeffs;
@@ -118,7 +122,7 @@ int main(int argc, char** argv) {
     const std::string recPoseWinName = "Recovery pose";
     const std::string matchesWinName = "Matches";
 
-    AppSolver solver(AppSolverDataParams(bUseMethod, ptCloudWinName, usrInpWinName, recPoseWinName, matchesWinName, bSource, bDownSamp, bMaxSkFram, cv::Size(bWinWidth, bWinHeight), bDebugVisE, bDebugMatE, fDecType, fMatchType, fKnnRatio, ofMinKPts, ofWinSize, ofMaxLevel, ofMaxItCt, ofItEps, ofMaxError, ofMaxCorn, ofQualLvl, ofMinDist, peMethod, peProb, peThresh, peMinInl, peMinMatch, pePMetrod, peExGuess, peNumIteR, baMethod, baMaxRMSE, baProcIt, tMethod, tMinDist, tMaxDist, tMaxPErr, cameraK, distCoeffs));
+    AppSolver solver(AppSolverDataParams(bUseMethod, ptCloudWinName, usrInpWinName, recPoseWinName, matchesWinName, bSource, bDownSamp, bMaxSkFram, cv::Size(bWinWidth, bWinHeight), cv::Size(cameraWidth, cameraHeight), bDebugVisE, bDebugMatE, fDecType, fMatchType, fKnnRatio, ofMinKPts, ofWinSize, ofMaxLevel, ofMaxItCt, ofItEps, ofMaxError, ofMaxCorn, ofQualLvl, ofMinDist, peMethod, peProb, peThresh, peMinInl, peMinMatch, pePMetrod, peExGuess, peNumIteR, baMethod, baMaxRMSE, baProcIt, tMethod, tMinDist, tMaxDist, tMaxPErr, cameraK, distCoeffs));
 
 #pragma endregion INIT 
     std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
