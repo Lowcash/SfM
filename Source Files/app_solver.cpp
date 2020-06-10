@@ -353,7 +353,7 @@ void AppSolver::run() {
 
             userInput.lockClickedPoints();
 
-            /*if (!ofPrevView.corners.empty()) {
+            if (!ofPrevView.corners.empty()) {
                 userInput.attachPointsToMove(ofPrevView.corners, ofCurrView.corners, optFlow.statusMask, true, false);
 
                 // move user points and corners
@@ -365,7 +365,7 @@ void AppSolver::run() {
                 ProcesingAdds::correctPointsByMoveAnalyze(userInput.doneClickedPts, userInput.moveClickedPts, pointsMove);
 
                 optFlow.drawOpticalFlow(imOutRecPose, imOutRecPose, ofPrevView.corners, ofCurrView.corners, optFlow.statusMask);
-            }*/
+            }
 
             std::vector<cv::Vec3d> _points3D, _usrPoints3D;
             std::vector<cv::Vec3b> _pointsRGB, _usrPointsRGB;
@@ -397,10 +397,6 @@ void AppSolver::run() {
             // match features
             descMatcher.findRobustMatches(featPrevView.keyPts, featCurrView.keyPts, featPrevView.descriptor, featCurrView.descriptor, _prevPts, _currPts, _matches, _prevIdx, _currIdx, featPrevView.viewPtr->imColor, featCurrView.viewPtr->imColor);
 
-            cv::Mat out;
-            cv::drawMatches(featPrevView.viewPtr->imColor, featPrevView.keyPts, featCurrView.viewPtr->imColor, featCurrView.keyPts, _matches, out);
-            cv::imshow("Matches", out);
-            cv::waitKey();
             std::cout << "Matches count: " << _matches.size() << "\n";
 
             if (_prevPts.empty() || _currPts.empty()) { 
@@ -430,20 +426,21 @@ void AppSolver::run() {
     
             composeExtrinsicMat(recPose.R, recPose.t, _currPose);
 
-            // triangulate corners
-            reconstruction.triangulateCloud(camera, ofPrevView.corners, ofCurrView.corners, ofCurrView.viewPtr->imColor, _points3D, _pointsRGB, _mask, _prevPose, _currPose, recPose.R, recPose.t);
+            // triangulate feature points and user clicked points
+            reconstruction.triangulateCloud(camera, _prevPts, _currPts, ofCurrView.viewPtr->imColor, _points3D, _pointsRGB, _mask, _prevPose, _currPose, recPose.R, recPose.t);
 
             // triangulate user clicked points
-            //reconstruction.triangulateCloud(camera, userInput.doneClickedPts, userInput.moveClickedPts, ofCurrView.viewPtr->imColor, _usrPoints3D, _usrPointsRGB, _usrMask, _prevPose, _currPose, recPose.R, recPose.t);
+            reconstruction.triangulateCloud(camera, userInput.doneClickedPts, userInput.moveClickedPts, ofCurrView.viewPtr->imColor, _usrPoints3D, _usrPointsRGB, _usrMask, _prevPose, _currPose, recPose.R, recPose.t);
 
-            //userInput.addPoints(userInput.moveClickedPts, _usrPoints3D, tracking.getTrackViews().size());
+            userInput.addPoints(userInput.moveClickedPts, _usrPoints3D, tracking.getTrackViews().size());
 
             // register tracks for PnP 2D-3D matching and point cloud
             tracking.addTrackView(featCurrView.viewPtr, _mask, _currPts, _points3D, _pointsRGB, featCurrView.keyPts, featCurrView.descriptor, cloudMapping, _currIdx);
 
             // confirm camera pose and add it to stack
             tracking.addCamPose(_currPose);
-
+            visPCL.addPoints(_usrPoints3D);
+            
             userInput.clearClickedPoints();
             userInput.updateWaitingPoints();
             userInput.unlockClickedPoints();
