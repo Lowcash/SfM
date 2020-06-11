@@ -25,7 +25,7 @@ FeatureDetector::FeatureDetector(std::string method) {
 
     switch (m_detectorType) {
         case DetectorType::AKAZE: {
-            detector = extractor = cv::AKAZE::create();
+            detector = extractor = cv::AKAZE::create(cv::AKAZE::DescriptorType::DESCRIPTOR_MLDB, 0, 3, 0.001f, 3, 3, cv::KAZE::DiffusivityType::DIFF_WEICKERT);
 
             break;
         }
@@ -97,8 +97,8 @@ void FeatureDetector::generateFlowFeatures(cv::Mat& imGray, std::vector<cv::Poin
     std::cout << "[DONE]";
 }
 
-DescriptorMatcher::DescriptorMatcher(std::string method, const float ratioThreshold, const bool isVisDebug)
-    : m_ratioThreshold(ratioThreshold), m_isVisDebug(isVisDebug) {
+DescriptorMatcher::DescriptorMatcher(std::string method, const float ratioThreshold, const bool isVisDebug, const cv::Size visDebugWinSize)
+    : m_ratioThreshold(ratioThreshold), m_isVisDebug(isVisDebug), m_visDebugWinSize(cv::Size(visDebugWinSize.width * 2, visDebugWinSize.height)) {
 
     std::for_each(method.begin(), method.end(), [](char& c){
         c = ::toupper(c);
@@ -153,6 +153,8 @@ void DescriptorMatcher::findRobustMatches(std::vector<cv::KeyPoint> prevKeyPts, 
 
         drawMatches(debugPrevFrame, debugCurrFrame, _imKnnMatch, prevKeyPts, currKeyPts, fMatches, _matchHeader);
 
+        cv::resize(_imKnnMatch, _imKnnMatch, m_visDebugWinSize);
+
         cv::imshow(_matchHeader, _imKnnMatch);
 
         cv::waitKey(29);
@@ -183,6 +185,8 @@ void DescriptorMatcher::findRobustMatches(std::vector<cv::KeyPoint> prevKeyPts, 
         cv::Mat _imCrossMatching;
 
         drawMatches(debugPrevFrame, debugCurrFrame, _imCrossMatching, prevKeyPts, currKeyPts, matches, _matchHeader);
+
+        cv::resize(_imCrossMatching, _imCrossMatching, m_visDebugWinSize);
 
         cv::imshow(_matchHeader, _imCrossMatching);
 
@@ -217,6 +221,8 @@ void DescriptorMatcher::findRobustMatches(std::vector<cv::KeyPoint> prevKeyPts, 
 
         drawMatches(debugPrevFrame, debugCurrFrame, _imEpipolarFilter, prevKeyPts, currKeyPts, _epipolarMatch, _matchHeader);
 
+        cv::resize(_imEpipolarFilter, _imEpipolarFilter, m_visDebugWinSize);
+
         cv::imshow(_matchHeader, _imEpipolarFilter);
 
         cv::waitKey(29);
@@ -238,31 +244,67 @@ OptFlow::OptFlow(cv::TermCriteria termcrit, int winSize, int maxLevel, float max
     additionalSettings.setMinFeatures(minFeatures);
 }
 
-void OptFlow::computeFlow(cv::Mat imPrevGray, cv::Mat imCurrGray, std::vector<cv::Point2f>& prevPts, std::vector<cv::Point2f>& currPts, std::vector<uchar>& statusMask, bool useBoundaryCorrection, bool useErrorCorrection) {
-    std::vector<float> err;
+void OptFlow::computeFlow(cv::Mat imPrevGray, cv::Mat imCurrGray, std::vector<cv::Point2f>& prevPts, std::vector<cv::Point2f>& currPts, std::vector<uchar>& statusMask) {
+    std::vector<float> _err;
 
-    optFlow->calc(imPrevGray, imCurrGray, prevPts, currPts, statusMask, err);
-    
-    //  Image boundary filter
-    cv::Rect boundary(cv::Point(), imCurrGray.size());
+    optFlow->calc(imPrevGray, imCurrGray, prevPts, currPts, statusMask, _err);
 
-    for (uint i = 0, idxCorrection = 0; i < statusMask.size() && i < err.size(); ++i) {
-        cv::Point2f pt = currPts[i - idxCorrection];
+    const size_t numPoints = statusMask.size();
 
-        //  Filter by provided parameters
-        bool isErrorCorr = statusMask[i] == 1 && err[i] < additionalSettings.maxError;
-        bool isBoundCorr = boundary.contains(pt);
+    for (size_t i = 0; i < numPoints; ++i) {
+        if (_err[i] > additionalSettings.maxError) 
+            statusMask[i] = false;
+    }
+}
 
-        if (!isErrorCorr || !isBoundCorr) {
-            if ((useErrorCorrection && !isErrorCorr) || (useBoundaryCorrection && !isBoundCorr)) {
-                //  Throw away bad points
-                prevPts.erase(prevPts.begin() + (i - idxCorrection));
-                currPts.erase(currPts.begin() + (i - idxCorrection));
+void OptFlow::correctComputedPoints(std::vector<cv::Point2f>& prevPts, std::vector<cv::Point2f>& currPts) {
+    if (prevPts.size() != currPts.size()) {
+        std::cout << "The number of points is not the same!" << "\n";
 
-                idxCorrection++;
-            } else
-                statusMask[i] = 0;
-        }
+        return; 
+    }
+
+    if (prevPts.size() < 4) {
+        std::cout << "Not enough points for correction!" << "\n";
+        
+        return; 
+    }
+
+    const size_t numPoints = prevPts.size();
+
+    std::vector<float> dist(numPoints);
+    std::map<float, size_t> distIdxMap;
+
+    for (size_t i = 0; i < numPoints; ++i) {
+        dist[i] = cv::norm(prevPts[i] - currPts[i]);
+
+        distIdxMap[dist[i]] = i;
+    }
+
+    std::sort(dist.begin(), dist.end(), std::less<float>());
+
+    const uint quarter = (dist.size() / 4);
+
+    const float Q1 = (dist[quarter * 1 - 1] + dist[quarter * 1]) / 2.0f;
+    const float Q2 = (dist[quarter * 2 - 1] + dist[quarter * 2]) / 2.0f;
+    const float Q3 = (dist[quarter * 3 - 1] + dist[quarter * 3]) / 2.0f;
+
+    const float IQR = (Q3 - Q1) * 3.0f;
+
+    const float dOutFence = Q1 - IQR;
+    const float uOutFence = Q3 + IQR;
+
+    const cv::Point2f medianMove = currPts[distIdxMap[dist[quarter * 2 - 1]]] - prevPts[distIdxMap[dist[quarter * 2 - 1]]];
+
+    for (size_t i = 0; i < numPoints; ++i) {
+        // point distance
+        const float dist = cv::norm(prevPts[i] - currPts[i]);
+
+        // Correct by provided parameters
+        bool isOutliOK = numPoints < 4 || (dist >= dOutFence && dist <= uOutFence);
+
+        if (!isOutliOK)
+            currPts[i] = prevPts[i] + medianMove;
     }
 }
 
@@ -280,5 +322,117 @@ void OptFlow::drawOpticalFlow(cv::Mat inputImg, cv::Mat& outputImg, const std::v
         //  Red arrow -> bad optical flow (mask, error)
         if (isUsingMask && statusMask[i] == 0)
             cv::arrowedLine(outputImg, currPts[i], currPts[i] + dir, CV_RGB(200,0,0),1, cv::LineTypes::LINE_AA);
+    }
+}
+
+void ProcesingAdds::filterPointsByBoundary(std::vector<cv::Point2f>& points, const cv::Rect boundary) {
+    std::vector<cv::Point2f> _emptyPoints;
+
+    filterPointsByBoundary(_emptyPoints, points, boundary);
+}
+
+void ProcesingAdds::filterPointsByStatusMask(std::vector<cv::Point2f>& points, const std::vector<uchar>& statusMask) {
+    std::vector<cv::Point2f> _emptyPoints;
+
+    filterPointsByStatusMask(_emptyPoints, points, statusMask);
+}
+
+void ProcesingAdds::filterPointsByBoundary(std::vector<cv::Point2f>& prevPts, std::vector<cv::Point2f>& currPts, const cv::Rect boundary) {
+    const size_t numPoints = currPts.size();
+
+    for (size_t i = 0, idxCorrection = 0; i < numPoints; ++i) {
+        cv::Point2f pt = currPts[i - idxCorrection];
+
+        if (!boundary.contains(pt)) {
+            currPts.erase(currPts.begin() + (i - idxCorrection));
+            
+            if (!prevPts.empty())
+                prevPts.erase(prevPts.begin() + (i - idxCorrection));
+        }
+    }
+}
+
+void ProcesingAdds::filterPointsByStatusMask(std::vector<cv::Point2f>& prevPts, std::vector<cv::Point2f>& currPts, const std::vector<uchar>& statusMask) {
+    const size_t numPoints = currPts.size();
+
+    for (size_t i = 0, idxCorrection = 0; i < numPoints; ++i) {
+        cv::Point2f pt = currPts[i - idxCorrection];
+
+        if (!statusMask[i]) {
+            currPts.erase(currPts.begin() + (i - idxCorrection));
+            
+            if (!prevPts.empty())
+                prevPts.erase(prevPts.begin() + (i - idxCorrection));
+        }
+    }
+}
+
+void ProcesingAdds::analyzePointsMove(std::vector<cv::Point2f>& inPrevPts, std::vector<cv::Point2f>& inCurrPts, PointsMove& outPointsMove) {
+    if (inPrevPts.size() != inCurrPts.size()) {
+        std::cout << "The number of points is not the same!" << "\n";
+
+        return; 
+    }
+
+    if (inPrevPts.size() < 4) {
+        std::cout << "Not enough points for correction!" << "\n";
+        
+        return; 
+    }
+
+    const size_t numPoints = inPrevPts.size();
+
+    std::vector<float> dist(numPoints);
+    std::map<float, size_t> distIdxMap;
+
+    for (size_t i = 0; i < numPoints; ++i) {
+        dist[i] = cv::norm(inPrevPts[i] - inCurrPts[i]);
+
+        distIdxMap[dist[i]] = i;
+    }
+
+    std::sort(dist.begin(), dist.end(), std::less<float>());
+
+    const uint quarter = (dist.size() / 4);
+
+    outPointsMove.Q1 = (dist[quarter * 1 - 1] + dist[quarter * 1]) / 2.0f;
+    outPointsMove.Q2 = (dist[quarter * 2 - 1] + dist[quarter * 2]) / 2.0f;
+    outPointsMove.Q3 = (dist[quarter * 3 - 1] + dist[quarter * 3]) / 2.0f;
+
+    const float IQR = (outPointsMove.Q3 - outPointsMove.Q1);
+
+    outPointsMove.lowerInFence = outPointsMove.Q1 - IQR * 1.5f;
+    outPointsMove.upperInFence = outPointsMove.Q3 + IQR * 1.5f;
+
+    outPointsMove.lowerOutFence = outPointsMove.Q1 - IQR * 3.0f;
+    outPointsMove.upperOutFence = outPointsMove.Q3 + IQR * 3.0f;
+
+    outPointsMove.medianMove = inCurrPts[distIdxMap[dist[quarter * 2 - 1]]] - inPrevPts[distIdxMap[dist[quarter * 2 - 1]]];
+}
+
+void ProcesingAdds::correctPointsByMoveAnalyze(std::vector<cv::Point2f>& prevPts, std::vector<cv::Point2f>& currPts, PointsMove& pointsMove) {
+    if (prevPts.size() != currPts.size()) {
+        //std::cout << "The number of points is not the same!" << "\n";
+
+        return; 
+    }
+
+    if (prevPts.size() < 4) {
+        //std::cout << "Not enough points for correction!" << "\n";
+        
+        return; 
+    }
+
+    const size_t numPoints = prevPts.size();
+
+    for (size_t i = 0; i < numPoints; ++i) {
+        // point distance
+        const float dist = cv::norm(prevPts[i] - currPts[i]);
+
+        // correct points by median move, if they are not inside fence range
+        if (!(numPoints < 4 || (dist >= pointsMove.lowerOutFence && dist <= pointsMove.upperOutFence))) {
+
+            currPts[i] = prevPts[i] + pointsMove.medianMove;
+        }
     }
 }

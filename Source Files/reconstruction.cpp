@@ -38,6 +38,8 @@ void Reconstruction::pointsToRGBCloud(Camera camera, cv::Mat imgColor, cv::Matx3
 }
 
 void Reconstruction::triangulateCloud(Camera camera, const std::vector<cv::Point2f> prevPts, const std::vector<cv::Point2f> currPts, const cv::Mat colorImage, std::vector<cv::Vec3d>& points3D, std::vector<cv::Vec3b>& pointsRGB, std::vector<bool>& mask, const cv::Matx34d prevPose, const cv::Matx34d currPose, cv::Matx33d& R, cv::Matx31d& t) {
+    if (prevPts.empty() || currPts.empty()) { return; }
+    
     cv::Mat _prevPtsN; cv::undistort(prevPts, _prevPtsN, camera.K33d, cv::Mat());
     cv::Mat _currPtsN; cv::undistort(currPts, _currPtsN, camera.K33d, cv::Mat());
 
@@ -117,8 +119,10 @@ void Reconstruction::adjustBundle(Camera& camera, std::list<cv::Matx34d>& camPos
     ceres::Problem problem;
 
     bool isCameraLocked = false;
-    for (auto& p : pointCloud.cloudTracks) {
-        for (auto [c, ct, cEnd, ctEnd] = std::tuple{p.projKeys.begin(), p.extrinsicsIdxs.begin(), p.projKeys.end(), p.extrinsicsIdxs.end()}; c != cEnd && ct != ctEnd; ++c, ++ct) {
+    for (auto [pMask, pMaskEnd, p, pEnd] = std::tuple{pointCloud.cloudMask.begin(), pointCloud.cloudMask.end(), pointCloud.cloudTracks.begin(), pointCloud.cloudTracks.end()}; pMask != pMaskEnd && p != pEnd; ++pMask, ++p) {
+        if (!(bool)*pMask) { continue; }
+        
+        for (auto [c, ct, cEnd, ctEnd] = std::tuple{p->projKeys.begin(), p->extrinsicsIdxs.begin(), p->projKeys.end(), p->extrinsicsIdxs.end()}; c != cEnd && ct != ctEnd; ++c, ++ct) {
             cv::Point2f p2d = *c;
             cv::Matx16d* ext = &extrinsics6d[*ct];
 
@@ -126,7 +130,7 @@ void Reconstruction::adjustBundle(Camera& camera, std::list<cv::Matx34d>& camPos
 
             // create problem to solve using residual blocks
             // cloud 3D point positions will be updated
-            problem.AddResidualBlock(costFunc, NULL, intrinsics4d.val, ext->val, p.ptrPoint3D->val);
+            problem.AddResidualBlock(costFunc, NULL, intrinsics4d.val, ext->val, p->ptrPoint3D->val);
 
             // lock to the first camera to prevent cloud scaling
             // first camera extrinsics will not be updated
@@ -147,14 +151,14 @@ void Reconstruction::adjustBundle(Camera& camera, std::list<cv::Matx34d>& camPos
     options.linear_solver_type = m_baMethod == "DENSE_SCHUR" ? 
         ceres::LinearSolverType::DENSE_SCHUR : ceres::LinearSolverType::SPARSE_NORMAL_CHOLESKY;
 
-    options.minimizer_progress_to_stdout = true;
+    //options.minimizer_progress_to_stdout = true;
     options.eta = 1e-2;
     options.num_threads = std::thread::hardware_concurrency();
     options.max_num_iterations = 150;
 
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
-    std::cout << summary.FullReport() << "\n";
+    //std::cout << summary.FullReport() << "\n";
     
     // check minimalization result -> if it is bad, then restore from backup
     if (!summary.IsSolutionUsable()) {

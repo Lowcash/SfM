@@ -39,9 +39,11 @@ public:
 
     const float m_ratioThreshold;
 
+    const cv::Size m_visDebugWinSize;
+
     cv::Ptr<cv::DescriptorMatcher> matcher;
 
-    DescriptorMatcher(std::string method, const float ratioThreshold, const bool isVisDebug = false);
+    DescriptorMatcher(std::string method, const float ratioThreshold, const bool isVisDebug = false, const cv::Size visDebugWinSize = cv::Size());
 
     /** 
      * Knn ratio match by threshold
@@ -71,6 +73,8 @@ public:
 };
 
 class OptFlow {
+private:
+    void correctComputedPoints(std::vector<cv::Point2f>& prevPts, std::vector<cv::Point2f>& currPts);
 public:
     cv::Ptr<cv::SparsePyrLKOpticalFlow> optFlow;
 
@@ -86,8 +90,11 @@ public:
      * 
      *  @param useBoundaryCorrection filter by image boudary
      *  @param useErrorCorrection filter by optical flow error
+     *  @param useOutliersCorrection filter by outliers
      */
-    void computeFlow(cv::Mat imPrevGray, cv::Mat imCurrGray, std::vector<cv::Point2f>& prevPts, std::vector<cv::Point2f>& currPts, std::vector<uchar>& statusMask, bool useBoundaryCorrection = false, bool useErrorCorrection = false);
+    void computeFlow(cv::Mat imPrevGray, cv::Mat imCurrGray, std::vector<cv::Point2f>& prevPts, std::vector<cv::Point2f>& currPts, std::vector<uchar>& statusMask);
+
+    void filterPoints(std::vector<cv::Point2f>& prevPts, std::vector<cv::Point2f>& currPts, std::vector<uchar>& statusMask, cv::Rect boundary, bool useBoundaryCorrection, bool useErrorCorrection);
 
     void drawOpticalFlow(cv::Mat inputImg, cv::Mat& outputImg, const std::vector<cv::Point2f> prevPts, const std::vector<cv::Point2f> currPts, std::vector<uchar> statusMask);
 };
@@ -112,6 +119,30 @@ public:
 
         cv::KeyPoint::convert(this->keyPts, this->pts);
     }
+};
+
+struct PointsMove {
+    float Q1, Q2, Q3;
+
+    float lowerInFence, upperInFence;
+    float lowerOutFence, upperOutFence;
+
+    cv::Point2f medianMove;
+};
+
+class ProcesingAdds {
+public:
+    static void filterPointsByBoundary(std::vector<cv::Point2f>& points, const cv::Rect boundary);
+
+    static void filterPointsByStatusMask(std::vector<cv::Point2f>& points, const std::vector<uchar>& statusMask);
+
+    static void filterPointsByBoundary(std::vector<cv::Point2f>& prevPts, std::vector<cv::Point2f>& currPts, const cv::Rect boundary);
+
+    static void filterPointsByStatusMask(std::vector<cv::Point2f>& prevPts, std::vector<cv::Point2f>& currPts, const std::vector<uchar>& statusMask);
+
+    static void analyzePointsMove(std::vector<cv::Point2f>& inPrevPts, std::vector<cv::Point2f>& inCurrPts, PointsMove& outPointsMove);
+
+    static void correctPointsByMoveAnalyze(std::vector<cv::Point2f>& prevPts, std::vector<cv::Point2f>& currPts, PointsMove& pointsMove);
 };
 
 #endif //FEATURE_PROCESSING_H

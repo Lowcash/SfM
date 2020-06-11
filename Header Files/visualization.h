@@ -34,9 +34,13 @@ public:
 
     ~VisPCL();
 
-    void updatePointCloud(const std::list<cv::Vec3d>& points3D, const std::list<cv::Vec3b>& pointsRGB);
+    bool isViewerInitialized() const;
+    
+    void updatePointCloud(const std::list<cv::Vec3d>& points3D, const std::list<cv::Vec3b>& pointsRGB, const std::vector<bool>& pointsMask);
 
     void addPoints(const std::vector<cv::Vec3d> points3D);
+    
+    void addCamera(const cv::Matx34d camPose, const cv::Matx33d K33d);
     
     void updateCameras(const std::list<cv::Matx34d> camPoses);
 
@@ -74,13 +78,15 @@ public:
 
     ~VisVTK();
 
-    void updatePointCloud(const std::list<cv::Vec3d>& points3D, const std::list<cv::Vec3b>& pointsRGB);
+    bool isViewerInitialized() const;
+
+    void updatePointCloud(const std::list<cv::Vec3d>& points3D, const std::list<cv::Vec3b>& pointsRGB, const std::vector<bool>& pointsMask);
     
     void addPoints(const std::vector<cv::Vec3d> points3D);
 
-    void updateCameras(const std::list<cv::Matx34d> camPoses, const cv::Matx33d K33d);
+    void addCamera(const cv::Matx34d camPose, const cv::Matx33d K33d);
 
-    void addCamera(const std::list<cv::Matx34d> camPoses, const cv::Matx33d K33d);
+    void updateCameras(const std::list<cv::Matx34d> camPoses, const cv::Matx33d K33d);
 
     void visualize(const std::string windowName, const cv::Size windowSize, const cv::viz::Color backgroundColor);
 };

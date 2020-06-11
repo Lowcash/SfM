@@ -15,10 +15,12 @@ private:
     const float m_maxRange;
     
     const int m_pointSize;
-
+    
     cv::Mat* m_inputImage;
 
-    std::vector<size_t> m_usrCloudPtsIdx;
+    PointCloud* m_pointCloud;
+
+    bool m_isClickPtsLocked;
 
     void drawSelectedPoint(const cv::Point point) {
         // draw red point to image
@@ -30,26 +32,51 @@ private:
         cv::circle(*m_inputImage, point, m_pointSize, CV_RGB(150, 200, 0), cv::FILLED, cv::LINE_AA);
     }
 public:
-    std::vector<cv::Point2f> usrClickedPts2D, usrPts2D;
+    std::vector<size_t> usrCloudPtsIdx;
 
-    UserInput(const std::string winName, cv::Mat* imageSource, const float maxRange, const int pointSize = 5);
+    std::vector<cv::Point2f> waitClickedPts;
+    std::vector<cv::Point2f> doneClickedPts;
+    std::vector<cv::Point2f> moveClickedPts;
+    std::vector<cv::Point2f> doneUsrPts;
+    std::vector<cv::Point2f> moveUsrPts;
+
+    UserInput(const std::string winName, cv::Mat* imageSource, PointCloud* pointCloud, const float maxRange, const int pointSize = 5);
 
     void addClickedPoint(const cv::Point point, bool forceRedraw = false);
 
     /** 
-     * Add points to 2D
-     */
-    void addPoints(const std::vector<cv::Point2f> pts2D);
-
-    /** 
      * Add points to 3D
      */
-    void addPoints(const std::vector<cv::Point2f> pts2D, const std::vector<cv::Vec3d> pts3D, PointCloud& pointCloud, uint iter);
+    void addPoints(const std::vector<cv::Point2f> pts2D, const std::vector<cv::Vec3d> pts3D, uint iter);
+
+    void storeClickedPoints();
+    
+    /** 
+     * It returns if there are any clicked user points
+     */
+    bool anyClickedPoint() const;
+
+    /** 
+     * It returns if there are any stored user points
+     */
+    bool anyUserPoint() const;
+
+    void lockClickedPoints();
+
+    void unlockClickedPoints();
+
+    void updateWaitingPoints();
+
+    /** 
+     * It clears clicker points buffer
+     * Usually after end of loop cycle iteration
+     */
+    void clearClickedPoints();
 
     /** 
      * Filter points by boundary
      */
-    void filterPoints(const std::vector<cv::Point2f> currPts2D, const cv::Rect boundary, const uint offset);
+    void filterPointsByBoundary(const cv::Rect boundary, const uint offset);
 
     /** 
      * Recover points from 2D
@@ -59,19 +86,11 @@ public:
     /** 
      * Recover points from 3D
      */
-    void recoverPoints(cv::Mat& imOutUsr, PointCloud& pointCloud, cv::Mat cameraK, cv::Mat R, cv::Mat t);
+    void recoverPoints(cv::Mat& imOutUsr, cv::Mat cameraK, cv::Mat R, cv::Mat t);
 
-    /** 
-     * Attach points, usually to optical flow
-     */
-    void attachPointsToMove(std::vector<cv::Point2f>& points, std::vector<cv::Point2f>& move);
+    void attachPointsToMove(std::vector<cv::Point2f>& prevPts, std::vector<cv::Point2f>& currPts, std::vector<uchar>& statusMask, bool clickPts, bool usrPts);
 
-    /** 
-     * Detach points, usually from optical flow
-     */
-    void detachPointsFromMove(std::vector<cv::Point2f>& points, std::vector<cv::Point2f>& move, uint numPtsToDetach) ;
-
-    void detachPointsFromReconstruction(std::vector<cv::Vec3d>& points, std::vector<cv::Vec3d>& reconstPts, std::vector<cv::Vec3b>& reconstRGB, std::vector<bool>& reconstMask, uint numPtsToDetach);
+    void detachPointsFromMove(std::vector<cv::Point2f>& prevPts, std::vector<cv::Point2f>& currPts, std::vector<uchar>& statusMask, bool clickPts, bool usrPts);
 };
 
 struct UserInputDataParams {

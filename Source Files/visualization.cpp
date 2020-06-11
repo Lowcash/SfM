@@ -14,6 +14,10 @@ VisPCL::~VisPCL() {
     if (m_visThread.joinable()) { m_visThread.join(); }
 }
 
+bool VisPCL::isViewerInitialized() const {
+    return m_viewer != NULL;
+}
+
 boost::shared_ptr<pcl::visualization::PCLVisualizer> VisPCL::getNewViewer(const std::string windowName, const cv::Size windowSize, const cv::viz::Color bColor) {
     pcl::visualization::PCLVisualizer::Ptr viewer (new pcl::visualization::PCLVisualizer (windowName));
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr pointCloud(new pcl::PointCloud<pcl::PointXYZRGB>);
@@ -28,62 +32,90 @@ boost::shared_ptr<pcl::visualization::PCLVisualizer> VisPCL::getNewViewer(const 
     return (viewer);
 }
 
-void VisPCL::updatePointCloud(const std::list<cv::Vec3d>& points3D, const std::list<cv::Vec3b>& pointsRGB) {
-    pcl::PointCloud<pcl::PointXYZRGB>::Ptr pointCloud(new pcl::PointCloud<pcl::PointXYZRGB>);
+void VisPCL::updatePointCloud(const std::list<cv::Vec3d>& points3D, const std::list<cv::Vec3b>& pointsRGB, const std::vector<bool>& pointsMask) {
+    if (isViewerInitialized()) {
+        pcl::PointCloud<pcl::PointXYZRGB>::Ptr pointCloud(new pcl::PointCloud<pcl::PointXYZRGB>);
 
-    for (auto [p3d, p3dEnd, pClr, pClrEnd] = std::tuple{points3D.cbegin(), points3D.cend(), pointsRGB.cbegin(), pointsRGB.cend()}; p3d != p3dEnd && pClr != pClrEnd; ++p3d, ++pClr) {
-        pcl::PointXYZRGB rgbPoint;
+        for (auto [p3d, p3dEnd, pClr, pClrEnd, pIdx] = std::tuple{points3D.cbegin(), points3D.cend(), pointsRGB.cbegin(), pointsRGB.cend(), 0}; p3d != p3dEnd && pClr != pClrEnd; ++p3d, ++pClr, ++pIdx) {
+            if (pointsMask[pIdx]) {
+                pcl::PointXYZRGB rgbPoint;
 
-        rgbPoint.x = p3d->val[0];
-        rgbPoint.y = p3d->val[1];
-        rgbPoint.z = p3d->val[2];
+                rgbPoint.x = p3d->val[0];
+                rgbPoint.y = p3d->val[1];
+                rgbPoint.z = p3d->val[2];
 
-        rgbPoint.r = pClr->val[2];
-        rgbPoint.g = pClr->val[1];
-        rgbPoint.b = pClr->val[0];
+                rgbPoint.r = pClr->val[2];
+                rgbPoint.g = pClr->val[1];
+                rgbPoint.b = pClr->val[0];
 
-        pointCloud->push_back(rgbPoint);
+                pointCloud->push_back(rgbPoint);
+            }
+        }
+
+        m_visMutex.lock();
+
+        m_viewer->updatePointCloud(pointCloud);
+
+        m_visMutex.unlock();
     }
+}
 
+void VisPCL::addPoints(const std::vector<cv::Vec3d> points3D) {
     m_visMutex.lock();
 
-    m_viewer->updatePointCloud(pointCloud);
+    for (const auto& p : points3D) {
+        pcl::PointXYZ pclPose(p.val[0], p.val[1], p.val[2]);
+
+        if (isViewerInitialized())
+            m_viewer->addSphere(pclPose, 1.0, 128, 0, 128, "point_" + std::to_string(m_numPoints));
+
+        m_numPoints++;
+    }
 
     m_visMutex.unlock();
 }
 
-void VisPCL::addPoints(const std::vector<cv::Vec3d> points3D) {
-    for (const auto& p : points3D) {
-        pcl::PointXYZ pclPose(p.val[0], p.val[1], p.val[2]);
+void VisPCL::addCamera(const cv::Matx34d camPose, const cv::Matx33d K33d) {
+    pcl::PointXYZ pclPose; cvPoseToInversePCLPose(camPose, pclPose);
 
-        m_viewer->addSphere(pclPose, 1.0, 128, 0, 128, "point_" + std::to_string(m_numPoints));
+    if (isViewerInitialized())
+        m_viewer->addSphere(pclPose, 1.0, 255, 255, 0, "cam_pose_" + std::to_string(m_numCams));
 
-        m_numPoints++;
-    }
+    m_numCams++;
 }
 
-void VisPCL::updateCameras(const std::list<cv::Matx34d> camPoses) { 
+void VisPCL::updateCameras(const std::list<cv::Matx34d> camPoses) {
+    if (m_viewer != NULL) {
+        m_visMutex.lock();
+
     for (auto [it, end, idx] = std::tuple{camPoses.cbegin(), camPoses.cend(), 0}; it != end; ++it, ++idx) {
         auto c = (cv::Matx34d)*it;
 
         pcl::PointXYZ pclPose; cvPoseToInversePCLPose(c, pclPose);
-        
+
         if (idx == m_numCams) {
-            m_viewer->addSphere(pclPose, 1.5, 255, 0, 0, "cam_pose_" + std::to_string(idx));
+            if (isViewerInitialized())
+                m_viewer->addSphere(pclPose, 1.5, 255, 0, 0, "cam_pose_" + std::to_string(idx));
             m_numCams++;
         }
-        else
-            m_viewer->updateSphere(pclPose, 0.75, 255, 165, 0, "cam_pose_" + std::to_string(idx));
+        else {
+            if (isViewerInitialized())
+                m_viewer->updateSphere(pclPose, 0.75, 255, 165, 0, "cam_pose_" + std::to_string(idx));
+        }
+    }
+
+    m_visMutex.unlock();
     }
 }
 
 void VisPCL::visualize(const std::string windowName, const cv::Size windowSize, const cv::viz::Color backgroundColor) {
     m_viewer = getNewViewer(windowName, windowSize, backgroundColor);
-
+    
     while (!m_viewer->wasStopped()) {
         m_visMutex.lock();
 
-        m_viewer->spinOnce();
+        if (isViewerInitialized())
+            m_viewer->spinOnce();
 
         m_visMutex.unlock();
     }
@@ -103,7 +135,11 @@ VisVTK::~VisVTK() {
     if (m_visThread.joinable()) { m_visThread.join(); }
 }
 
-void VisVTK::updatePointCloud(const std::list<cv::Vec3d>& points3D, const std::list<cv::Vec3b>& pointsRGB) {
+bool VisVTK::isViewerInitialized() const {
+    return true;
+}
+
+void VisVTK::updatePointCloud(const std::list<cv::Vec3d>& points3D, const std::list<cv::Vec3b>& pointsRGB, const std::vector<bool>& pointsMask) {
     const std::vector<cv::Vec3d> _points3D(points3D.begin(), points3D.end());
     const std::vector<cv::Vec3b> _pointsRGB(pointsRGB.begin(), pointsRGB.end());
 
@@ -154,10 +190,10 @@ void VisVTK::updateCameras(const std::list<cv::Matx34d> camPoses, const cv::Matx
     m_numCams++;
 }
 
-void VisVTK::addCamera(const std::list<cv::Matx34d> camPoses, const cv::Matx33d K33d) {
+void VisVTK::addCamera(const cv::Matx34d camPose, const cv::Matx33d K33d) {
     const cv::viz::WCameraPosition _cam(K33d, -1, cv::viz::Color::orange());
 
-    cv::Affine3d vtkPose; cvPoseToInverseVTKPose(camPoses.back(), vtkPose);
+    cv::Affine3d vtkPose; cvPoseToInverseVTKPose(camPose, vtkPose);
 
     m_viewer.showWidget("cam_" + std::to_string(m_numCams), _cam, vtkPose);
 

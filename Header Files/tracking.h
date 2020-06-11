@@ -54,17 +54,16 @@ public:
 };
 
 class Tracking {
-public:
     // Good track used for matching
-    std::list<TrackView> trackViews;
+    std::list<TrackView> m_trackViews;
 
     // Result camera poses -> updated by bundle adjuster
-    std::list<cv::Matx34d> camPoses;
+    std::list<cv::Matx34d> m_camPoses;
 
     // CloudTracks same size as cloud3D
     // Cameras and 2D point projections which affect cloud
-    std::vector<CloudTrack> cloudTracks;
-
+    std::vector<CloudTrack> m_cloudTracks;
+public:
     PointCloud pointCloud;
 
     cv::Matx33d actualR; cv::Matx31d actualT;
@@ -74,25 +73,33 @@ public:
 
     void addTrackView(ViewData* view, const std::vector<bool>& mask, const std::vector<cv::Point2f>& points2D, const std::vector<cv::Vec3d> points3D, const std::vector<cv::Vec3b>& pointsRGB, const std::vector<cv::KeyPoint>& keyPoints, const cv::Mat& descriptor, std::map<std::pair<float, float>, size_t>& cloudMap, const std::vector<int>& ptsToKeyIdx = std::vector<int>());
 
+    bool addCamPose(const cv::Matx34d camPose) { 
+        m_camPoses.push_back(camPose);
+
+        decomposeExtrinsicMat(camPose, actualR, actualT);
+
+        return true;
+    }
+
+    std::list<cv::Matx34d>& getCamPoses() { return *&m_camPoses; }
+
+    cv::Matx34d getLastCam() { return m_camPoses.back(); }
+
+    std::list<TrackView>& getTrackViews() { return *&m_trackViews; }
+
+    TrackView getLastTrackView() { return m_trackViews.back(); }
+
     /** 
      * Find pose between two views
      * It creates essential matrix and return camera pose by SVD
      */
-    bool findCameraPose(RecoveryPose& recPose, std::vector<cv::Point2f> prevPts, std::vector<cv::Point2f> currPts, cv::Mat cameraK, int minInliers, int& numInliers);
+    static bool findCameraPose(RecoveryPose& recPose, std::vector<cv::Point2f> prevPts, std::vector<cv::Point2f> currPts, cv::Mat cameraK, int minInliers, int& numInliers);
 
     /** 
      * Find pose between trackViews 
      * It uses PnP alghoritm to return camera pose
      */
     bool findRecoveredCameraPose(DescriptorMatcher matcher, int minMatches, Camera camera, FeatureView& featView, RecoveryPose& recPose, std::map<std::pair<float, float>, size_t>& cloudMap);
-
-    bool addCamPose(const cv::Matx34d camPose) { 
-        camPoses.push_back(camPose);
-
-        decomposeExtrinsicMat(camPose, actualR, actualT);
-
-        return true;
-    }
 };
 
 #endif //TRACKING_H

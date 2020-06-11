@@ -13,9 +13,13 @@ protected:
 
     int m_numClouds, m_numCams, m_numPoints;
 public:
-    virtual void updatePointCloud(const std::list<cv::Vec3d>& points3D, const std::list<cv::Vec3b>& pointsRGB) = 0;
+    virtual bool isViewerInitialized() const = 0;
+
+    virtual void updatePointCloud(const std::list<cv::Vec3d>& points3D, const std::list<cv::Vec3b>& pointsRGB, const std::vector<bool>& pointsMask) = 0;
 
     virtual void addPoints(const std::vector<cv::Vec3d> points3D) = 0;
+
+    virtual void addCamera(const cv::Matx34d camPose, const cv::Matx33d K33d) = 0;
 
     virtual void visualize(const std::string windowName, const cv::Size windowSize, const cv::viz::Color backgroundColor) = 0;
 };
