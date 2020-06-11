@@ -95,6 +95,8 @@ public:
         std::cout << "Cleared tracks: [" << clearedTracks << "/" << m_numActiveCloudPts << "]\n"; 
     }
 
+    bool isCloudEmpty() const { return cloud3D.empty(); }
+
     size_t getNumActiveCloudPoints() const { return m_numActiveCloudPts; }
 
     size_t getNumCloudPoints() const { return m_numCloudPts; }

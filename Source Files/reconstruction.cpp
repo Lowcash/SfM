@@ -142,6 +142,12 @@ void Reconstruction::adjustBundle(Camera& camera, std::list<cv::Matx34d>& camPos
         }
     }
 
+    if (!isCameraLocked) {
+        std::cout << "Minimization is not ready, something went wrong! -> skipping process" << "\n";
+
+        return;
+    }
+
     // lock to the camera intinsics to prevent cloud scaling
     // camera intinsics will not be updated
     problem.SetParameterBlockConstant(&intrinsics4d(0));

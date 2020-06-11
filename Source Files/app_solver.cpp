@@ -114,24 +114,27 @@ void AppSolver::run() {
     FeatureView featPrevView, featCurrView;
     FlowView ofPrevView, ofCurrView; 
 
-    Tracking tracking;
-
     Reconstruction reconstruction(params.tMethod, params.baMethod, params.baMaxRMSE, params.tMinDist, params.tMaxDist, params.tMaxPErr, true);
+
+    PointCloud pointCloud; Tracking tracking(&pointCloud);
 
     cv::Mat imOutUsrInp, imOutRecPose, imOutMatches;
     
-    UserInput userInput(params.usrInpWinName, &imOutUsrInp, &tracking.pointCloud, params.ofMaxError);
+    UserInput userInput(params.usrInpWinName, &imOutUsrInp, &pointCloud, params.ofMaxError);
 
     // run windows in new thread -> avoid rendering white screen
     cv::startWindowThread();
 
     cv::namedWindow(params.usrInpWinName, cv::WINDOW_NORMAL);
     cv::namedWindow(params.recPoseWinName, cv::WINDOW_NORMAL);
-    cv::namedWindow(params.matchesWinName, cv::WINDOW_NORMAL);
     
     cv::resizeWindow(params.usrInpWinName, params.winSize);
     cv::resizeWindow(params.recPoseWinName, params.winSize);
-    cv::resizeWindow(params.matchesWinName, params.winSize);
+
+    if (params.bDebugMatE) {
+        cv::namedWindow(params.matchesWinName, cv::WINDOW_NORMAL);
+        cv::resizeWindow(params.matchesWinName, params.winSize);
+    }
     
     UserInputDataParams mouseUsrDataParams(&userInput);
 
@@ -313,9 +316,9 @@ void AppSolver::run() {
             if (iteration != 1) {
                 // do bundle adjust after loop iteration to avoid "continue" statement
                 if (iteration % params.baProcIt == 1 || params.baProcIt == 1) {
-                    //m_tracking.pointCloud.clearCloud();
+                    pointCloud.clearCloud();
 
-                    reconstruction.adjustBundle(camera, tracking.getCamPoses(), tracking.pointCloud);
+                    reconstruction.adjustBundle(camera, tracking.getCamPoses(), pointCloud);
                 }
 
                 if (ofPrevView.corners.size() < optFlow.additionalSettings.minFeatures) {
@@ -405,10 +408,9 @@ void AppSolver::run() {
                 continue; 
             }
 
-            // recover camera pose and get a mapping to the cloud points that were used as 3D points to recover pose
-            std::map<std::pair<float, float>, size_t> cloudMapping;
+            TrackView _trackView;
 
-            if(!tracking.findRecoveredCameraPose(descMatcher, params.peMinMatch, camera, featCurrView, recPose, cloudMapping)) {
+            if(!tracking.trackViews.empty() && !Tracking::findRecoveredCameraPose(descMatcher, params.peMinMatch, camera, featCurrView, recPose, tracking.trackViews, _trackView, pointCloud)) {
                 std::cout << "Recovering camera fail, skip current reconstruction iteration!\n";
     
                 std::swap(ofPrevView, ofCurrView);
@@ -435,10 +437,12 @@ void AppSolver::run() {
             userInput.addPoints(userInput.moveClickedPts, _usrPoints3D, tracking.getTrackViews().size());
 
             // register tracks for PnP 2D-3D matching and point cloud
-            tracking.addTrackView(featCurrView.viewPtr, _mask, _currPts, _points3D, _pointsRGB, featCurrView.keyPts, featCurrView.descriptor, cloudMapping, _currIdx);
+            tracking.addTrackView(featCurrView.viewPtr, _trackView, _mask, _currPts, _points3D, _pointsRGB, featCurrView.keyPts, featCurrView.descriptor, _currIdx);
 
             // confirm camera pose and add it to stack
             tracking.addCamPose(_currPose);
+
+            //visVTK.addPoints(_usrPoints3D);
             visPCL.addPoints(_usrPoints3D);
 
             userInput.clearClickedPoints();
@@ -448,10 +452,10 @@ void AppSolver::run() {
             // draw moved points
             userInput.recoverPoints(imOutUsrInp, camera.K, cv::Mat(tracking.actualR), cv::Mat(tracking.actualT));
 
-            //visVTK.updatePointCloud(m_tracking.pointCloud.cloud3D, m_tracking.pointCloud.cloudRGB);
-            visPCL.updatePointCloud(tracking.pointCloud.cloud3D, tracking.pointCloud.cloudRGB, tracking.pointCloud.cloudMask);
+            //visVTK.updatePointCloud(tracking.pointCloud.cloud3D, tracking.pointCloud.cloudRGB, tracking.pointCloud.cloudMask);
+            visPCL.updatePointCloud(pointCloud.cloud3D, pointCloud.cloudRGB, pointCloud.cloudMask);
 
-            //visVTK.updateCameras(m_tracking.getCamPoses(), camera.K);
+            //visVTK.updateCameras(tracking.getCamPoses(), camera.K);
             visPCL.updateCameras(tracking.getCamPoses());
             
             cv::imshow(params.usrInpWinName, imOutUsrInp);

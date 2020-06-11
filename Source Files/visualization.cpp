@@ -95,12 +95,12 @@ void VisPCL::updateCameras(const std::list<cv::Matx34d> camPoses) {
 
         if (idx == m_numCams) {
             if (isViewerInitialized())
-                m_viewer->addSphere(pclPose, 1.5, 255, 0, 0, "cam_pose_" + std::to_string(idx));
+                m_viewer->addSphere(pclPose, 1.0, 255, 0, 0, "cam_pose_" + std::to_string(idx));
             m_numCams++;
         }
         else {
             if (isViewerInitialized())
-                m_viewer->updateSphere(pclPose, 0.75, 255, 165, 0, "cam_pose_" + std::to_string(idx));
+                m_viewer->updateSphere(pclPose, 0.5, 255, 165, 0, "cam_pose_" + std::to_string(idx));
         }
     }
 
