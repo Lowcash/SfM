@@ -33,7 +33,6 @@ boost::shared_ptr<pcl::visualization::PCLVisualizer> VisPCL::getNewViewer(const 
 }
 
 void VisPCL::updatePointCloud(const std::list<cv::Vec3d>& points3D, const std::list<cv::Vec3b>& pointsRGB, const std::vector<bool>& pointsMask) {
-<<<<<<< HEAD
     if (isViewerInitialized()) {
         pcl::PointCloud<pcl::PointXYZRGB>::Ptr pointCloud(new pcl::PointCloud<pcl::PointXYZRGB>);
 
@@ -52,25 +51,6 @@ void VisPCL::updatePointCloud(const std::list<cv::Vec3d>& points3D, const std::l
                 pointCloud->push_back(rgbPoint);
             }
         }
-=======
-    pcl::PointCloud<pcl::PointXYZRGB>::Ptr pointCloud(new pcl::PointCloud<pcl::PointXYZRGB>);
-
-    for (auto [p3d, p3dEnd, pClr, pClrEnd, pIdx] = std::tuple{points3D.cbegin(), points3D.cend(), pointsRGB.cbegin(), pointsRGB.cend(), 0}; p3d != p3dEnd && pClr != pClrEnd; ++p3d, ++pClr, ++pIdx) {
-        if (pointsMask[pIdx]) {
-            pcl::PointXYZRGB rgbPoint;
-
-            rgbPoint.x = p3d->val[0];
-            rgbPoint.y = p3d->val[1];
-            rgbPoint.z = p3d->val[2];
-
-            rgbPoint.r = pClr->val[2];
-            rgbPoint.g = pClr->val[1];
-            rgbPoint.b = pClr->val[0];
-
-            pointCloud->push_back(rgbPoint);
-        }
-    }
->>>>>>> ca950f65e6bfce02b3c3f4591a417d950d87c7ff
 
         m_visMutex.lock();
 
@@ -157,13 +137,10 @@ VisVTK::~VisVTK() {
     if (m_visThread.joinable()) { m_visThread.join(); }
 }
 
-<<<<<<< HEAD
 bool VisVTK::isViewerInitialized() const {
     return true;
 }
 
-=======
->>>>>>> ca950f65e6bfce02b3c3f4591a417d950d87c7ff
 void VisVTK::updatePointCloud(const std::list<cv::Vec3d>& points3D, const std::list<cv::Vec3b>& pointsRGB, const std::vector<bool>& pointsMask) {
     const std::vector<cv::Vec3d> _points3D(points3D.begin(), points3D.end());
     const std::vector<cv::Vec3b> _pointsRGB(pointsRGB.begin(), pointsRGB.end());
@@ -178,6 +155,7 @@ void VisVTK::updatePointCloud(const std::list<cv::Vec3d>& points3D, const std::l
     m_viewer.showWidget("cloud", _pCloud);
 
     m_visMutex.unlock();
+    
 
     m_numClouds++;
 }
