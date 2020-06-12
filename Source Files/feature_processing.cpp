@@ -25,7 +25,7 @@ FeatureDetector::FeatureDetector(std::string method) {
 
     switch (m_detectorType) {
         case DetectorType::AKAZE: {
-            detector = extractor = cv::AKAZE::create(cv::AKAZE::DescriptorType::DESCRIPTOR_MLDB, 0, 3, 0.001f, 3, 3, cv::KAZE::DiffusivityType::DIFF_WEICKERT);
+            detector = extractor = cv::AKAZE::create(cv::AKAZE::DescriptorType::DESCRIPTOR_MLDB, 0, 3, 0.001f, 3, 3);
 
             break;
         }
@@ -42,7 +42,7 @@ FeatureDetector::FeatureDetector(std::string method) {
         }
 
         case DetectorType::ORB: {
-            detector = extractor = cv::ORB::create();
+            detector = extractor = cv::ORB::create(2000);
 
             break;
         }

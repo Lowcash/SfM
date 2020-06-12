@@ -219,3 +219,41 @@ void Reconstruction::adjustBundle(Camera& camera, std::list<cv::Matx34d>& camPos
 
     std::cout << "[DONE]\n";
 }
+
+void PointCloud::filterCloud() {
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr pointCloud(new pcl::PointCloud<pcl::PointXYZRGB>);
+    std::vector<size_t> usedIdx;
+
+    for (auto [p3d, p3dEnd, pClr, pClrEnd, pIdx] = std::tuple{cloud3D.cbegin(), cloud3D.cend(), cloudRGB.cbegin(), cloudRGB.cend(), 0}; p3d != p3dEnd && pClr != pClrEnd; ++p3d, ++pClr, ++pIdx) {
+        if (cloudMask[pIdx]) {
+            pcl::PointXYZRGB rgbPoint;
+            rgbPoint.x = p3d->val[0];
+            rgbPoint.y = p3d->val[1];
+            rgbPoint.z = p3d->val[2];
+
+            rgbPoint.r = pClr->val[2];
+            rgbPoint.g = pClr->val[1];
+            rgbPoint.b = pClr->val[0];
+
+            pointCloud->push_back(rgbPoint);
+
+            usedIdx.push_back(pIdx);
+        }
+    }
+
+    std::vector<int> indices;
+
+    pcl::StatisticalOutlierRemoval<pcl::PointXYZRGB> outlierRemoval;
+    outlierRemoval.setInputCloud(pointCloud);
+    outlierRemoval.setMeanK(50);
+    outlierRemoval.setStddevMulThresh(1.0);
+    outlierRemoval.setNegative(true);
+    outlierRemoval.filter(indices);
+
+    const size_t indicesSize = indices.size();
+
+    for (size_t i = 0; i < indicesSize; ++i) 
+        cloudMask[usedIdx[indices[i]]] = false;
+
+    m_numActiveCloudPts -= indicesSize;
+}

@@ -37,5 +37,7 @@
 #include <pcl/io/pcd_io.h>
 #include <pcl/registration/transformation_estimation_svd.h>
 #include <pcl/common/transforms.h>
+#include <pcl/filters/statistical_outlier_removal.h>
+#include <pcl/filters/extract_indices.h>
 
 #endif //PCH_H

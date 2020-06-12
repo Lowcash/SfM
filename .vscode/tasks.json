@@ -33,7 +33,7 @@
                 
                 "-lboost_system", "-lboost_filesystem", "-lboost_thread",
 
-                "-lpcl_io", "-lpcl_visualization", "-lpcl_common", 
+                "-lpcl_io", "-lpcl_visualization", "-lpcl_common", "-lpcl_filters",
                 
                 "-lvtkRenderingCore-7.1", "-lvtkRenderingLOD-7.1", "-lvtkFiltersSources-7.1", "-lvtkCommonExecutionModel-7.1", "-lvtkCommonDataModel-7.1", "-lvtkCommonMath-7.1", "-lvtkCommonCore-7.1", 
             ],

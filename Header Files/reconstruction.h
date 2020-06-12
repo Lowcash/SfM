@@ -66,34 +66,11 @@ public:
         m_numActiveCloudPts++;
     }
 
-    void removeCloudPoint(bool& cloudMaskPt) {
-        cloudMaskPt = false;
-
-        m_numActiveCloudPts--;
-    }
-
     void registerCloudView(const size_t cloudPointIdx, const cv::Point2f projPosition2D, const size_t cameraIdx) {
         cloudTracks[cloudPointIdx].addTrack(projPosition2D, cameraIdx);
     }
 
-    void clearCloud() {
-        size_t clearedTracks = 0;
-
-        for (auto [pMask, pMaskEnd, pTr, pTrEnd] = std::tuple{cloudMask.begin(), cloudMask.end(), cloudTracks.begin(), cloudTracks.end()}; pMask != pMaskEnd && pTr != pTrEnd; ++pMask, ++pTr) {
-            if ((bool)*pMask) {
-                if(pTr->extrinsicsIdxs.size() < 2) {
-                    clearedTracks++;
-
-                    *pMask = false;
-
-                    m_numActiveCloudPts--;
-                    //removeCloudPoint((bool)&*pMask);
-                }
-            }
-        }
-
-        std::cout << "Cleared tracks: [" << clearedTracks << "/" << m_numActiveCloudPts << "]\n"; 
-    }
+    void filterCloud();
 
     bool isCloudEmpty() const { return cloud3D.empty(); }
 

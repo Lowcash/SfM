@@ -316,9 +316,9 @@ void AppSolver::run() {
             if (iteration != 1) {
                 // do bundle adjust after loop iteration to avoid "continue" statement
                 if (iteration % params.baProcIt == 1 || params.baProcIt == 1) {
-                    pointCloud.clearCloud();
-
                     reconstruction.adjustBundle(camera, tracking.getCamPoses(), pointCloud);
+
+                    pointCloud.filterCloud();
                 }
 
                 if (ofPrevView.corners.size() < optFlow.additionalSettings.minFeatures) {
