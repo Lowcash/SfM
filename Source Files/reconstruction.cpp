@@ -161,6 +161,7 @@ void Reconstruction::adjustBundle(Camera& camera, std::list<cv::Matx34d>& camPos
     options.eta = 1e-2;
     options.num_threads = std::thread::hardware_concurrency();
     options.max_num_iterations = 150;
+    options.use_nonmonotonic_steps = true;
 
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
@@ -245,7 +246,8 @@ void PointCloud::filterCloud() {
 
     pcl::StatisticalOutlierRemoval<pcl::PointXYZRGB> outlierRemoval;
     outlierRemoval.setInputCloud(pointCloud);
-    outlierRemoval.setMeanK(50);
+    //outlierRemoval.
+    //outlierRemoval.setMeanK(50);
     outlierRemoval.setStddevMulThresh(1.0);
     outlierRemoval.setNegative(true);
     outlierRemoval.filter(indices);

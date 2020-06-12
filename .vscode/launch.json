@@ -11,18 +11,18 @@
           "program": "${workspaceFolder}/SfM_App.out",
           "args": [
           //--------------------------------- BASE --------------------------------//
-            "-bSource=/home/lowcash/Documents/SfM_Resources/Video/stul_den.mp4", 
+            "-bSource=/home/lowcash/Documents/SfM_Resources/Video/gramofony.mp4", 
             //"-bSource=/home/lowcash/Documents/SfM_Resources/Video/matches.mkv", 
             //"-bSource=https://192.168.1.100:8080/video", 
             "-bcalib=/home/lowcash/Documents/SfM_Resources/Calibration/calib_mobile.yml",
             //"-bcalib=/home/lowcash/Documents/SfM_Resources/Calibration/calib_blender.yml",
             //"-bcalib=/home/lowcash/Documents/SfM_Resources/Calibration/calib_KITTI_0.yml", 
-            "-bDownSamp=2.0", "-bWinWidth=960", "-bWinHeight=540", "-bUseMethod=PNP", "-bMaxSkFram=15", "-bDebugVisE=true", "-bDebugMatE=false",
+            "-bDownSamp=3.0", "-bWinWidth=960", "-bWinHeight=540", "-bUseMethod=PNP", "-bMaxSkFram=15", "-bDebugVisE=true", "-bDebugMatE=false",
           
             //------------------------------- FEATURES ------------------------------//
             //"-fDecType=ORB", "-fMatchType=BRUTEFORCE_HAMMING", "-fKnnRatio=0.5",
-            //"-fDecType=AKAZE", "-fMatchType=BRUTEFORCE_HAMMING", "-fKnnRatio=0.5",
-            "-fDecType=FAST", "-fMatchType=BRUTEFORCE_HAMMING", "-fKnnRatio=0.5",
+            "-fDecType=AKAZE", "-fMatchType=BRUTEFORCE_HAMMING", "-fKnnRatio=0.5",
+            //"-fDecType=FAST", "-fMatchType=BRUTEFORCE_HAMMING", "-fKnnRatio=0.5",
             //"-fDecType=SIFT", "-fMatchType=FLANNBASED", "-fKnnRatio=0.5",
             //"-fDecType=SURF", "-fMatchType=FLANNBASED", "-fKnnRatio=0.5",
             //"-fDecType=STAR", "-fMatchType=BRUTEFORCE_HAMMING", "-fKnnRatio=0.5",
@@ -32,14 +32,14 @@
             "-ofMinKPts=333", "-ofWinSize=30", "-ofMaxLevel=5", "-ofMaxItCt=250", "-ofItEps=0.01", "-ofMaxError=10.0", "-ofMaxCorn=2000", "-ofQualLvl=0.1", "-ofMinDist=5",
             
             //--------------------------- POSE ESTIMATION ---------------------------//
-            "-peMethod=RANSAC", "-peProb=0.99", "-peThresh=0.5", "-peMinInl=10", "-peMinMatch=10", "-pePMetrod=SOLVEPNP_EPNP", "-peExGuess=false", "-peNumIteR=500",
+            "-peMethod=RANSAC", "-peProb=0.95", "-peThresh=1.0", "-peMinInl=10", "-peMinMatch=10", "-pePMetrod=SOLVEPNP_P3P", "-peExGuess=false", "-peNumIteR=500",
             //"-peMethod=RANSAC", "-peProb=0.99", "-peThresh=1.0", "-peMinInl=25", "-peMinMatch=50", "-pePMetrod=SOLVEPNP_P3P", "-peExGuess=false", "-peNumIteR=250",
             
             //-------------------------- BUNDLE ADJUSTMENT --------------------------//
-            "-baMethod=SPARSE_NORMAL_CHOLESKY", "-baMaxRMSE=5.0", "-baProcIt=5",
+            "-baMethod=DENSE_SCHUR", "-baMaxRMSE=5.0", "-baProcIt=5",
 
             //---------------------------- TRIANGULATION ----------------------------//
-            "-tMethod=ITERATIVE", "-tMinDist=0.0001", "-tMaxDist=150", "-tMaxPErr=5"
+            "-tMethod=ITERATIVE", "-tMinDist=0.0001", "-tMaxDist=250", "-tMaxPErr=5"
           ],
           "stopAtEntry": false,
           "cwd": "${workspaceFolder}",

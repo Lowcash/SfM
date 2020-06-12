@@ -149,10 +149,10 @@ bool Tracking::findRecoveredCameraPose(DescriptorMatcher matcher, int minMatches
             }
         }
 
-        if (!t->viewPtr->imColor.empty() && !featView.viewPtr->imColor.empty()) {
-            //cv::Mat _imOutMatch; cv::drawMatches(t->viewPtr->imColor, t->keyPoints, featView.viewPtr->imColor, featView.keyPts, _matches, _imOutMatch);
-            //cv::imshow("Matches", _imOutMatch); cv::waitKey(1);
-        }
+        // if (!t->viewPtr->imColor.empty() && !featView.viewPtr->imColor.empty()) {
+        //     cv::Mat _imOutMatch; cv::drawMatches(t->viewPtr->imColor, t->keyPoints, featView.viewPtr->imColor, featView.keyPts, _matches, _imOutMatch);
+        //     cv::imshow("Matches", _imOutMatch); cv::waitKey(1);
+        // }
     }
 
     //  Min point filter
