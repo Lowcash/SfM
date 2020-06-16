@@ -118,7 +118,7 @@ void Reconstruction::adjustBundle(Camera& camera, std::list<cv::Matx34d>& camPos
 
     ceres::Problem problem;
 
-    bool isCameraLocked = false;
+    bool isCameraLocked = false; size_t numPtsAdded = 0;
     for (auto [pMask, pMaskEnd, p, pEnd] = std::tuple{pointCloud.cloudMask.begin(), pointCloud.cloudMask.end(), pointCloud.cloudTracks.begin(), pointCloud.cloudTracks.end()}; pMask != pMaskEnd && p != pEnd; ++pMask, ++p) {
         if (!(bool)*pMask) { continue; }
         
@@ -140,7 +140,11 @@ void Reconstruction::adjustBundle(Camera& camera, std::list<cv::Matx34d>& camPos
                 isCameraLocked = true;
             }
         }
+
+        numPtsAdded++;
     }
+
+    std::cout << "Added " << numPtsAdded << " points to adjust" << "\n";
 
     if (!isCameraLocked) {
         std::cout << "Minimization is not ready, something went wrong! -> skipping process" << "\n";
@@ -161,7 +165,6 @@ void Reconstruction::adjustBundle(Camera& camera, std::list<cv::Matx34d>& camPos
     options.eta = 1e-2;
     options.num_threads = std::thread::hardware_concurrency();
     options.max_num_iterations = 150;
-    options.use_nonmonotonic_steps = true;
 
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
@@ -221,41 +224,84 @@ void Reconstruction::adjustBundle(Camera& camera, std::list<cv::Matx34d>& camPos
     std::cout << "[DONE]\n";
 }
 
-void PointCloud::filterCloud() {
-    pcl::PointCloud<pcl::PointXYZRGB>::Ptr pointCloud(new pcl::PointCloud<pcl::PointXYZRGB>);
-    std::vector<size_t> usedIdx;
-
-    for (auto [p3d, p3dEnd, pClr, pClrEnd, pIdx] = std::tuple{cloud3D.cbegin(), cloud3D.cend(), cloudRGB.cbegin(), cloudRGB.cend(), 0}; p3d != p3dEnd && pClr != pClrEnd; ++p3d, ++pClr, ++pIdx) {
+void PointCloud::prepareFilterCloud(pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud, std::vector<size_t>& userCloudIdx) {
+    for (auto [p3d, p3dEnd, pIdx] = std::tuple{cloud3D.cbegin(), cloud3D.cend(), 0}; p3d != p3dEnd; ++p3d, ++pIdx) {
         if (cloudMask[pIdx]) {
-            pcl::PointXYZRGB rgbPoint;
-            rgbPoint.x = p3d->val[0];
-            rgbPoint.y = p3d->val[1];
-            rgbPoint.z = p3d->val[2];
+            cloud->push_back(pcl::PointXYZ(
+                p3d->val[0],
+                p3d->val[1],
+                p3d->val[2]
+                )
+            );
 
-            rgbPoint.r = pClr->val[2];
-            rgbPoint.g = pClr->val[1];
-            rgbPoint.b = pClr->val[0];
-
-            pointCloud->push_back(rgbPoint);
-
-            usedIdx.push_back(pIdx);
+            userCloudIdx.push_back(pIdx);
         }
     }
+}
 
-    std::vector<int> indices;
-
-    pcl::StatisticalOutlierRemoval<pcl::PointXYZRGB> outlierRemoval;
-    outlierRemoval.setInputCloud(pointCloud);
-    //outlierRemoval.
-    //outlierRemoval.setMeanK(50);
-    outlierRemoval.setStddevMulThresh(1.0);
-    outlierRemoval.setNegative(true);
-    outlierRemoval.filter(indices);
-
-    const size_t indicesSize = indices.size();
+void PointCloud::applyCloudFilter(std::vector<size_t>& userCloudIdx, std::vector<int>& filter) {
+    const size_t indicesSize = filter.size();
 
     for (size_t i = 0; i < indicesSize; ++i) 
-        cloudMask[usedIdx[indices[i]]] = false;
+        cloudMask[userCloudIdx[filter[i]]] = false;
 
     m_numActiveCloudPts -= indicesSize;
+}
+
+void PointCloud::filterCloud() {
+    pcl::PointCloud<pcl::PointXYZ>::Ptr pointCloud(new pcl::PointCloud<pcl::PointXYZ>);
+    std::vector<size_t> usedIdx;
+
+    std::vector<int> filterIndices;
+
+    if (m_cSRemThr != 0) {
+        prepareFilterCloud(pointCloud, usedIdx);
+
+        pcl::StatisticalOutlierRemoval<pcl::PointXYZ> outlierRemoval;
+        outlierRemoval.setInputCloud(pointCloud);
+        outlierRemoval.setStddevMulThresh(m_cLSize);
+        outlierRemoval.setNegative(true);
+        outlierRemoval.filter(filterIndices);
+
+        applyCloudFilter(usedIdx, filterIndices);
+
+        usedIdx.clear(); filterIndices.clear(); pointCloud->clear();
+    }
+    
+    if (m_cLSize != 0) {
+        prepareFilterCloud(pointCloud, usedIdx);
+
+        pcl::PointCloud<pcl::PointXYZ>::Ptr pointCloudFilter(new pcl::PointCloud<pcl::PointXYZ>);
+
+        pcl::VoxelGrid<pcl::PointXYZ> avg;
+        avg.setInputCloud(pointCloud);
+        avg.setLeafSize(m_cLSize, m_cLSize, m_cLSize);
+        avg.filter(*pointCloudFilter);
+
+        pcl::KdTreeFLANN<pcl::PointXYZ> kdTree;
+        kdTree.setInputCloud(pointCloud);
+        kdTree.setSortedResults(true);
+        
+        const size_t pCloudSize = pointCloudFilter->size();
+    
+        std::map<int, bool> _mapIdx;
+
+        for (size_t i = 0; i < pCloudSize; ++i) {
+            pcl::PointXYZ searchPoint = pointCloudFilter->at(i);
+
+            std::vector<int> _filterIndices;
+            std::vector<float> _filterRadius;
+            if (kdTree.radiusSearch(searchPoint, m_cSRange, _filterIndices, _filterRadius) > 1) {
+                for (auto& f : _filterIndices) {
+                    if (_mapIdx.find(f) == _mapIdx.end()) {
+                        filterIndices.push_back(f);
+
+                        _mapIdx[f] = true;
+                    }
+                }
+            }
+        }
+
+        applyCloudFilter(usedIdx, filterIndices);
+    }
 }

@@ -30,9 +30,14 @@ public:
 };
 
 class PointCloud {
-    const double m_clearRatio;
+    const float m_cLSize, m_cSRemThr;
+    const double m_cSRange;
 
     size_t m_numCloudPts, m_numActiveCloudPts;
+
+    void prepareFilterCloud(pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud, std::vector<size_t>& userCloudIdx);
+
+    void applyCloudFilter(std::vector<size_t>& userCloudIdx, std::vector<int>& filter);
 public:
     std::vector<cv::Vec3d*> cloudMapper;
 
@@ -48,8 +53,8 @@ public:
     // Registered views and projections for each cloud point
     std::vector<CloudTrack> cloudTracks;
     
-    PointCloud(const double clearRatio = .5) 
-        : m_clearRatio(clearRatio), m_numCloudPts(0), m_numActiveCloudPts(0) {}
+    PointCloud(const float cSRemThr = .5, const float cLSize = .5, const double cSRange = .5) 
+        : m_cSRemThr(cSRemThr), m_cLSize(cLSize), m_cSRange(cSRange), m_numCloudPts(0), m_numActiveCloudPts(0) {}
 
     void addCloudPoint(const cv::Point2f projPosition2D, const cv::Vec3d cloudPoint3D, const cv::Vec3b cloudPointRGB, const size_t cameraIdx) {
         cloud3D.push_back(cloudPoint3D);

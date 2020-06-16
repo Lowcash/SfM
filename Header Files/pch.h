@@ -39,5 +39,6 @@
 #include <pcl/common/transforms.h>
 #include <pcl/filters/statistical_outlier_removal.h>
 #include <pcl/filters/extract_indices.h>
+#include <pcl/filters/voxel_grid.h>
 
 #endif //PCH_H

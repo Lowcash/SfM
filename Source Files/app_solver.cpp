@@ -116,7 +116,8 @@ void AppSolver::run() {
 
     Reconstruction reconstruction(params.tMethod, params.baMethod, params.baMaxRMSE, params.tMinDist, params.tMaxDist, params.tMaxPErr, true);
 
-    PointCloud pointCloud; Tracking tracking(&pointCloud);
+    PointCloud pointCloud(params.cSRemThr, params.cLSize, params.cSRange); 
+    Tracking tracking(&pointCloud);
 
     cv::Mat imOutUsrInp, imOutRecPose, imOutMatches;
     
@@ -315,9 +316,12 @@ void AppSolver::run() {
         if (m_usedMethod == Method::PNP) {
             if (iteration != 1) {
                 // do bundle adjust after loop iteration to avoid "continue" statement
-                if (iteration % params.baProcIt == 1 || params.baProcIt == 1) {
+                if (params.baProcIt != 0 && (iteration % params.baProcIt == 1 || params.baProcIt == 1)) {
                     reconstruction.adjustBundle(camera, tracking.getCamPoses(), pointCloud);
+                }
 
+                // do bundle adjust after loop iteration to avoid "continue" statement
+                if (params.cFProcIt != 0 && (iteration % params.cFProcIt == 1 || params.cFProcIt == 1)) {
                     pointCloud.filterCloud();
                 }
 

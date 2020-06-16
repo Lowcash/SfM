@@ -50,6 +50,11 @@ int main(int argc, char** argv) {
         "{ tMinDist  | 0.0001      | triangulation points min distance }"
         "{ tMaxDist  | 250         | triangulation points max distance }"
         "{ tMaxPErr  | 3.0         | triangulation points max reprojection error }"
+
+        "{ cSRemThr  | 1.00        | statistical outlier removal stddev multiply threshold }"
+        "{ cLSize    | 0.25        | cloud leaf filter size }"
+        "{ cSRange   | 1.00        | cloud radius search radius distance }"
+        "{ cFProcIt  | 5           | cloud filter process each %d iteration }"
     );
 
     //  Show help info
@@ -107,6 +112,12 @@ int main(int argc, char** argv) {
     const float tMaxDist = parser.get<float>("tMaxDist");
     const float tMaxPErr = parser.get<float>("tMaxPErr");
 
+    //----------------------------- CLOUD FILTER ----------------------------//
+    const float cSRemThr = parser.get<float>("cSRemThr");
+    const float cLSize = parser.get<float>("cLSize");
+    const double cSRange = parser.get<double>("cSRange");
+    const int cFProcIt = parser.get<int>("cFProcIt");
+
     //  Read camera calibration script
     const cv::FileStorage fs(bcalib, cv::FileStorage::READ);
 
@@ -122,7 +133,7 @@ int main(int argc, char** argv) {
     const std::string recPoseWinName = "Recovery pose";
     const std::string matchesWinName = "Matches";
 
-    AppSolver solver(AppSolverDataParams(bUseMethod, ptCloudWinName, usrInpWinName, recPoseWinName, matchesWinName, bSource, bDownSamp, bMaxSkFram, cv::Size(bWinWidth, bWinHeight), cv::Size(cameraWidth, cameraHeight), bDebugVisE, bDebugMatE, fDecType, fMatchType, fKnnRatio, ofMinKPts, ofWinSize, ofMaxLevel, ofMaxItCt, ofItEps, ofMaxError, ofMaxCorn, ofQualLvl, ofMinDist, peMethod, peProb, peThresh, peMinInl, peMinMatch, pePMetrod, peExGuess, peNumIteR, baMethod, baMaxRMSE, baProcIt, tMethod, tMinDist, tMaxDist, tMaxPErr, cameraK, distCoeffs));
+    AppSolver solver(AppSolverDataParams(bUseMethod, ptCloudWinName, usrInpWinName, recPoseWinName, matchesWinName, bSource, bDownSamp, bMaxSkFram, cv::Size(bWinWidth, bWinHeight), cv::Size(cameraWidth, cameraHeight), bDebugVisE, bDebugMatE, fDecType, fMatchType, fKnnRatio, ofMinKPts, ofWinSize, ofMaxLevel, ofMaxItCt, ofItEps, ofMaxError, ofMaxCorn, ofQualLvl, ofMinDist, peMethod, peProb, peThresh, peMinInl, peMinMatch, pePMetrod, peExGuess, peNumIteR, baMethod, baMaxRMSE, baProcIt, tMethod, tMinDist, tMaxDist, tMaxPErr, cameraK, distCoeffs, cSRemThr, cLSize, cSRange, cFProcIt));
 
 #pragma endregion INIT 
     std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
