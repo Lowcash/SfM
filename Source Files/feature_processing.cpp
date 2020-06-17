@@ -98,7 +98,7 @@ void FeatureDetector::generateFlowFeatures(cv::Mat& imGray, std::vector<cv::Poin
 }
 
 DescriptorMatcher::DescriptorMatcher(std::string method, const float ratioThreshold, const bool isVisDebug, const cv::Size visDebugWinSize)
-    : m_ratioThreshold(ratioThreshold), m_isVisDebug(isVisDebug), m_visDebugWinSize(cv::Size(visDebugWinSize.width * 2, visDebugWinSize.height)) {
+    : m_ratioThreshold(ratioThreshold), m_isVisDebug(isVisDebug), m_visDebugWinSize(cv::Size(visDebugWinSize.width * 2, visDebugWinSize.height * 3)) {
 
     std::for_each(method.begin(), method.end(), [](char& c){
         c = ::toupper(c);
@@ -146,18 +146,12 @@ void DescriptorMatcher::findRobustMatches(std::vector<cv::KeyPoint> prevKeyPts, 
     // knn matches
     ratioMaches(prevDesc, currDesc, fMatches);
     ratioMaches(currDesc, prevDesc, bMatches);
-        
+
+    cv::Mat _imKnnMatch, _imCrossMatching, _imEpipolarFilter, _imOutFilter;     
     if (m_isVisDebug && (!debugPrevFrame.empty() && !debugCurrFrame.empty())) {
         const std::string _matchHeader = "Knn Match";
-        cv::Mat _imKnnMatch;
 
         drawMatches(debugPrevFrame, debugCurrFrame, _imKnnMatch, prevKeyPts, currKeyPts, fMatches, _matchHeader);
-
-        cv::resize(_imKnnMatch, _imKnnMatch, m_visDebugWinSize);
-
-        cv::imshow(_matchHeader, _imKnnMatch);
-
-        cv::waitKey(29);
     }
 
     // crossmatching
@@ -182,15 +176,8 @@ void DescriptorMatcher::findRobustMatches(std::vector<cv::KeyPoint> prevKeyPts, 
 
     if (m_isVisDebug && (!debugPrevFrame.empty() && !debugCurrFrame.empty())) {
         const std::string _matchHeader = "CrossMatching";
-        cv::Mat _imCrossMatching;
 
         drawMatches(debugPrevFrame, debugCurrFrame, _imCrossMatching, prevKeyPts, currKeyPts, matches, _matchHeader);
-
-        cv::resize(_imCrossMatching, _imCrossMatching, m_visDebugWinSize);
-
-        cv::imshow(_matchHeader, _imCrossMatching);
-
-        cv::waitKey(29);
     }
 
     if (prevAligPts.empty() || currAligPts.empty()) { return; }
@@ -217,13 +204,16 @@ void DescriptorMatcher::findRobustMatches(std::vector<cv::KeyPoint> prevKeyPts, 
 
     if (m_isVisDebug && (!debugPrevFrame.empty() && !debugCurrFrame.empty())) {
         const std::string _matchHeader = "Epipolar filter";
-        cv::Mat _imEpipolarFilter;
 
         drawMatches(debugPrevFrame, debugCurrFrame, _imEpipolarFilter, prevKeyPts, currKeyPts, _epipolarMatch, _matchHeader);
 
-        cv::resize(_imEpipolarFilter, _imEpipolarFilter, m_visDebugWinSize);
+        _imKnnMatch.copyTo(_imOutFilter);
+        cv::vconcat(_imOutFilter, _imCrossMatching, _imOutFilter);
+        cv::vconcat(_imOutFilter, _imEpipolarFilter, _imOutFilter);
 
-        cv::imshow(_matchHeader, _imEpipolarFilter);
+        cv::resize(_imOutFilter, _imOutFilter, m_visDebugWinSize);
+
+        cv::imshow("Matches", _imOutFilter);
 
         cv::waitKey(29);
     }

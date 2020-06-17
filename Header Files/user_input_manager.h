@@ -93,13 +93,4 @@ public:
     void detachPointsFromMove(std::vector<cv::Point2f>& prevPts, std::vector<cv::Point2f>& currPts, std::vector<uchar>& statusMask, bool clickPts, bool usrPts);
 };
 
-struct UserInputDataParams {
-public:
-    UserInput* userInput;
-
-    UserInputDataParams(UserInput* userInput) {
-        this->userInput = userInput;
-    }
-};
-
 #endif //USR_INP_MANAGER_H

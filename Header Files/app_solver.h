@@ -11,6 +11,19 @@
 #include "user_input_manager.h"
 #include "reconstruction.h"
 
+struct WindowInputDataParams {
+public:
+    UserInput* userInput;
+
+    bool* isUpdating;
+
+    WindowInputDataParams(bool* isUpdating)
+        : isUpdating(isUpdating) {}
+
+    WindowInputDataParams(bool* isUpdating, UserInput* userInput)
+        : userInput(userInput), isUpdating(isUpdating) {}
+};
+
 struct AppSolverDataParams {
     const std::string bUseMethod, ptCloudWinName, usrInpWinName, recPoseWinName, matchesWinName, bSource, fDecType, fMatchType, peMethod, pePMetrod, baMethod, tMethod;
     const float bDownSamp, fKnnRatio, ofMaxItCt, ofItEps, ofMaxError, ofQualLvl, ofMinDist, peProb, peThresh, tMinDist, tMaxDist, tMaxPErr, cSRemThr, cLSize;
@@ -88,6 +101,8 @@ private:
 
     Method m_usedMethod;
 
+    bool m_isUpdating;
+
     /** 
      * Find good images
      * 
@@ -111,16 +126,32 @@ private:
      * Handle user input
      */
     static void onUsrWinClick (int event, int x, int y, int flags, void* params) {
-        if (event != cv::EVENT_LBUTTONDOWN) { return; }
+        WindowInputDataParams* inputDataParams = (WindowInputDataParams*)params;
 
-        UserInputDataParams* inputDataParams = (UserInputDataParams*)params;
-
-        const cv::Point clickedPoint(x, y);
+        if (event == cv::EVENT_LBUTTONDOWN || event == cv::EVENT_RBUTTONDOWN) {
+            const cv::Point clickedPoint(x, y);
         
-        std::cout << "Clicked to: " << clickedPoint << "\n";
+            std::cout << "Clicked to: " << clickedPoint << "\n";
 
-        // register point and force redraw
-        inputDataParams->userInput->addClickedPoint(clickedPoint, true);
+            switch (event) {
+                case cv::EVENT_LBUTTONDOWN: {
+                    if (inputDataParams->userInput != NULL) {
+                        // register point and force redraw
+                        inputDataParams->userInput->addClickedPoint(clickedPoint, true);
+                    }
+                }
+
+                break;
+
+                case cv::EVENT_RBUTTONDOWN: {
+                    *inputDataParams->isUpdating = !(*inputDataParams->isUpdating);
+
+                    std::cout << "Updating " << (*inputDataParams->isUpdating ? "resumed!" : "stopped!") << "\n";
+                }
+
+                break;
+            }
+        }
     }
 public:
     AppSolver (const AppSolverDataParams params)
@@ -135,6 +166,8 @@ public:
             m_usedMethod = it->second;
         else
             m_usedMethod = Method::PNP;
+
+        m_isUpdating = true;
     }
 
     /**

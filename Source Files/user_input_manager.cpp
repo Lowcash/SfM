@@ -13,6 +13,9 @@ void UserInput::addClickedPoint(const cv::Point point, bool forceRedraw) {
         drawSelectedPoint(point);
 
         cv::imshow(m_winName, *m_inputImage);
+
+        // render
+        cv::waitKey(1);
     }
 }
 

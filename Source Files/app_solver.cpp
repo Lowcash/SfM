@@ -123,6 +123,9 @@ void AppSolver::run() {
     
     UserInput userInput(params.usrInpWinName, &imOutUsrInp, &pointCloud, params.ofMaxError);
 
+    WindowInputDataParams mouseUsrDataParams_0(&m_isUpdating);
+    WindowInputDataParams mouseUsrDataParams_1(&m_isUpdating, &userInput);
+
     // run windows in new thread -> avoid rendering white screen
     cv::startWindowThread();
 
@@ -135,12 +138,13 @@ void AppSolver::run() {
     if (params.bDebugMatE) {
         cv::namedWindow(params.matchesWinName, cv::WINDOW_NORMAL);
         cv::resizeWindow(params.matchesWinName, params.winSize);
-    }
-    
-    UserInputDataParams mouseUsrDataParams(&userInput);
 
-    cv::setMouseCallback(params.usrInpWinName, onUsrWinClick, (void*)&mouseUsrDataParams);
-    
+        cv::setMouseCallback(params.matchesWinName, onUsrWinClick, (void*)&mouseUsrDataParams_0);
+    }
+
+    cv::setMouseCallback(params.recPoseWinName, onUsrWinClick, (void*)&mouseUsrDataParams_0);
+    cv::setMouseCallback(params.usrInpWinName, onUsrWinClick, (void*)&mouseUsrDataParams_1);
+
     // initialize visualization windows VTK, PCL
     VisPCL visPCL(params.ptCloudWinName + " PCL", params.winSize);
 
@@ -148,6 +152,8 @@ void AppSolver::run() {
 #pragma endregion INIT
 
     for (uint iteration = 1; ; ++iteration) {
+        while (!m_isUpdating) {}
+
         // use if statements instead of switch due to loop breaks
 #pragma region KLT Tracker
 
