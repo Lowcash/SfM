@@ -79,6 +79,8 @@ void UserInput::recoverPoints(cv::Mat& imOutUsr, cv::Mat cameraK, cv::Mat R, cv:
             cv::Vec3d* cloudMapper = m_pointCloud->cloudMapper[idx];
 
             usrPts3D.push_back(*cloudMapper);
+
+            m_pointCloud->cloudMask[idx] = true;
         }
 
         cv::Mat recoveredPts; cv::projectPoints(usrPts3D, R, t, cameraK, cv::Mat(), recoveredPts);

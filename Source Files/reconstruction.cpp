@@ -257,11 +257,18 @@ void PointCloud::filterCloud() {
     if (m_cSRemThr != 0) {
         prepareFilterCloud(pointCloud, usedIdx);
 
-        pcl::StatisticalOutlierRemoval<pcl::PointXYZ> outlierRemoval;
-        outlierRemoval.setInputCloud(pointCloud);
-        outlierRemoval.setStddevMulThresh(m_cLSize);
-        outlierRemoval.setNegative(true);
-        outlierRemoval.filter(filterIndices);
+        pcl::StatisticalOutlierRemoval<pcl::PointXYZ> statOutRem;
+        statOutRem.setInputCloud(pointCloud);
+        statOutRem.setStddevMulThresh(m_cSRemThr);
+        statOutRem.setNegative(true);
+        statOutRem.filter(filterIndices);
+
+        /*pcl::RadiusOutlierRemoval<pcl::PointXYZ> radOutRem;
+        radOutRem.setInputCloud(pointCloud);
+        radOutRem.setRadiusSearch(m_cSRemThr);
+        radOutRem.setMinNeighborsInRadius(2);
+        radOutRem.setNegative(true);
+        radOutRem.filter(filterIndices);*/
 
         applyCloudFilter(usedIdx, filterIndices);
 
@@ -291,12 +298,16 @@ void PointCloud::filterCloud() {
 
             std::vector<int> _filterIndices;
             std::vector<float> _filterRadius;
+            
             if (kdTree.radiusSearch(searchPoint, m_cSRange, _filterIndices, _filterRadius) > 1) {
-                for (auto& f : _filterIndices) {
-                    if (_mapIdx.find(f) == _mapIdx.end()) {
-                        filterIndices.push_back(f);
+                for (auto [fI, fIEnd, fR, fREnd] = std::tuple{_filterIndices.cbegin(), _filterIndices.cend(), _filterRadius.cbegin(), _filterRadius.cend()}; fI != fIEnd && fR != fREnd; ++fI, ++fR) {
+                    const int _fIdxVal = *fI;
+                    const float _fRadVal = *fR;
 
-                        _mapIdx[f] = true;
+                    if (_fRadVal != 0 && (_mapIdx.find(_fIdxVal) == _mapIdx.end())) {
+                        filterIndices.push_back(_fIdxVal);
+
+                        _mapIdx[_fIdxVal] = true;
                     }
                 }
             }
