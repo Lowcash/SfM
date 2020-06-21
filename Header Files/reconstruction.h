@@ -53,16 +53,18 @@ public:
     // Registered views and projections for each cloud point
     std::vector<CloudTrack> cloudTracks;
     
-    PointCloud(const float cSRemThr = .5, const float cLSize = .5, const double cSRange = .5) 
-        : m_cSRemThr(cSRemThr), m_cLSize(cLSize), m_cSRange(cSRange), m_numCloudPts(0), m_numActiveCloudPts(0) {}
+    uint cloudSelectedLayer;
 
-    void addCloudPoint(const cv::Point2f projPosition2D, const cv::Vec3d cloudPoint3D, const cv::Vec3b cloudPointRGB, const size_t cameraIdx) {
+    PointCloud(const float cSRemThr = .5, const float cLSize = .5, const double cSRange = .5) 
+        : m_cSRemThr(cSRemThr), m_cLSize(cLSize), m_cSRange(cSRange), m_numCloudPts(0), m_numActiveCloudPts(0), cloudSelectedLayer(0) {}
+
+    void addCloudPoint(const cv::Point2f projPosition2D, const cv::Vec3d cloudPoint3D, const cv::Vec3b cloudPointRGB) {
         cloud3D.push_back(cloudPoint3D);
         cloudRGB.push_back(cloudPointRGB);
         cloudMask.push_back(true);
 
         // create and register cloud view
-        cloudTracks.push_back(CloudTrack(&*cloud3D.rbegin(), projPosition2D, cameraIdx));
+        cloudTracks.push_back(CloudTrack(&*cloud3D.rbegin(), projPosition2D, cloudSelectedLayer));
 
         // map to cloud to enable random access
         cloudMapper.push_back(&*cloud3D.rbegin());
@@ -71,8 +73,8 @@ public:
         m_numActiveCloudPts++;
     }
 
-    void registerCloudView(const size_t cloudPointIdx, const cv::Point2f projPosition2D, const size_t cameraIdx) {
-        cloudTracks[cloudPointIdx].addTrack(projPosition2D, cameraIdx);
+    void registerCloudView(const size_t cloudPointIdx, const cv::Point2f projPosition2D) {
+        cloudTracks[cloudPointIdx].addTrack(projPosition2D, cloudSelectedLayer);
     }
 
     void filterCloud();

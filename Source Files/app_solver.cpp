@@ -1,9 +1,7 @@
 #include "app_solver.h"
 
 int AppSolver::prepareImage(cv::VideoCapture& cap, cv::Mat& imColor, cv::Mat& imGray) {
-    cap >> imColor;
-    
-    if (imColor.empty()) 
+    if (!cap.read(imColor)) 
         return ImageFindState::SOURCE_LOST;
 
     if (params.bDownSamp != 1.0f)
@@ -97,7 +95,13 @@ void AppSolver::run() {
         std::cerr << "Error opening video stream or file!!" << "\n";
         exit(1);
     }
-
+    
+    cv::VideoWriter wri; if(!wri.open(params.bWriPar, cv::CAP_GSTREAMER, 0, 30, params.winSize)
+    ) {
+        std::cerr << "Error creating video stream or file!!" << "\n";
+        exit(1);
+    }
+    
     // initialize structures
     Camera camera(params.cameraK, params.distCoeffs, params.bDownSamp);
 
@@ -125,7 +129,7 @@ void AppSolver::run() {
 
     WindowInputDataParams mouseUsrDataParams_0(&m_isUpdating);
     WindowInputDataParams mouseUsrDataParams_1(&m_isUpdating, &userInput);
-
+    
     // run windows in new thread -> avoid rendering white screen
     cv::startWindowThread();
 
@@ -212,8 +216,6 @@ void AppSolver::run() {
 
             cv::imshow(params.recPoseWinName, imOutRecPose);
             cv::imshow(params.usrInpWinName, imOutUsrInp);
-
-            std::cout << "Iteration: " << iteration << "\n"; cv::waitKey(29);
 
             // prepare views to load new frame
             std::swap(ofPrevView, ofCurrView);
@@ -308,8 +310,6 @@ void AppSolver::run() {
             visPCL.addPoints(_usrPoints3D);
 
             cv::imshow(params.usrInpWinName, imOutUsrInp);
-
-            std::cout << "Iteration: " << iteration << "\n"; cv::waitKey(29);
 
             // prepare views to load new frame
             std::swap(ofPrevView, ofCurrView);
@@ -449,7 +449,6 @@ void AppSolver::run() {
             // register tracks for PnP 2D-3D matching and point cloud
             tracking.addTrackView(featCurrView.viewPtr, _trackView, _mask, _currPts, _points3D, _pointsRGB, featCurrView.keyPts, featCurrView.descriptor, _currIdx);
 
-            // confirm camera pose and add it to stack
             tracking.addCamPose(_currPose);
 
             //visVTK.addPoints(_usrPoints3D);
@@ -470,12 +469,17 @@ void AppSolver::run() {
             
             cv::imshow(params.usrInpWinName, imOutUsrInp);
 
-            std::cout << "Iteration: " << iteration << "\n"; cv::waitKey(29);
-
             std::swap(ofPrevView, ofCurrView);
             std::swap(featPrevView, featCurrView);
         }
 
 #pragma endregion Perspective-n-Point
+
+        wri.write(imOutRecPose);
+
+        std::cout << "Iteration: " << iteration << "\n"; cv::waitKey(29);
     }
+
+    cap.release();
+    wri.release();
 }

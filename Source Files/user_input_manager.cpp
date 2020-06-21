@@ -13,9 +13,6 @@ void UserInput::addClickedPoint(const cv::Point point, bool forceRedraw) {
         drawSelectedPoint(point);
 
         cv::imshow(m_winName, *m_inputImage);
-
-        // render
-        cv::waitKey(1);
     }
 }
 
@@ -23,7 +20,7 @@ void UserInput::addPoints(const std::vector<cv::Point2f> pts2D, const std::vecto
     for (auto [p2d, p2dEnd, p3d, p3dEnd] = std::tuple{pts2D.cbegin(), pts2D.cend(), pts3D.cbegin(), pts3D.cend()}; p2d != p2dEnd && p3d != p3dEnd; ++p2d, ++p3d) {
         usrCloudPtsIdx.push_back(m_pointCloud->getNumCloudPoints());
 
-        m_pointCloud->addCloudPoint(*p2d, *p3d, cv::Vec3b(), iter);
+        m_pointCloud->addCloudPoint(*p2d, *p3d, cv::Vec3b());
     }
 }
 

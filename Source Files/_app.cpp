@@ -8,6 +8,7 @@ int main(int argc, char** argv) {
     //  Prepare input parameters
     cv::CommandLineParser parser(argc, argv,
 		"{ help h ?  |             | help }"
+        "{ bWriPar   | .           | writer params }"
         "{ bSource   | .           | source video file [.mp4, .avi ...] }"
 		"{ bcalib    | .           | camera intrics parameters file path }"
         "{ bDownSamp | 0.5         | downsampling of input source images }"
@@ -64,6 +65,7 @@ int main(int argc, char** argv) {
     }
 
     //--------------------------------- BASE --------------------------------//
+    const std::string bWriPar = parser.get<std::string>("bWriPar");
     const std::string bSource = parser.get<std::string>("bSource");
     const std::string bcalib = parser.get<std::string>("bcalib");
     const float bDownSamp = parser.get<float>("bDownSamp");
@@ -133,7 +135,7 @@ int main(int argc, char** argv) {
     const std::string recPoseWinName = "Recovery pose";
     const std::string matchesWinName = "Matches";
 
-    AppSolver solver(AppSolverDataParams(bUseMethod, ptCloudWinName, usrInpWinName, recPoseWinName, matchesWinName, bSource, bDownSamp, bMaxSkFram, cv::Size(bWinWidth, bWinHeight), cv::Size(cameraWidth, cameraHeight), bDebugVisE, bDebugMatE, fDecType, fMatchType, fKnnRatio, ofMinKPts, ofWinSize, ofMaxLevel, ofMaxItCt, ofItEps, ofMaxError, ofMaxCorn, ofQualLvl, ofMinDist, peMethod, peProb, peThresh, peMinInl, peMinMatch, pePMetrod, peExGuess, peNumIteR, baMethod, baMaxRMSE, baProcIt, tMethod, tMinDist, tMaxDist, tMaxPErr, cameraK, distCoeffs, cSRemThr, cLSize, cSRange, cFProcIt));
+    AppSolver solver(AppSolverDataParams(bWriPar, bUseMethod, ptCloudWinName, usrInpWinName, recPoseWinName, matchesWinName, bSource, bDownSamp, bMaxSkFram, cv::Size(bWinWidth, bWinHeight), cv::Size(cameraWidth, cameraHeight), bDebugVisE, bDebugMatE, fDecType, fMatchType, fKnnRatio, ofMinKPts, ofWinSize, ofMaxLevel, ofMaxItCt, ofItEps, ofMaxError, ofMaxCorn, ofQualLvl, ofMinDist, peMethod, peProb, peThresh, peMinInl, peMinMatch, pePMetrod, peExGuess, peNumIteR, baMethod, baMaxRMSE, baProcIt, tMethod, tMinDist, tMaxDist, tMaxPErr, cameraK, distCoeffs, cSRemThr, cLSize, cSRange, cFProcIt));
 
 #pragma endregion INIT 
     std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();

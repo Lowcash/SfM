@@ -77,12 +77,10 @@ public:
 
     void addTrackView(ViewData* view, TrackView trackView, const std::vector<bool>& mask, const std::vector<cv::Point2f>& points2D, const std::vector<cv::Vec3d> points3D, const std::vector<cv::Vec3b>& pointsRGB, const std::vector<cv::KeyPoint>& keyPoints, const cv::Mat& descriptor, const std::vector<int>& ptsToKeyIdx = std::vector<int>());
 
-    bool addCamPose(const cv::Matx34d camPose) { 
+    void addCamPose(const cv::Matx34d camPose) { 
         m_camPoses.push_back(camPose);
 
         decomposeExtrinsicMat(camPose, actualR, actualT);
-
-        return true;
     }
 
     std::list<cv::Matx34d>& getCamPoses() { return *&m_camPoses; }

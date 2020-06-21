@@ -13,11 +13,12 @@
           //--------------------------------- BASE --------------------------------//
             // "-bSource=/home/lowcash/Documents/SfM_Resources/Video/matches.mkv", 
             // "-bcalib=/home/lowcash/Documents/SfM_Resources/Calibration/calib_blender.yml",
+            "-bWriPar=appsrc ! videoconvert ! x264enc tune=zerolatency bitrate=500 speed-preset=superfast ! rtph264pay ! udpsink host=192.168.1.103 port=5000",
+            "-bSource=/home/lowcash/Documents/SfM_Resources/Video/stul_den.mp4", 
             "-bcalib=/home/lowcash/Documents/SfM_Resources/Calibration/calib_mobile.yml",
-            "-bSource=/home/lowcash/Documents/SfM_Resources/Video/gramofony.mp4", 
-            //"-bSource=https://192.168.1.100:8080/video", 
+            //"-bSource=rtsp://192.168.1.100:8080/video/h264", 
             //"-bcalib=/home/lowcash/Documents/SfM_Resources/Calibration/calib_KITTI_0.yml", 
-            "-bDownSamp=3.0", "-bWinWidth=960", "-bWinHeight=540", "-bUseMethod=PNP", "-bMaxSkFram=10", "-bDebugVisE=true", "-bDebugMatE=true",
+            "-bDownSamp=1.0", "-bWinWidth=960", "-bWinHeight=540", "-bUseMethod=PNP", "-bMaxSkFram=10", "-bDebugVisE=true", "-bDebugMatE=false",
           
             //------------------------------- FEATURES ------------------------------//
             //"-fDecType=ORB", "-fMatchType=BRUTEFORCE_HAMMING", "-fKnnRatio=0.5",
@@ -39,10 +40,10 @@
             "-baMethod=DENSE_SCHUR", "-baMaxRMSE=5.0", "-baProcIt=1",
 
             //---------------------------- TRIANGULATION ----------------------------//
-            "-tMethod=ITERATIVE", "-tMinDist=0.0001", "-tMaxDist=9999", "-tMaxPErr=5",
+            "-tMethod=ITERATIVE", "-tMinDist=0.0001", "-tMaxDist=250", "-tMaxPErr=1",
 
             //----------------------------- CLOUD FILTER ----------------------------//
-            "-cSRemThr=1.0", "-cLSize=0.0", "-cSRange=3", "-cFProcIt=5"
+            "-cSRemThr=1.0", "-cFProcIt=0"
           ],
           "stopAtEntry": false,
           "cwd": "${workspaceFolder}",

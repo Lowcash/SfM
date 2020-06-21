@@ -121,7 +121,7 @@ void Reconstruction::adjustBundle(Camera& camera, std::list<cv::Matx34d>& camPos
     bool isCameraLocked = false; size_t numPtsAdded = 0;
     for (auto [pMask, pMaskEnd, p, pEnd] = std::tuple{pointCloud.cloudMask.begin(), pointCloud.cloudMask.end(), pointCloud.cloudTracks.begin(), pointCloud.cloudTracks.end()}; pMask != pMaskEnd && p != pEnd; ++pMask, ++p) {
         if (!(bool)*pMask) { continue; }
-        
+
         for (auto [c, ct, cEnd, ctEnd] = std::tuple{p->projKeys.begin(), p->extrinsicsIdxs.begin(), p->projKeys.end(), p->extrinsicsIdxs.end()}; c != cEnd && ct != ctEnd; ++c, ++ct) {
             cv::Point2f p2d = *c;
             cv::Matx16d* ext = &extrinsics6d[*ct];
@@ -254,65 +254,13 @@ void PointCloud::filterCloud() {
 
     std::vector<int> filterIndices;
 
-    if (m_cSRemThr != 0) {
-        prepareFilterCloud(pointCloud, usedIdx);
+    prepareFilterCloud(pointCloud, usedIdx);
 
-        pcl::StatisticalOutlierRemoval<pcl::PointXYZ> statOutRem;
-        statOutRem.setInputCloud(pointCloud);
-        statOutRem.setStddevMulThresh(m_cSRemThr);
-        statOutRem.setNegative(true);
-        statOutRem.filter(filterIndices);
+    pcl::StatisticalOutlierRemoval<pcl::PointXYZ> statOutRem;
+    statOutRem.setInputCloud(pointCloud);
+    statOutRem.setStddevMulThresh(m_cSRemThr);
+    statOutRem.setNegative(true);
+    statOutRem.filter(filterIndices);
 
-        /*pcl::RadiusOutlierRemoval<pcl::PointXYZ> radOutRem;
-        radOutRem.setInputCloud(pointCloud);
-        radOutRem.setRadiusSearch(m_cSRemThr);
-        radOutRem.setMinNeighborsInRadius(2);
-        radOutRem.setNegative(true);
-        radOutRem.filter(filterIndices);*/
-
-        applyCloudFilter(usedIdx, filterIndices);
-
-        usedIdx.clear(); filterIndices.clear(); pointCloud->clear();
-    }
-    
-    if (m_cLSize != 0) {
-        prepareFilterCloud(pointCloud, usedIdx);
-
-        pcl::PointCloud<pcl::PointXYZ>::Ptr pointCloudFilter(new pcl::PointCloud<pcl::PointXYZ>);
-
-        pcl::VoxelGrid<pcl::PointXYZ> avg;
-        avg.setInputCloud(pointCloud);
-        avg.setLeafSize(m_cLSize, m_cLSize, m_cLSize);
-        avg.filter(*pointCloudFilter);
-
-        pcl::KdTreeFLANN<pcl::PointXYZ> kdTree;
-        kdTree.setInputCloud(pointCloud);
-        kdTree.setSortedResults(true);
-        
-        const size_t pCloudSize = pointCloudFilter->size();
-    
-        std::map<int, bool> _mapIdx;
-
-        for (size_t i = 0; i < pCloudSize; ++i) {
-            pcl::PointXYZ searchPoint = pointCloudFilter->at(i);
-
-            std::vector<int> _filterIndices;
-            std::vector<float> _filterRadius;
-            
-            if (kdTree.radiusSearch(searchPoint, m_cSRange, _filterIndices, _filterRadius) > 1) {
-                for (auto [fI, fIEnd, fR, fREnd] = std::tuple{_filterIndices.cbegin(), _filterIndices.cend(), _filterRadius.cbegin(), _filterRadius.cend()}; fI != fIEnd && fR != fREnd; ++fI, ++fR) {
-                    const int _fIdxVal = *fI;
-                    const float _fRadVal = *fR;
-
-                    if (_fRadVal != 0 && (_mapIdx.find(_fIdxVal) == _mapIdx.end())) {
-                        filterIndices.push_back(_fIdxVal);
-
-                        _mapIdx[_fIdxVal] = true;
-                    }
-                }
-            }
-        }
-
-        applyCloudFilter(usedIdx, filterIndices);
-    }
+    applyCloudFilter(usedIdx, filterIndices);
 }

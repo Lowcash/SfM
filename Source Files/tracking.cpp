@@ -46,12 +46,8 @@ void RecoveryPose::drawRecoveredPose(cv::Mat inputImg, cv::Mat& outputImg, const
 }
 
 void Tracking::addTrackView(ViewData* view, TrackView trackView, const std::vector<bool>& mask, const std::vector<cv::Point2f>& points2D, const std::vector<cv::Vec3d> points3D, const std::vector<cv::Vec3b>& pointsRGB, const std::vector<cv::KeyPoint>& keyPoints, const cv::Mat& descriptor, const std::vector<int>& ptsToKeyIdx) {
-    const double cloudRatio = !m_pointCloud->cloud3D.empty() && !trackView.ptToCloudMap.empty() ? 
-        (double)trackView.ptToCloudMap.size() / (double)m_pointCloud->cloud3D.size() : 0.0;
-
-    std::cout << cloudRatio << "\n";
-
     size_t newPtsAdded = 0;
+    
     for (uint idx = 0; idx < points3D.size(); ++idx) {
         //  mapping from triangulated point (alligned) to corresponding keypoint/descriptor (not alligned)
         const cv::KeyPoint _keypoint = ptsToKeyIdx.empty() ? keyPoints[idx] : keyPoints[ptsToKeyIdx[idx]];
@@ -63,13 +59,13 @@ void Tracking::addTrackView(ViewData* view, TrackView trackView, const std::vect
             if (trackView.ptToCloudMap.find(std::pair{_keypoint.pt.x, _keypoint.pt.y}) == trackView.ptToCloudMap.end()) {
                 trackView.addTrack(_keypoint, _descriptor, m_pointCloud->getNumCloudPoints());
 
-                m_pointCloud->addCloudPoint(_keypoint.pt, points3D[idx], pointsRGB[idx], trackViews.size());
+                m_pointCloud->addCloudPoint(_keypoint.pt, points3D[idx], pointsRGB[idx]);
 
                 newPtsAdded++;
             } else {
                 size_t cloudIdx = trackView.ptToCloudMap[std::pair{_keypoint.pt.x, _keypoint.pt.y}];
 
-                m_pointCloud->registerCloudView(cloudIdx, _keypoint.pt, trackViews.size());
+                m_pointCloud->registerCloudView(cloudIdx, _keypoint.pt);
 
                 trackView.addTrack(_keypoint, _descriptor, cloudIdx);
             }
@@ -81,6 +77,8 @@ void Tracking::addTrackView(ViewData* view, TrackView trackView, const std::vect
     trackView.setView(view);
 
     trackViews.push_back(trackView);
+
+    m_pointCloud->cloudSelectedLayer++;
 }
 
 bool Tracking::findCameraPose(RecoveryPose& recPose, std::vector<cv::Point2f> prevPts, std::vector<cv::Point2f> currPts, cv::Mat cameraK, int minInliers, int& numInliers) {
