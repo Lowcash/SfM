@@ -191,7 +191,7 @@ void DescriptorMatcher::findRobustMatches(std::vector<cv::KeyPoint> prevKeyPts, 
 
     for (size_t m = 0; m < matches.size(); ++m) {
         // filter by fundamental mask
-        if (inliersMask[m]) {
+        //if (inliersMask[m]) {
             _epipolarPrevPts.push_back(prevKeyPts[matches[m].queryIdx].pt);
             _epipolarCurrPts.push_back(currKeyPts[matches[m].trainIdx].pt);
 
@@ -199,7 +199,7 @@ void DescriptorMatcher::findRobustMatches(std::vector<cv::KeyPoint> prevKeyPts, 
             currPtsToKeyIdx.push_back(matches[m].trainIdx);
 
             _epipolarMatch.push_back(matches[m]);
-        }
+        //}
     }
 
     if (m_isVisDebug && (!debugPrevFrame.empty() && !debugCurrFrame.empty())) {

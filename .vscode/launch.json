@@ -13,12 +13,13 @@
           //--------------------------------- BASE --------------------------------//
             // "-bSource=/home/lowcash/Documents/SfM_Resources/Video/matches.mkv", 
             // "-bcalib=/home/lowcash/Documents/SfM_Resources/Calibration/calib_blender.yml",
-            "-bWriPar=appsrc ! videoconvert ! x264enc tune=zerolatency bitrate=500 speed-preset=superfast ! rtph264pay ! udpsink host=192.168.1.103 port=5000",
-            "-bSource=/home/lowcash/Documents/SfM_Resources/Video/stul_den.mp4", 
+            "-bWriPar=appsrc ! videoconvert ! x264enc tune=zerolatency bitrate=500 ! rtph264pay ! udpsink host=192.168.1.103 port=5000",
+            //"-bWriPar=appsrc ! videoconvert ! videoscale ! video/x-raw,width=320,height=240 ! theoraenc ! oggmux ! tcpserversink host=192.168.0.116 port=8080 recover-policy=keyframe sync-method=latest-keyframe unit-format=buffers units-max=1 buffers-max=0 sync=true ",
+            "-bSource=/home/lowcash/Documents/SfM_Resources/Video/gramofony.mp4", 
             "-bcalib=/home/lowcash/Documents/SfM_Resources/Calibration/calib_mobile.yml",
             //"-bSource=rtsp://192.168.1.100:8080/video/h264", 
             //"-bcalib=/home/lowcash/Documents/SfM_Resources/Calibration/calib_KITTI_0.yml", 
-            "-bDownSamp=1.0", "-bWinWidth=960", "-bWinHeight=540", "-bUseMethod=PNP", "-bMaxSkFram=10", "-bDebugVisE=true", "-bDebugMatE=false",
+            "-bDownSamp=8.0", "-bWinWidth=960", "-bWinHeight=540", "-bUseMethod=PNP", "-bMaxSkFram=10", "-bDebugVisE=true", "-bDebugMatE=true",
           
             //------------------------------- FEATURES ------------------------------//
             //"-fDecType=ORB", "-fMatchType=BRUTEFORCE_HAMMING", "-fKnnRatio=0.5",
@@ -37,13 +38,13 @@
             //"-peMethod=RANSAC", "-peProb=0.99", "-peThresh=1.0", "-peMinInl=25", "-peMinMatch=50", "-pePMetrod=SOLVEPNP_P3P", "-peExGuess=false", "-peNumIteR=250",
             
             //-------------------------- BUNDLE ADJUSTMENT --------------------------//
-            "-baMethod=DENSE_SCHUR", "-baMaxRMSE=5.0", "-baProcIt=1",
+            "-baMethod=DENSE_SCHUR", "-baMaxRMSE=1.0", "-baProcIt=1",
 
             //---------------------------- TRIANGULATION ----------------------------//
             "-tMethod=ITERATIVE", "-tMinDist=0.0001", "-tMaxDist=250", "-tMaxPErr=1",
 
             //----------------------------- CLOUD FILTER ----------------------------//
-            "-cSRemThr=1.0", "-cFProcIt=0"
+            "-cSRemThr=10.0", "-cFProcIt=1"
           ],
           "stopAtEntry": false,
           "cwd": "${workspaceFolder}",

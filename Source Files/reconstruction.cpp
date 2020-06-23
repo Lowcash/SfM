@@ -122,7 +122,9 @@ void Reconstruction::adjustBundle(Camera& camera, std::list<cv::Matx34d>& camPos
     for (auto [pMask, pMaskEnd, p, pEnd] = std::tuple{pointCloud.cloudMask.begin(), pointCloud.cloudMask.end(), pointCloud.cloudTracks.begin(), pointCloud.cloudTracks.end()}; pMask != pMaskEnd && p != pEnd; ++pMask, ++p) {
         if (!(bool)*pMask) { continue; }
 
-        for (auto [c, ct, cEnd, ctEnd] = std::tuple{p->projKeys.begin(), p->extrinsicsIdxs.begin(), p->projKeys.end(), p->extrinsicsIdxs.end()}; c != cEnd && ct != ctEnd; ++c, ++ct) {
+        //if (*p->extrinsicsIdxs.rbegin() != pointCloud.cloudSelectedLayer - 1) { continue; }
+
+        for (auto [c, ct, cEnd, ctEnd, idx] = std::tuple{p->projKeys.begin(), p->extrinsicsIdxs.begin(), p->projKeys.end(), p->extrinsicsIdxs.end(), 0}; c != cEnd && ct != ctEnd; ++c, ++ct, ++idx) {
             cv::Point2f p2d = *c;
             cv::Matx16d* ext = &extrinsics6d[*ct];
 
@@ -140,11 +142,7 @@ void Reconstruction::adjustBundle(Camera& camera, std::list<cv::Matx34d>& camPos
                 isCameraLocked = true;
             }
         }
-
-        numPtsAdded++;
     }
-
-    std::cout << "Added " << numPtsAdded << " points to adjust" << "\n";
 
     if (!isCameraLocked) {
         std::cout << "Minimization is not ready, something went wrong! -> skipping process" << "\n";

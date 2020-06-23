@@ -55,19 +55,29 @@ void Tracking::addTrackView(ViewData* view, TrackView trackView, const std::vect
 
         //  Add only good reprojected points, points in front of camera, points not far away from camera
         if (mask[idx]) {
-            //  Check if point is new -> add to cloud otherwise add to seen points
-            if (trackView.ptToCloudMap.find(std::pair{_keypoint.pt.x, _keypoint.pt.y}) == trackView.ptToCloudMap.end()) {
-                trackView.addTrack(_keypoint, _descriptor, m_pointCloud->getNumCloudPoints());
+            if (!m_isTracking) {
+                //  Check if point is new -> add to cloud otherwise add to seen points
+                if (trackView.ptToCloudMap.find(std::pair{_keypoint.pt.x, _keypoint.pt.y}) == trackView.ptToCloudMap.end()) {
+                    trackView.addTrack(_keypoint, _descriptor, m_pointCloud->getNumCloudPoints());
 
-                m_pointCloud->addCloudPoint(_keypoint.pt, points3D[idx], pointsRGB[idx]);
+                    m_pointCloud->addCloudPoint(_keypoint.pt, points3D[idx], pointsRGB[idx]);
 
-                newPtsAdded++;
+                    newPtsAdded++;
+                } else {
+                    size_t cloudIdx = trackView.ptToCloudMap[std::pair{_keypoint.pt.x, _keypoint.pt.y}];
+
+                    m_pointCloud->registerCloudView(cloudIdx, _keypoint.pt);
+
+                    trackView.addTrack(_keypoint, _descriptor, cloudIdx);
+                }
             } else {
-                size_t cloudIdx = trackView.ptToCloudMap[std::pair{_keypoint.pt.x, _keypoint.pt.y}];
+                if (trackView.ptToCloudMap.find(std::pair{_keypoint.pt.x, _keypoint.pt.y}) != trackView.ptToCloudMap.end()) {
+                    size_t cloudIdx = trackView.ptToCloudMap[std::pair{_keypoint.pt.x, _keypoint.pt.y}];
 
-                m_pointCloud->registerCloudView(cloudIdx, _keypoint.pt);
+                    m_pointCloud->registerCloudView(cloudIdx, _keypoint.pt);
 
-                trackView.addTrack(_keypoint, _descriptor, cloudIdx);
+                    trackView.addTrack(_keypoint, _descriptor, cloudIdx);
+                }
             }
         }    
     }
@@ -79,6 +89,8 @@ void Tracking::addTrackView(ViewData* view, TrackView trackView, const std::vect
     trackViews.push_back(trackView);
 
     m_pointCloud->cloudSelectedLayer++;
+
+    m_isTracking = true;
 }
 
 bool Tracking::findCameraPose(RecoveryPose& recPose, std::vector<cv::Point2f> prevPts, std::vector<cv::Point2f> currPts, cv::Mat cameraK, int minInliers, int& numInliers) {
@@ -113,6 +125,8 @@ bool Tracking::findRecoveredCameraPose(DescriptorMatcher matcher, int minMatches
     std::vector<cv::Vec3d> _posePoints3D;
 
     cv::Mat _R, _t, _inliers;
+    
+    std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
 
     for (auto t = inTrackViews.begin(); t != inTrackViews.end(); ++t) {
         if (t->keyPoints.empty() || featView.keyPts.empty()) { continue; }
@@ -126,12 +140,17 @@ bool Tracking::findRecoveredCameraPose(DescriptorMatcher matcher, int minMatches
 
         //std::cout << "Recover pose matches: " << _matches.size() << "\n";
 
+        if (!t->viewPtr->imColor.empty() && !featView.viewPtr->imColor.empty()) {
+            cv::Mat _imOutMatch; cv::drawMatches(t->viewPtr->imColor, t->keyPoints, featView.viewPtr->imColor, featView.keyPts, _matches, _imOutMatch);
+            cv::imshow("Matches", _imOutMatch); cv::waitKey(1);
+        }
+
         for (const auto& m : _matches) {
             //  2D point from new view
             cv::Point2f _point2D = (cv::Point2f)featView.keyPts[m.trainIdx].pt;
 
             //  prevent duplicities
-            if (outTrackView.ptToCloudMap.find(std::pair{_point2D.x, _point2D.y}) == outTrackView.ptToCloudMap.end()) {
+            //if (outTrackView.ptToCloudMap.find(std::pair{_point2D.x, _point2D.y}) == outTrackView.ptToCloudMap.end()) {
                 if (pointCloud.cloudMask[m.queryIdx]) {
                      // mapper from vector to list item
                     cv::Vec3d* cloudMapper = pointCloud.cloudMapper[t->cloudIdxs[m.queryIdx]];
@@ -144,13 +163,8 @@ bool Tracking::findRecoveredCameraPose(DescriptorMatcher matcher, int minMatches
                     
                     outTrackView.ptToCloudMap[std::pair{_point2D.x, _point2D.y}] = t->cloudIdxs[m.queryIdx];
                 }  
-            }
+            //}
         }
-
-        // if (!t->viewPtr->imColor.empty() && !featView.viewPtr->imColor.empty()) {
-        //     cv::Mat _imOutMatch; cv::drawMatches(t->viewPtr->imColor, t->keyPoints, featView.viewPtr->imColor, featView.keyPts, _matches, _imOutMatch);
-        //     cv::imshow("Matches", _imOutMatch); cv::waitKey(1);
-        // }
     }
 
     //  Min point filter
@@ -161,6 +175,11 @@ bool Tracking::findRecoveredCameraPose(DescriptorMatcher matcher, int minMatches
     //if (!cv::solvePnP(_posePoints3D, _posePoints2D, camera.K, cv::Mat(), _R, _t, recPose.useExtrinsicGuess, recPose.poseEstMethod)) { return false; }
 
     std::cout << "Recover pose inliers: " << _inliers.rows << "\n";
+
+    std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
+
+    std::cout << "\n----------------------------------------------------------\n\n";
+    std::cout << "Total computing time: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count() / 1000.0 << " seconds!\n";
 
     //  Min PnP inliers filter
     if (_inliers.rows < recPose.minInliers) { return false; }

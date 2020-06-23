@@ -64,6 +64,8 @@ class Tracking {
     std::vector<CloudTrack> m_cloudTracks;
 
     PointCloud* m_pointCloud;
+
+    bool m_isTracking;
 public:
     // Good track used for matching
     std::list<TrackView> trackViews;
@@ -73,6 +75,8 @@ public:
     Tracking(PointCloud* pointCloud)
         : actualR(cv::Matx33d::eye()), actualT(cv::Matx31d::eye()) {
         m_pointCloud = pointCloud;
+
+        m_isTracking = false;
     }
 
     void addTrackView(ViewData* view, TrackView trackView, const std::vector<bool>& mask, const std::vector<cv::Point2f>& points2D, const std::vector<cv::Vec3d> points3D, const std::vector<cv::Vec3b>& pointsRGB, const std::vector<cv::KeyPoint>& keyPoints, const cv::Mat& descriptor, const std::vector<int>& ptsToKeyIdx = std::vector<int>());
