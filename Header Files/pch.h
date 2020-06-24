@@ -5,6 +5,14 @@
 #include <iostream>
 #include <thread>
 #include <chrono>
+#include <unistd.h>
+#include <sys/time.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <sys/signal.h>
+#include <netdb.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
 
 #define _USE_OPENCV true
 

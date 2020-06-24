@@ -13,13 +13,11 @@
           //--------------------------------- BASE --------------------------------//
             // "-bSource=/home/lowcash/Documents/SfM_Resources/Video/matches.mkv", 
             // "-bcalib=/home/lowcash/Documents/SfM_Resources/Calibration/calib_blender.yml",
-            "-bWriPar=appsrc ! videoconvert ! x264enc tune=zerolatency bitrate=500 ! rtph264pay ! udpsink host=192.168.1.103 port=5000",
-            //"-bWriPar=appsrc ! videoconvert ! videoscale ! video/x-raw,width=320,height=240 ! theoraenc ! oggmux ! tcpserversink host=192.168.0.116 port=8080 recover-policy=keyframe sync-method=latest-keyframe unit-format=buffers units-max=1 buffers-max=0 sync=true ",
-            "-bSource=/home/lowcash/Documents/SfM_Resources/Video/gramofony.mp4", 
+            "-bSource=/home/lowcash/Documents/SfM_Resources/Video/stul_den.mp4", 
             "-bcalib=/home/lowcash/Documents/SfM_Resources/Calibration/calib_mobile.yml",
             //"-bSource=rtsp://192.168.1.100:8080/video/h264", 
             //"-bcalib=/home/lowcash/Documents/SfM_Resources/Calibration/calib_KITTI_0.yml", 
-            "-bDownSamp=8.0", "-bWinWidth=960", "-bWinHeight=540", "-bUseMethod=PNP", "-bMaxSkFram=10", "-bDebugVisE=true", "-bDebugMatE=true",
+            "-bDownSamp=2.0", "-bWinWidth=960", "-bWinHeight=540", "-bUseMethod=KLT", "-bMaxSkFram=10", "-bDebugVisE=true", "-bDebugMatE=true",
           
             //------------------------------- FEATURES ------------------------------//
             //"-fDecType=ORB", "-fMatchType=BRUTEFORCE_HAMMING", "-fKnnRatio=0.5",

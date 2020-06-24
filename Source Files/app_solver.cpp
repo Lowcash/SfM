@@ -96,11 +96,7 @@ void AppSolver::run() {
         exit(1);
     }
     
-    cv::VideoWriter wri; if(!wri.open(params.bWriPar, cv::CAP_GSTREAMER, 0, 30, params.winSize)
-    ) {
-        std::cerr << "Error creating video stream or file!!" << "\n";
-        exit(1);
-    }
+    MJPEGWriter wri(7777); wri.start();
     
     // initialize structures
     Camera camera(params.cameraK, params.distCoeffs, params.bDownSamp);
@@ -476,10 +472,11 @@ void AppSolver::run() {
 #pragma endregion Perspective-n-Point
 
         wri.write(imOutRecPose);
+        imOutRecPose.release();
 
         std::cout << "Iteration: " << iteration << "\n"; cv::waitKey(29);
     }
 
     cap.release();
-    wri.release();
+    wri.stop();
 }
