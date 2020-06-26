@@ -3,11 +3,12 @@
 #pragma once
 
 #include "pch.h"
+#include "common.h"
 
 /** 
  * Camera helper
  */
-class Camera {
+class CameraParameters {
 public:
     cv::Mat K, distCoeffs;
 
@@ -17,7 +18,7 @@ public:
 
     cv::Point2d focal;
 
-    Camera(const cv::Mat K, const cv::Mat distCoeffs, const double downSample = 1.0f) {
+    CameraParameters(const cv::Mat K, const cv::Mat distCoeffs, const double downSample = 1.0f) {
         updateCameraParameters(K, distCoeffs, downSample);
     }
 
@@ -37,6 +38,33 @@ public:
         this->focal = cv::Point2d(this->K.at<double>(0, 0), this->K.at<double>(1, 1));
 
         std::cout << "\nCamera intrices: " << this->K << "\n";
+    }
+};
+
+class CameraData {
+public:
+    CameraParameters* intrinsics;
+
+    std::list<cv::Matx34d> extrinsics;
+
+    std::vector<uint> extrinsicsCounter;
+
+    cv::Matx33d actualR; cv::Matx31d actualT;
+
+    uint numCameras;
+
+    CameraData(CameraParameters* cameraIntrinsics) 
+        : actualR(cv::Matx33d()), actualT(cv::Matx31d()), numCameras(0) {
+       intrinsics = cameraIntrinsics;     
+    }
+
+    void addCamPose(const cv::Matx34d camPose) { 
+        extrinsics.push_back(camPose);
+        extrinsicsCounter.push_back(0);
+
+        decomposeExtrinsicMat(camPose, actualR, actualT);
+
+        numCameras++;
     }
 };
 

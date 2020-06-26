@@ -56,40 +56,20 @@ public:
 };
 
 class Tracking {
-    // Result camera poses -> updated by bundle adjuster
-    std::list<cv::Matx34d> m_camPoses;
-
     // CloudTracks same size as cloud3D
     // Cameras and 2D point projections which affect cloud
     std::vector<CloudTrack> m_cloudTracks;
 
     PointCloud* m_pointCloud;
-
-    bool m_isTracking;
 public:
     // Good track used for matching
     std::list<TrackView> trackViews;
 
-    cv::Matx33d actualR; cv::Matx31d actualT;
-
-    Tracking(PointCloud* pointCloud)
-        : actualR(cv::Matx33d::eye()), actualT(cv::Matx31d::eye()) {
+    Tracking(PointCloud* pointCloud) {
         m_pointCloud = pointCloud;
-
-        m_isTracking = false;
     }
 
-    void addTrackView(ViewData* view, TrackView trackView, const std::vector<bool>& mask, const std::vector<cv::Point2f>& points2D, const std::vector<cv::Vec3d> points3D, const std::vector<cv::Vec3b>& pointsRGB, const std::vector<cv::KeyPoint>& keyPoints, const cv::Mat& descriptor, const std::vector<int>& ptsToKeyIdx = std::vector<int>());
-
-    void addCamPose(const cv::Matx34d camPose) { 
-        m_camPoses.push_back(camPose);
-
-        decomposeExtrinsicMat(camPose, actualR, actualT);
-    }
-
-    std::list<cv::Matx34d>& getCamPoses() { return *&m_camPoses; }
-
-    cv::Matx34d getLastCam() { return m_camPoses.back(); }
+    bool addTrackView(ViewData* view, TrackView trackView, const std::vector<bool>& mask, const std::vector<cv::Point2f>& points2D, const std::vector<cv::Vec3d> points3D, const std::vector<cv::Vec3b>& pointsRGB, const std::vector<cv::KeyPoint>& keyPoints, const cv::Mat& descriptor, const std::vector<int>& ptsToKeyIdx = std::vector<int>());
 
     std::list<TrackView>& getTrackViews() { return *&trackViews; }
 
@@ -105,7 +85,7 @@ public:
      * Find pose between trackViews 
      * It uses PnP alghoritm to return camera pose
      */
-    static bool findRecoveredCameraPose(DescriptorMatcher matcher, int minMatches, Camera camera, FeatureView& featView, RecoveryPose& recPose, std::list<TrackView>& inTrackViews, TrackView& outTrackView, PointCloud& pointCloud);
+    static bool findRecoveredCameraPose(DescriptorMatcher matcher, int minMatches, CameraParameters camera, FeatureView& featView, RecoveryPose& recPose, std::list<TrackView>& inTrackViews, TrackView& outTrackView, PointCloud& pointCloud);
 };
 
 #endif //TRACKING_H

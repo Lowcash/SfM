@@ -14,10 +14,10 @@
             // "-bSource=/home/lowcash/Documents/SfM_Resources/Video/matches.mkv", 
             // "-bcalib=/home/lowcash/Documents/SfM_Resources/Calibration/calib_blender.yml",
             "-bSource=/home/lowcash/Documents/SfM_Resources/Video/stul_den.mp4", 
-            "-bcalib=/home/lowcash/Documents/SfM_Resources/Calibration/calib_mobile.yml",
             //"-bSource=rtsp://192.168.1.100:8080/video/h264", 
+            "-bcalib=/home/lowcash/Documents/SfM_Resources/Calibration/calib_mobile.yml",
             //"-bcalib=/home/lowcash/Documents/SfM_Resources/Calibration/calib_KITTI_0.yml", 
-            "-bDownSamp=2.0", "-bWinWidth=960", "-bWinHeight=540", "-bUseMethod=KLT", "-bMaxSkFram=10", "-bDebugVisE=true", "-bDebugMatE=true",
+            "-bDownSamp=3.0", "-bWinWidth=960", "-bWinHeight=540", "-bUseMethod=PNP", "-bMaxSkFram=10", "-bDebugVisE=true", "-bDebugMatE=true",
           
             //------------------------------- FEATURES ------------------------------//
             //"-fDecType=ORB", "-fMatchType=BRUTEFORCE_HAMMING", "-fKnnRatio=0.5",
@@ -39,7 +39,7 @@
             "-baMethod=DENSE_SCHUR", "-baMaxRMSE=1.0", "-baProcIt=1",
 
             //---------------------------- TRIANGULATION ----------------------------//
-            "-tMethod=ITERATIVE", "-tMinDist=0.0001", "-tMaxDist=250", "-tMaxPErr=1",
+            "-tMethod=ITERATIVE", "-tMinDist=0.0001", "-tMaxDist=250", "-tMaxPErr=5",
 
             //----------------------------- CLOUD FILTER ----------------------------//
             "-cSRemThr=10.0", "-cFProcIt=1"

@@ -25,7 +25,8 @@ FeatureDetector::FeatureDetector(std::string method) {
 
     switch (m_detectorType) {
         case DetectorType::AKAZE: {
-            detector = extractor = cv::AKAZE::create(cv::AKAZE::DescriptorType::DESCRIPTOR_MLDB, 0, 3, 0.001f, 3, 3);
+            //detector = extractor = cv::AKAZE::create(cv::AKAZE::DescriptorType::DESCRIPTOR_MLDB, 0, 3, 0.001f, 3, 3);
+            detector = extractor = cv::AKAZE::create();
 
             break;
         }
@@ -140,7 +141,7 @@ void DescriptorMatcher::drawMatches(const cv::Mat prevFrame, const cv::Mat currF
     cv::putText(outFrame, matchesText, cv::Point(10,100), cv::FONT_HERSHEY_COMPLEX, 1.0, CV_RGB(255, 255, 255));
 }
 
-void DescriptorMatcher::findRobustMatches(std::vector<cv::KeyPoint> prevKeyPts, std::vector<cv::KeyPoint> currKeyPts, cv::Mat prevDesc, cv::Mat currDesc, std::vector<cv::Point2f>& prevAligPts, std::vector<cv::Point2f>& currAligPts, std::vector<cv::DMatch>& matches, std::vector<int>& prevPtsToKeyIdx, std::vector<int>& currPtsToKeyIdx, cv::Mat debugPrevFrame, cv::Mat debugCurrFrame) {
+void DescriptorMatcher::findRobustMatches(std::vector<cv::KeyPoint> prevKeyPts, std::vector<cv::KeyPoint> currKeyPts, cv::Mat prevDesc, cv::Mat currDesc, std::vector<cv::Point2f>& prevAligPts, std::vector<cv::Point2f>& currAligPts, std::vector<cv::DMatch>& matches, std::vector<int>& prevPtsToKeyIdx, std::vector<int>& currPtsToKeyIdx, cv::Mat debugPrevFrame, cv::Mat debugCurrFrame, bool useEpipolarFilter) {
     std::vector<cv::DMatch> fMatches, bMatches;
 
     // knn matches
@@ -191,7 +192,7 @@ void DescriptorMatcher::findRobustMatches(std::vector<cv::KeyPoint> prevKeyPts, 
 
     for (size_t m = 0; m < matches.size(); ++m) {
         // filter by fundamental mask
-        //if (inliersMask[m]) {
+        if (inliersMask[m] || !useEpipolarFilter) {
             _epipolarPrevPts.push_back(prevKeyPts[matches[m].queryIdx].pt);
             _epipolarCurrPts.push_back(currKeyPts[matches[m].trainIdx].pt);
 
@@ -199,7 +200,7 @@ void DescriptorMatcher::findRobustMatches(std::vector<cv::KeyPoint> prevKeyPts, 
             currPtsToKeyIdx.push_back(matches[m].trainIdx);
 
             _epipolarMatch.push_back(matches[m]);
-        //}
+        }
     }
 
     if (m_isVisDebug && (!debugPrevFrame.empty() && !debugCurrFrame.empty())) {

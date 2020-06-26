@@ -116,7 +116,7 @@ private:
      * 
      * The result will be added to ViewDataContainer
      */
-    int findGoodImages(cv::VideoCapture& cap, ViewDataContainer& viewContainer, FeatureDetector featDetector, OptFlow optFlow, Camera camera, RecoveryPose& recPose, FlowView& ofPrevView, FlowView& ofCurrView);
+    int findGoodImages(cv::VideoCapture& cap, ViewDataContainer& viewContainer, FeatureDetector featDetector, OptFlow optFlow, CameraParameters camera, RecoveryPose& recPose, FlowView& ofPrevView, FlowView& ofCurrView);
 
     /** 
      * Load and convert image to grayscale

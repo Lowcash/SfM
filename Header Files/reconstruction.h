@@ -30,8 +30,7 @@ public:
 };
 
 class PointCloud {
-    const float m_cLSize, m_cSRemThr;
-    const double m_cSRange;
+    const float m_cSRemThr;
 
     size_t m_numCloudPts, m_numActiveCloudPts;
 
@@ -55,8 +54,8 @@ public:
     
     uint cloudSelectedLayer;
 
-    PointCloud(const float cSRemThr = .5, const float cLSize = .5, const double cSRange = .5) 
-        : m_cSRemThr(cSRemThr), m_cLSize(cLSize), m_cSRange(cSRange), m_numCloudPts(0), m_numActiveCloudPts(0), cloudSelectedLayer(0) {}
+    PointCloud(const float cSRemThr = .5) 
+        : m_cSRemThr(cSRemThr), m_numCloudPts(0), m_numActiveCloudPts(0), cloudSelectedLayer(0) {}
 
     void addCloudPoint(const cv::Point2f projPosition2D, const cv::Vec3d cloudPoint3D, const cv::Vec3b cloudPointRGB) {
         cloud3D.push_back(cloudPoint3D);
@@ -145,13 +144,13 @@ private:
 
     const bool m_useNormalizePts;
 
-    void pointsToRGBCloud(Camera camera, cv::Mat imgColor, cv::Matx33d R, cv::Matx31d t, cv::Mat points3D, cv::Mat inputPts2D, std::vector<cv::Vec3d>& cloud3D, std::vector<cv::Vec3b>& cloudRGB, float minDist, float maxDist, float maxProjErr, std::vector<bool>& mask);
+    void pointsToRGBCloud(CameraParameters camera, cv::Mat imgColor, cv::Matx33d R, cv::Matx31d t, cv::Mat points3D, cv::Mat inputPts2D, std::vector<cv::Vec3d>& cloud3D, std::vector<cv::Vec3b>& cloudRGB, float minDist, float maxDist, float maxProjErr, std::vector<bool>& mask);
 public:
     Reconstruction(const std::string triangulateMethod, const std::string baMethod, const double baMaxRMSE, const float minDistance, const float maxDistance, const float maxProjectionError, const bool useNormalizePts);
 
-    void triangulateCloud(Camera camera, const std::vector<cv::Point2f> prevPts, const std::vector<cv::Point2f> currPts, const cv::Mat colorImage, std::vector<cv::Vec3d>& points3D, std::vector<cv::Vec3b>& pointsRGB, std::vector<bool>& mask, const cv::Matx34d prevPose, const cv::Matx34d currPose, cv::Matx33d& R, cv::Matx31d& t);
+    void triangulateCloud(CameraParameters camera, const std::vector<cv::Point2f> prevPts, const std::vector<cv::Point2f> currPts, const cv::Mat colorImage, std::vector<cv::Vec3d>& points3D, std::vector<cv::Vec3b>& pointsRGB, std::vector<bool>& mask, const cv::Matx34d prevPose, const cv::Matx34d currPose, cv::Matx33d& R, cv::Matx31d& t);
 
-    void adjustBundle(Camera& camera, std::list<cv::Matx34d>& camPoses, PointCloud& pointCloud);
+    void adjustBundle(CameraData& cameraData, PointCloud& pointCloud);
 };
 
 #endif //RECONSTRUCTION_H

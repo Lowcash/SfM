@@ -53,7 +53,7 @@ public:
     /** 
      * Robust matching by knn match, crossmatching, epipolar filter
      */
-    void findRobustMatches(std::vector<cv::KeyPoint> prevKeyPts, std::vector<cv::KeyPoint> currKeyPts, cv::Mat prevDesc, cv::Mat currAligPts, std::vector<cv::Point2f>& prevAligPts, std::vector<cv::Point2f>& currPts, std::vector<cv::DMatch>& matches, std::vector<int>& prevPtsToKeyIdx, std::vector<int>& currPtsToKeyIdx, cv::Mat debugPrevFrame, cv::Mat debugCurrFrame);
+    void findRobustMatches(std::vector<cv::KeyPoint> prevKeyPts, std::vector<cv::KeyPoint> currKeyPts, cv::Mat prevDesc, cv::Mat currAligPts, std::vector<cv::Point2f>& prevAligPts, std::vector<cv::Point2f>& currPts, std::vector<cv::DMatch>& matches, std::vector<int>& prevPtsToKeyIdx, std::vector<int>& currPtsToKeyIdx, cv::Mat debugPrevFrame, cv::Mat debugCurrFrame, bool useEpipolarFilter);
 };
 
 class OptFlowAddSettings {
