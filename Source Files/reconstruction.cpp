@@ -142,6 +142,7 @@ void Reconstruction::adjustBundle(CameraData& cameraData, PointCloud& pointCloud
             // lock to the first camera to prevent cloud scaling
             // first camera extrinsics will not be updated
             if (!isBlockLocked || pointCloud.cloudTracks[pIdx].extrinsicsIdxs.size() > m_baUpdLck) {
+            //if (!isBlockLocked || pointCloud.cloudUpdates[pIdx] > m_baUpdLck) {
                 problem.SetParameterBlockConstant(ext->val);
 
                 isBlockLocked = true;
