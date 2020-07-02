@@ -31,7 +31,7 @@ struct AppSolverDataParams {
     const double baMaxRMSE, cSRange;
     const cv::Size winSize, camSize;
     const bool peExGuess, bDebugVisE, bDebugMatE;
-    const int ofMinKPts, ofWinSize, ofMaxLevel, ofMaxCorn, peMinInl, peMinMatch, peNumIteR, bMaxSkFram, baProcIt, cFProcIt;
+    const int ofMinKPts, ofWinSize, ofMaxLevel, ofMaxCorn, peMinInl, peMinMatch, peNumIteR, bMaxSkFram, baUpdLck, baProcIt, cFProcIt;
     const cv::Mat cameraK, distCoeffs;
 
     /** 
@@ -74,6 +74,7 @@ struct AppSolverDataParams {
      * @param peNumIteR pose estimation max iteration
      * @param baMethod bundle adjustment solver type DENSE_SCHUR/SPARSE_NORMAL_CHOLESKY
      * @param baMaxRMSE bundle adjustment max RMSE error to recover from back up
+     * @param baUpdLck bundle adjustment lock block after %d updates
      * @param baProcIt bundle adjustment process each %d iteration
      * @param tMethod triangulation method ITERATIVE/DLT
      * @param tMinDist triangulation points min distance
@@ -86,8 +87,8 @@ struct AppSolverDataParams {
      * @param cSRange cloud radius search radius distance
      * @param cFProcIt cloud filter process each %d iteration
      */
-    AppSolverDataParams(const std::string bUseMethod, const std::string ptCloudWinName, const std::string usrInpWinName, std::string recPoseWinName, const std::string matchesWinName, const std::string bSource, const float bDownSamp, const int bMaxSkFram, const cv::Size winSize, const cv::Size camSize, const bool bDebugVisE, const bool bDebugMatE, const std::string fDecType, const std::string fMatchType, const float fKnnRatio, const int ofMinKPts, const int ofWinSize, const int ofMaxLevel, const float ofMaxItCt, const float ofItEps, const float ofMaxError, const int ofMaxCorn, const float ofQualLvl, const float ofMinDist, const std::string peMethod, const float peProb, const float peThresh, const int peMinInl, const int peMinMatch, const std::string pePMetrod, const bool peExGuess, const int peNumIteR, const std::string baMethod, const double baMaxRMSE, const int baProcIt, const std::string tMethod, const float tMinDist, const float tMaxDist, const float tMaxPErr, const cv::Mat cameraK, const cv::Mat distCoeffs, const float cSRemThr, const float cLSize, const double cSRange, const int cFProcIt) 
-        : bUseMethod(bUseMethod), ptCloudWinName(ptCloudWinName), usrInpWinName(usrInpWinName), recPoseWinName(recPoseWinName), matchesWinName(matchesWinName), bSource(bSource), bDownSamp(bDownSamp), bMaxSkFram(bMaxSkFram), winSize(winSize), camSize(camSize), bDebugVisE(bDebugVisE), bDebugMatE(bDebugMatE), fDecType(fDecType), fMatchType(fMatchType), fKnnRatio(fKnnRatio), ofMinKPts(ofMinKPts), ofWinSize(ofWinSize), ofMaxLevel(ofMaxLevel), ofMaxItCt(ofMaxItCt), ofItEps(ofItEps), ofMaxError(ofMaxError), ofMaxCorn(ofMaxCorn), ofQualLvl(ofQualLvl), ofMinDist(ofMinDist), peMethod(peMethod), peProb(peProb), peThresh(peThresh), peMinInl(peMinInl), peMinMatch(peMinMatch), pePMetrod(pePMetrod), peExGuess(peExGuess), peNumIteR(peNumIteR), baMethod(baMethod), baMaxRMSE(baMaxRMSE), baProcIt(baProcIt), tMethod(tMethod), tMinDist(tMinDist), tMaxDist(tMaxDist), tMaxPErr(tMaxPErr), cameraK(cameraK), distCoeffs(distCoeffs), cSRemThr(cSRemThr), cLSize(cLSize), cSRange(cSRange), cFProcIt(cFProcIt) {}
+    AppSolverDataParams(const std::string bUseMethod, const std::string ptCloudWinName, const std::string usrInpWinName, std::string recPoseWinName, const std::string matchesWinName, const std::string bSource, const float bDownSamp, const int bMaxSkFram, const cv::Size winSize, const cv::Size camSize, const bool bDebugVisE, const bool bDebugMatE, const std::string fDecType, const std::string fMatchType, const float fKnnRatio, const int ofMinKPts, const int ofWinSize, const int ofMaxLevel, const float ofMaxItCt, const float ofItEps, const float ofMaxError, const int ofMaxCorn, const float ofQualLvl, const float ofMinDist, const std::string peMethod, const float peProb, const float peThresh, const int peMinInl, const int peMinMatch, const std::string pePMetrod, const bool peExGuess, const int peNumIteR, const std::string baMethod, const double baMaxRMSE, const int baUpdLck, const int baProcIt, const std::string tMethod, const float tMinDist, const float tMaxDist, const float tMaxPErr, const cv::Mat cameraK, const cv::Mat distCoeffs, const float cSRemThr, const float cLSize, const double cSRange, const int cFProcIt) 
+        : bUseMethod(bUseMethod), ptCloudWinName(ptCloudWinName), usrInpWinName(usrInpWinName), recPoseWinName(recPoseWinName), matchesWinName(matchesWinName), bSource(bSource), bDownSamp(bDownSamp), bMaxSkFram(bMaxSkFram), winSize(winSize), camSize(camSize), bDebugVisE(bDebugVisE), bDebugMatE(bDebugMatE), fDecType(fDecType), fMatchType(fMatchType), fKnnRatio(fKnnRatio), ofMinKPts(ofMinKPts), ofWinSize(ofWinSize), ofMaxLevel(ofMaxLevel), ofMaxItCt(ofMaxItCt), ofItEps(ofItEps), ofMaxError(ofMaxError), ofMaxCorn(ofMaxCorn), ofQualLvl(ofQualLvl), ofMinDist(ofMinDist), peMethod(peMethod), peProb(peProb), peThresh(peThresh), peMinInl(peMinInl), peMinMatch(peMinMatch), pePMetrod(pePMetrod), peExGuess(peExGuess), peNumIteR(peNumIteR), baMethod(baMethod), baMaxRMSE(baMaxRMSE), baUpdLck(baUpdLck), baProcIt(baProcIt), tMethod(tMethod), tMinDist(tMinDist), tMaxDist(tMaxDist), tMaxPErr(tMaxPErr), cameraK(cameraK), distCoeffs(distCoeffs), cSRemThr(cSRemThr), cLSize(cLSize), cSRange(cSRange), cFProcIt(cFProcIt) {}
 };
 
 class AppSolver {

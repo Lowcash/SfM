@@ -48,7 +48,8 @@ void RecoveryPose::drawRecoveredPose(cv::Mat inputImg, cv::Mat& outputImg, const
 bool Tracking::addTrackView(ViewData* view, TrackView trackView, const std::vector<bool>& mask, const std::vector<cv::Point2f>& points2D, const std::vector<cv::Vec3d> points3D, const std::vector<cv::Vec3b>& pointsRGB, const std::vector<cv::KeyPoint>& keyPoints, const cv::Mat& descriptor, const std::vector<int>& ptsToKeyIdx) {
     size_t newPtsAdded = 0, newPtsRegistered = 0;
 
-    bool a = !points3D.empty();
+    //bool a = m_pointCloud->cloud3D.empty();
+    bool a = true;
 
     for (uint idx = 0; idx < points3D.size(); ++idx) {
         //  mapping from triangulated point (alligned) to corresponding keypoint/descriptor (not alligned)
@@ -83,12 +84,12 @@ bool Tracking::addTrackView(ViewData* view, TrackView trackView, const std::vect
                     trackView.addTrack(_keypoint, _descriptor, cloudIdx);
                 }
             }
-        }    
+        }  
     }
 
     std::cout << "New points were added to cloud: " << newPtsAdded << "; Total points: " << m_pointCloud->getNumActiveCloudPoints() << "\n";
 
-    if (newPtsAdded == 0 && newPtsRegistered == 0) { return false; }
+    //if (newPtsAdded == 0 && newPtsRegistered == 0) { return false; }
 
     trackView.setView(view);
 
@@ -124,7 +125,7 @@ bool Tracking::findCameraPose(RecoveryPose& recPose, std::vector<cv::Point2f> pr
 }
 
 bool Tracking::findRecoveredCameraPose(DescriptorMatcher matcher, int minMatches, CameraParameters camera, FeatureView& featView, RecoveryPose& recPose, std::list<TrackView>& inTrackViews, TrackView& outTrackView, PointCloud& pointCloud) {
-    std::cout << "Recovering pose..." << std::flush;
+    std::cout << "Matching..." << std::flush;
     
     // 3D - 2D structures for PnP mapping
     std::vector<cv::Point2f> _posePoints2D;
@@ -134,7 +135,7 @@ bool Tracking::findRecoveredCameraPose(DescriptorMatcher matcher, int minMatches
     
     std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
 
-    for (auto t = inTrackViews.begin(); t != inTrackViews.end(); ++t) {
+    for (auto t = inTrackViews.rbegin(); t != inTrackViews.rend(); ++t) {
         if (t->keyPoints.empty() || featView.keyPts.empty()) { continue; }
 
         std::vector<cv::Point2f> _prevPts, _currPts;
@@ -142,7 +143,9 @@ bool Tracking::findRecoveredCameraPose(DescriptorMatcher matcher, int minMatches
         std::vector<int> _prevIdx, _currIdx;
 
         //  matches between new view and old trackViews
-        matcher.findRobustMatches(t->keyPoints, featView.keyPts, t->descriptor, featView.descriptor, _prevPts, _currPts, _matches, _prevIdx, _currIdx, cv::Mat(), cv::Mat(), false);
+        matcher.findRobustMatches(t->keyPoints, featView.keyPts, t->descriptor, featView.descriptor, _prevPts, _currPts, _matches, _prevIdx, _currIdx, cv::Mat(), cv::Mat(), true);
+
+        if (_matches.size() < minMatches) { break; }
 
         //std::cout << "Recover pose matches: " << _matches.size() << "\n";
 
@@ -176,6 +179,8 @@ bool Tracking::findRecoveredCameraPose(DescriptorMatcher matcher, int minMatches
     //  Min point filter
     if (_posePoints2D.size() < 7 || _posePoints3D.size() < 7) { return false; }
 
+    std::cout << "Recovering pose..." << std::flush;
+
     //  Use solvePnPRansac instead of solvePnP -> RANSAC is more robustness
     if (!cv::solvePnPRansac(_posePoints3D, _posePoints2D, camera.K, cv::Mat(), _R, _t, recPose.useExtrinsicGuess, recPose.numIter, recPose.threshold, recPose.prob, _inliers, recPose.poseEstMethod)) { return false; }
     //if (!cv::solvePnP(_posePoints3D, _posePoints2D, camera.K, cv::Mat(), _R, _t, recPose.useExtrinsicGuess, recPose.poseEstMethod)) { return false; }
@@ -188,7 +193,7 @@ bool Tracking::findRecoveredCameraPose(DescriptorMatcher matcher, int minMatches
     std::cout << "Total computing time: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count() / 1000.0 << " seconds!\n";
 
     //  Min PnP inliers filter
-    //if (_inliers.rows < recPose.minInliers) { return false; }
+    if (_inliers.rows < recPose.minInliers) { return false; }
 
     //  Rotation matrix to rotation vector
     cv::Rodrigues(_R, recPose.R); recPose.t = _t;

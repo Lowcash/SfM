@@ -115,7 +115,7 @@ void AppSolver::run() {
     FeatureView featPrevView, featCurrView;
     FlowView ofPrevView, ofCurrView; 
 
-    Reconstruction reconstruction(params.tMethod, params.baMethod, params.baMaxRMSE, params.tMinDist, params.tMaxDist, params.tMaxPErr, true);
+    Reconstruction reconstruction(params.tMethod, params.baMethod, params.baMaxRMSE, params.baUpdLck, params.tMinDist, params.tMaxDist, params.tMaxPErr, true);
 
     PointCloud pointCloud(params.cSRemThr); 
     Tracking tracking(&pointCloud);
@@ -124,8 +124,7 @@ void AppSolver::run() {
     
     UserInput userInput(params.usrInpWinName, &imOutUsrInp, &pointCloud, params.ofMaxError);
 
-    WindowInputDataParams mouseUsrDataParams_0(&m_isUpdating);
-    WindowInputDataParams mouseUsrDataParams_1(&m_isUpdating, &userInput);
+    WindowInputDataParams mouseUsrDataParams(&m_isUpdating, &userInput);
     
     // run windows in new thread -> avoid rendering white screen
     cv::startWindowThread();
@@ -139,12 +138,9 @@ void AppSolver::run() {
     if (params.bDebugMatE) {
         cv::namedWindow(params.matchesWinName, cv::WINDOW_NORMAL);
         cv::resizeWindow(params.matchesWinName, params.winSize);
-
-        cv::setMouseCallback(params.matchesWinName, onUsrWinClick, (void*)&mouseUsrDataParams_0);
     }
 
-    cv::setMouseCallback(params.recPoseWinName, onUsrWinClick, (void*)&mouseUsrDataParams_0);
-    cv::setMouseCallback(params.usrInpWinName, onUsrWinClick, (void*)&mouseUsrDataParams_1);
+    cv::setMouseCallback(params.usrInpWinName, onUsrWinClick, (void*)&mouseUsrDataParams);
 
     // initialize visualization windows VTK, PCL
     VisPCL visPCL(params.ptCloudWinName + " PCL", params.winSize);
@@ -153,7 +149,7 @@ void AppSolver::run() {
 #pragma endregion INIT
 
     for (uint iteration = 1; ; ++iteration) {
-        while (!m_isUpdating) {}
+        //while (!m_isUpdating) {}
 
         // use if statements instead of switch due to loop breaks
 #pragma region KLT Tracker
@@ -303,8 +299,8 @@ void AppSolver::run() {
             // draw moved points
             userInput.recoverPoints(imOutUsrInp, camera.K, cv::Mat(camData.actualR), cv::Mat(camData.actualT));
         
-            visPCL.addCamera(camData.extrinsics.back() , camera.K);
-            visPCL.addPoints(_usrPoints3D);
+            //visPCL.addCamera(camData.extrinsics.back() , camera.K);
+            //visPCL.addPoints(_usrPoints3D);
 
             cv::imshow(params.usrInpWinName, imOutUsrInp);
 
@@ -323,7 +319,7 @@ void AppSolver::run() {
                     reconstruction.adjustBundle(camData, pointCloud);
                 }
 
-                // do bundle adjust after loop iteration to avoid "continue" statement
+                // do filteration after loop iteration to avoid "continue" statement
                 if (params.cFProcIt != 0 && (iteration % params.cFProcIt == 1 || params.cFProcIt == 1)) {
                     pointCloud.filterCloud();
                 }
@@ -458,12 +454,13 @@ void AppSolver::run() {
             // draw moved points
             userInput.recoverPoints(imOutUsrInp, camera.K, cv::Mat(camData.actualR), cv::Mat(camData.actualT));
 
-            //visVTK.updatePointCloud(tracking.pointCloud.cloud3D, tracking.pointCloud.cloudRGB, tracking.pointCloud.cloudMask);
+            //visVTK.updatePointCloud(pointCloud.cloud3D, pointCloud.cloudRGB, pointCloud.cloudMask);
             visPCL.updatePointCloud(pointCloud.cloud3D, pointCloud.cloudRGB, pointCloud.cloudMask);
 
-            //visVTK.updateCameras(tracking.getCamPoses(), camera.K);
+            //visVTK.updateCameras(camData.extrinsics, camera.K);
             visPCL.updateCameras(camData.extrinsics);
-            
+            //visVTK.visualize(params.ptCloudWinName + " VTK", params.winSize, cv::viz::Color::black());
+
             cv::imshow(params.usrInpWinName, imOutUsrInp);
 
             std::swap(ofPrevView, ofCurrView);

@@ -7,6 +7,7 @@
             "command": "g++",
             "args": [
                 "-g", "-std=gnu++1z",
+                "-O3",
                 "-g", "Source Files/_app.cpp",
                 "-g", "Source Files/app_solver.cpp",
                 "-g", "Source Files/visualization.cpp",

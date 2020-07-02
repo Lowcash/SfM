@@ -1,7 +1,7 @@
 #include "reconstruction.h"
 
-Reconstruction::Reconstruction(const std::string triangulateMethod, const std::string baMethod, const double baMaxRMSE, const float minDistance, const float maxDistance, const float maxProjectionError, const bool useNormalizePts)
-    : m_triangulateMethod(triangulateMethod), m_baMethod(baMethod), m_baMaxRMSE(baMaxRMSE), m_minDistance(minDistance), m_maxDistance(maxDistance), m_maxProjectionError(maxProjectionError), m_useNormalizePts(useNormalizePts) {}
+Reconstruction::Reconstruction(const std::string triangulateMethod, const std::string baMethod, const double baMaxRMSE, const int baUpdLck, const float minDistance, const float maxDistance, const float maxProjectionError, const bool useNormalizePts)
+    : m_triangulateMethod(triangulateMethod), m_baMethod(baMethod), m_baMaxRMSE(baMaxRMSE), m_baUpdLck(baUpdLck), m_minDistance(minDistance), m_maxDistance(maxDistance), m_maxProjectionError(maxProjectionError), m_useNormalizePts(useNormalizePts), m_numOptimizations(0) {}
 
 void Reconstruction::pointsToRGBCloud(CameraParameters camera, cv::Mat imgColor, cv::Matx33d R, cv::Matx31d t, cv::Mat points3D, cv::Mat inputPts2D, std::vector<cv::Vec3d>& cloud3D, std::vector<cv::Vec3b>& cloudRGB, float minDist, float maxDist, float maxProjErr, std::vector<bool>& mask) {
     //  Project 3D points back to image plane for validation
@@ -33,8 +33,8 @@ void Reconstruction::pointsToRGBCloud(CameraParameters camera, cv::Mat imgColor,
         );
 
         //  set mask to filter bad projected points, points behind camera and points far away from camera
-        //mask.push_back( err <  maxProjErr && pCameraSpace(2) > minDist && pCameraSpace(2) < maxDist );
-        mask.push_back( err <  maxProjErr );
+        mask.push_back( err <  maxProjErr && pCameraSpace(2) > minDist && pCameraSpace(2) < maxDist );
+        //mask.push_back( err <  maxProjErr );
     }
 }
 
@@ -81,6 +81,8 @@ void Reconstruction::adjustBundle(CameraData& cameraData, PointCloud& pointCloud
         return;
     }
 
+    //if (m_numOptimizations > 3) { return; }
+
     // parse camera intrinsic parameters
     cv::Matx14d intrinsics4d (
         cameraData.intrinsics->focal.x,
@@ -121,13 +123,13 @@ void Reconstruction::adjustBundle(CameraData& cameraData, PointCloud& pointCloud
 
     ceres::Problem problem;
 
-    bool isCameraLocked = false; size_t numPtsAdded = 0;
-    for (auto [pMask, pMaskEnd, p, pEnd] = std::tuple{pointCloud.cloudMask.begin(), pointCloud.cloudMask.end(), pointCloud.cloudTracks.begin(), pointCloud.cloudTracks.end()}; pMask != pMaskEnd && p != pEnd; ++pMask, ++p) {
+    bool isBlockLocked = false; size_t numPtsAdded = 0;
+    for (auto [pMask, pMaskEnd, p, pEnd, pIdx] = std::tuple{pointCloud.cloudMask.begin(), pointCloud.cloudMask.end(), pointCloud.cloudTracks.begin(), pointCloud.cloudTracks.end(), 0}; pMask != pMaskEnd && p != pEnd; ++pMask, ++p, ++pIdx) {
         if (!(bool)*pMask) { continue; }
 
         //if (*p->extrinsicsIdxs.rbegin() != pointCloud.cloudSelectedLayer - 1) { continue; }
 
-        for (auto [c, ct, cEnd, ctEnd, idx] = std::tuple{p->projKeys.begin(), p->extrinsicsIdxs.begin(), p->projKeys.end(), p->extrinsicsIdxs.end(), 0}; c != cEnd && ct != ctEnd; ++c, ++ct, ++idx) {
+        for (auto [c, ct, cEnd, ctEnd, tIdx] = std::tuple{p->projKeys.begin(), p->extrinsicsIdxs.begin(), p->projKeys.end(), p->extrinsicsIdxs.end(), 0}; c != cEnd && ct != ctEnd; ++c, ++ct, ++tIdx) {
             cv::Point2f p2d = *c;
             cv::Matx16d* ext = &extrinsics6d[*ct];
 
@@ -139,22 +141,24 @@ void Reconstruction::adjustBundle(CameraData& cameraData, PointCloud& pointCloud
 
             // lock to the first camera to prevent cloud scaling
             // first camera extrinsics will not be updated
-            if (!isCameraLocked) {
+            if (!isBlockLocked || pointCloud.cloudTracks[pIdx].extrinsicsIdxs.size() > m_baUpdLck) {
                 problem.SetParameterBlockConstant(ext->val);
 
-                isCameraLocked = true;
+                isBlockLocked = true;
             }
 
             cameraData.extrinsicsCounter[*ct]++;
         }
+
+        pointCloud.cloudUpdates[pIdx]++;
     }
 
-    if (!isCameraLocked) {
+    if (!isBlockLocked) {
         std::cout << "Minimization is not ready, something went wrong! -> skipping process" << "\n";
 
         return;
     }
-
+    
     // lock to the camera intinsics to prevent cloud scaling
     // camera intinsics will not be updated
     problem.SetParameterBlockConstant(&intrinsics4d(0));
@@ -164,15 +168,10 @@ void Reconstruction::adjustBundle(CameraData& cameraData, PointCloud& pointCloud
     options.linear_solver_type = m_baMethod == "DENSE_SCHUR" ? 
         ceres::LinearSolverType::DENSE_SCHUR : ceres::LinearSolverType::SPARSE_NORMAL_CHOLESKY;
 
-    options.eta = 1e-2;
     options.num_threads = std::thread::hardware_concurrency();
     options.max_num_iterations = 150;
 
-    // options.use_nonmonotonic_steps = true;
-    // options.preconditioner_type = ceres::SCHUR_JACOBI;
-    // options.linear_solver_type = ceres::ITERATIVE_SCHUR;
-    // options.use_inner_iterations = true;
-    // options.max_num_iterations = 100;
+    //options.preconditioner_type = ceres::SCHUR_JACOBI;
 
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
@@ -228,6 +227,9 @@ void Reconstruction::adjustBundle(CameraData& cameraData, PointCloud& pointCloud
         cam(1, 3) = cam6(4); 
         cam(2, 3) = cam6(5);
     }
+
+
+    m_numOptimizations++;
 
     std::cout << "[DONE]\n";
 }
