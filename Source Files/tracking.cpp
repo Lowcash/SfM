@@ -135,9 +135,9 @@ bool Tracking::findRecoveredCameraPose(DescriptorMatcher matcher, int minMatches
     
     std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
 
-    for (auto t = inTrackViews.rbegin(); t != inTrackViews.rend(); ++t) {
+    bool isDone = false;
+    for (auto t = inTrackViews.rbegin(); t != inTrackViews.rend() && !isDone; ++t) {
         if (t->keyPoints.empty() || featView.keyPts.empty()) { continue; }
-        if (_posePoints2D.size() > minMatches) { break; }
 
         std::vector<cv::Point2f> _prevPts, _currPts;
         std::vector<cv::DMatch> _matches;
@@ -171,9 +171,17 @@ bool Tracking::findRecoveredCameraPose(DescriptorMatcher matcher, int minMatches
                     _posePoints3D.push_back(_point3D);
                     
                     outTrackView.ptToCloudMap[std::pair{_point2D.x, _point2D.y}] = t->cloudIdxs[m.queryIdx];
+
+                    // if (_posePoints2D.size() > minMatches) { 
+                    //     isDone = true;
+
+                    //     break; 
+                    // }
                 }  
             }
         }
+
+        isDone = true;
     }
 
     //  Min point filter
