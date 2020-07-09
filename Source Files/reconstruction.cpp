@@ -1,7 +1,7 @@
 #include "reconstruction.h"
 
-Reconstruction::Reconstruction(const std::string triangulateMethod, const std::string baMethod, const double baMaxRMSE, const int baUpdLck, const float minDistance, const float maxDistance, const float maxProjectionError, const bool useNormalizePts)
-    : m_triangulateMethod(triangulateMethod), m_baMethod(baMethod), m_baMaxRMSE(baMaxRMSE), m_baUpdLck(baUpdLck), m_minDistance(minDistance), m_maxDistance(maxDistance), m_maxProjectionError(maxProjectionError), m_useNormalizePts(useNormalizePts), m_numOptimizations(0) {}
+Reconstruction::Reconstruction(const std::string triangulateMethod, const std::string baMethod, const double baMaxRMSE, const float minDistance, const float maxDistance, const float maxProjectionError, const bool useNormalizePts)
+    : m_triangulateMethod(triangulateMethod), m_baMethod(baMethod), m_baMaxRMSE(baMaxRMSE), m_minDistance(minDistance), m_maxDistance(maxDistance), m_maxProjectionError(maxProjectionError), m_useNormalizePts(useNormalizePts), m_numOptimizations(0) {}
 
 void Reconstruction::pointsToRGBCloud(CameraParameters camera, cv::Mat imgColor, cv::Matx33d R, cv::Matx31d t, cv::Mat points3D, cv::Mat inputPts2D, std::vector<cv::Vec3d>& cloud3D, std::vector<cv::Vec3b>& cloudRGB, float minDist, float maxDist, float maxProjErr, std::vector<bool>& mask) {
     //  Project 3D points back to image plane for validation
@@ -81,8 +81,6 @@ void Reconstruction::adjustBundle(CameraData& cameraData, PointCloud& pointCloud
         return;
     }
 
-    //if (m_numOptimizations > 3) { return; }
-
     // parse camera intrinsic parameters
     cv::Matx14d intrinsics4d (
         cameraData.intrinsics->focal.x,
@@ -126,8 +124,6 @@ void Reconstruction::adjustBundle(CameraData& cameraData, PointCloud& pointCloud
     bool isBlockLocked = false; size_t numPtsAdded = 0;
     for (auto [pMask, pMaskEnd, p, pEnd, pIdx] = std::tuple{pointCloud.cloudMask.begin(), pointCloud.cloudMask.end(), pointCloud.cloudTracks.begin(), pointCloud.cloudTracks.end(), 0}; pMask != pMaskEnd && p != pEnd; ++pMask, ++p, ++pIdx) {
         if (!(bool)*pMask) { continue; }
-
-        //if (*p->extrinsicsIdxs.rbegin() != pointCloud.cloudSelectedLayer - 1) { continue; }
 
         for (auto [c, ct, cEnd, ctEnd, tIdx] = std::tuple{p->projKeys.begin(), p->extrinsicsIdxs.begin(), p->projKeys.end(), p->extrinsicsIdxs.end(), 0}; c != cEnd && ct != ctEnd; ++c, ++ct, ++tIdx) {
             cv::Point2f p2d = *c;

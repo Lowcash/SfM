@@ -37,6 +37,7 @@ int main(int argc, char** argv) {
         "{ peThresh  | 0.5         | pose estimation threshold }"
         "{ peMinInl  | 10          | pose estimation in number of homography inliers user for reconstruction }"
         "{ peMinMatch| 50          | pose estimation min matches to break }"
+        "{ peTMaxIter| 1           | pose estimation max track iteration }"
        
         "{ pePMetrod | SOLVEPNP_P3P| pose estimation method ITERATIVE/SOLVEPNP_P3P/SOLVEPNP_AP3P/SOLVEPNP_EPNP }"
         "{ peExGuess | false       | pose estimation use extrinsic guess }"
@@ -44,7 +45,6 @@ int main(int argc, char** argv) {
 
         "{ baMethod  | SPARSE_NORMAL_CHOLESKY | bundle adjustment solver type DENSE_SCHUR/SPARSE_NORMAL_CHOLESKY }"
         "{ baMaxRMSE | 10.0        | bundle adjustment max RMSE error to recover from back up }"
-        "{ baUpdLck  | 5           | bundle adjustment lock block after %d updates }"
         "{ baProcIt  | 5           | bundle adjustment process each %d iteration }"
 
         "{ tMethod   | ITERATIVE   | triangulation method ITERATIVE/DLT }"
@@ -97,7 +97,8 @@ int main(int argc, char** argv) {
     const float peThresh = parser.get<float>("peThresh");
     const int peMinInl = parser.get<int>("peMinInl");
     const int peMinMatch = parser.get<int>("peMinMatch");
-    
+    const int peTMaxIter = parser.get<int>("peTMaxIter");
+
     const std::string pePMetrod = parser.get<std::string>("pePMetrod");
     const bool peExGuess = parser.get<bool>("peExGuess");
     const int peNumIteR = parser.get<int>("peNumIteR");
@@ -105,7 +106,6 @@ int main(int argc, char** argv) {
     //-------------------------- BUNDLE ADJUSTMENT --------------------------//
     const std::string baMethod = parser.get<std::string>("baMethod");
     const double baMaxRMSE = parser.get<double>("baMaxRMSE");
-    const int baUpdLck = parser.get<int>("baUpdLck");
     const int baProcIt = parser.get<int>("baProcIt");
 
     //---------------------------- TRIANGULATION ----------------------------//
@@ -135,7 +135,7 @@ int main(int argc, char** argv) {
     const std::string recPoseWinName = "Recovery pose";
     const std::string matchesWinName = "Matches";
 
-    AppSolver solver(AppSolverDataParams(bUseMethod, ptCloudWinName, usrInpWinName, recPoseWinName, matchesWinName, bSource, bDownSamp, bMaxSkFram, cv::Size(bWinWidth, bWinHeight), cv::Size(cameraWidth, cameraHeight), bDebugVisE, bDebugMatE, fDecType, fMatchType, fKnnRatio, ofMinKPts, ofWinSize, ofMaxLevel, ofMaxItCt, ofItEps, ofMaxError, ofMaxCorn, ofQualLvl, ofMinDist, peMethod, peProb, peThresh, peMinInl, peMinMatch, pePMetrod, peExGuess, peNumIteR, baMethod, baMaxRMSE, baUpdLck, baProcIt, tMethod, tMinDist, tMaxDist, tMaxPErr, cameraK, distCoeffs, cSRemThr, cLSize, cSRange, cFProcIt));
+    AppSolver solver(AppSolverDataParams(bUseMethod, ptCloudWinName, usrInpWinName, recPoseWinName, matchesWinName, bSource, bDownSamp, bMaxSkFram, cv::Size(bWinWidth, bWinHeight), cv::Size(cameraWidth, cameraHeight), bDebugVisE, bDebugMatE, fDecType, fMatchType, fKnnRatio, ofMinKPts, ofWinSize, ofMaxLevel, ofMaxItCt, ofItEps, ofMaxError, ofMaxCorn, ofQualLvl, ofMinDist, peMethod, peProb, peThresh, peMinInl, peMinMatch, pePMetrod, peExGuess, peNumIteR, peTMaxIter, baMethod, baMaxRMSE, baProcIt, tMethod, tMinDist, tMaxDist, tMaxPErr, cameraK, distCoeffs, cSRemThr, cLSize, cSRange, cFProcIt));
 
 #pragma endregion INIT 
     std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();

@@ -145,15 +145,13 @@ private:
 
     const float m_minDistance, m_maxDistance, m_maxProjectionError;
 
-    const int m_baUpdLck;
-
     const bool m_useNormalizePts;
 
     uint m_numOptimizations;
 
     void pointsToRGBCloud(CameraParameters camera, cv::Mat imgColor, cv::Matx33d R, cv::Matx31d t, cv::Mat points3D, cv::Mat inputPts2D, std::vector<cv::Vec3d>& cloud3D, std::vector<cv::Vec3b>& cloudRGB, float minDist, float maxDist, float maxProjErr, std::vector<bool>& mask);
 public:
-    Reconstruction(const std::string triangulateMethod, const std::string baMethod, const double baMaxRMSE, const int baUpdLck, const float minDistance, const float maxDistance, const float maxProjectionError, const bool useNormalizePts);
+    Reconstruction(const std::string triangulateMethod, const std::string baMethod, const double baMaxRMSE, const float minDistance, const float maxDistance, const float maxProjectionError, const bool useNormalizePts);
 
     void triangulateCloud(CameraParameters camera, const std::vector<cv::Point2f> prevPts, const std::vector<cv::Point2f> currPts, const cv::Mat colorImage, std::vector<cv::Vec3d>& points3D, std::vector<cv::Vec3b>& pointsRGB, std::vector<bool>& mask, const cv::Matx34d prevPose, const cv::Matx34d currPose, cv::Matx33d& R, cv::Matx31d& t);
 

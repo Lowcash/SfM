@@ -115,7 +115,7 @@ void AppSolver::run() {
     FeatureView featPrevView, featCurrView;
     FlowView ofPrevView, ofCurrView; 
 
-    Reconstruction reconstruction(params.tMethod, params.baMethod, params.baMaxRMSE, params.baUpdLck, params.tMinDist, params.tMaxDist, params.tMaxPErr, true);
+    Reconstruction reconstruction(params.tMethod, params.baMethod, params.baMaxRMSE, params.tMinDist, params.tMaxDist, params.tMaxPErr, true);
 
     PointCloud pointCloud(params.cSRemThr); 
     Tracking tracking(&pointCloud);
@@ -413,7 +413,7 @@ void AppSolver::run() {
 
             TrackView _trackView;
 
-            if(!tracking.trackViews.empty() && !Tracking::findRecoveredCameraPose(descMatcher, params.peMinMatch, camera, featCurrView, recPose, tracking.trackViews, _trackView, pointCloud)) {
+            if(!tracking.trackViews.empty() && !Tracking::findRecoveredCameraPose(descMatcher, params.peMinMatch, params.peTMaxIter, camera, featCurrView, recPose, tracking.trackViews, _trackView, pointCloud)) {
                 std::cout << "Recovering camera fail, skip current reconstruction iteration!\n";
     
                 std::swap(ofPrevView, ofCurrView);

@@ -85,7 +85,7 @@ public:
      * Find pose between trackViews 
      * It uses PnP alghoritm to return camera pose
      */
-    static bool findRecoveredCameraPose(DescriptorMatcher matcher, int minMatches, CameraParameters camera, FeatureView& featView, RecoveryPose& recPose, std::list<TrackView>& inTrackViews, TrackView& outTrackView, PointCloud& pointCloud);
+    static bool findRecoveredCameraPose(DescriptorMatcher matcher, int minMatches, int maxTrackIter, CameraParameters camera, FeatureView& featView, RecoveryPose& recPose, std::list<TrackView>& inTrackViews, TrackView& outTrackView, PointCloud& pointCloud);
 };
 
 #endif //TRACKING_H
